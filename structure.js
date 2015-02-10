@@ -107,12 +107,9 @@ var PDFFileReader = (function (_super) {
         }
         // TODO: also check that cross_reference.in_use == true
         // TODO: only match endobj at the beginning of lines
-        var obj_content = this.readRangeUntilString(cross_reference.offset, 'endobj');
-        var obj_string = obj_content.buffer.toString('ascii');
-        //var input = new tokenize.TokenizedBuffer(x);
-        //print('object input: %j', obj_content.buffer.toString('ascii'));
-        //var line = input.consumeLine();
-        var object = pdfobject_parser.parse(obj_string);
+        var object_content = this.readRangeUntilString(cross_reference.offset, 'endobj');
+        var object_string = object_content.buffer.toString('ascii');
+        var object = pdfobject_parser.parse(object_string);
         // object is a pdfdom.IndirectObject, but we already knew the object number
         // and generation number; that's how we found it. We only want the value of
         // the object.
