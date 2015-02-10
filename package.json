@@ -1,0 +1,38 @@
+{
+  "name": "pdf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PDF parser",
+  "keywords": ["pdf", "parser"],
+  "homepage": "https://github.com/chbrown/pdf",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/chbrown/pdf.git"
+  },
+  "bugs": {
+    "email": "Christopher Brown <io@henrian.com>",
+    "url": "http://github.com/chbrown/pdf/issues"
+  },
+  "license": "MIT",
+  "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
+  "dependencies": {
+    "adts": "~0.1.0",
+    "async": "*",
+    "js-yaml": "*",
+    "lodash": "*",
+    "loge": "*",
+    "streaming": "*",
+    "yargs": "*"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "pegjs": "*",
+    "typescript": "*"
+  },
+  "bin": {
+    "pdf-dump-structure": "bin/pdf-dump-structure.js"
+  },
+  "scripts": {
+    "test": "mocha test"
+  }
+}
