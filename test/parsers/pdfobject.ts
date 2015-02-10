@@ -1,10 +1,5 @@
 /// <reference path="../../type_declarations/index.d.ts" />
-import fs = require('fs');
-import path = require('path');
 import assert = require('assert');
-
-//var js_yaml = require('js-yaml');
-//var translations = js_yaml.safeLoad(fs.readFileSync(path.join(__dirname, 'pdfobject.yaml'), {encoding: 'utf8'}));
 
 var parser = require('../../parsers/pdfobject');
 
