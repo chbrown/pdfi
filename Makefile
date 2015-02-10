@@ -1,9 +1,13 @@
-all: parsers/pdfobject.js parsers/xref.js
+PEG = $(wildcard parsers/*.pegjs)
+TYPESCRIPT = $(wildcard *.ts dev/*.ts)
 
-export PATH := node_modules/.bin:$(PATH)
+all: $(PEG:%.pegjs=%.js) $(TYPESCRIPT:%.ts=%.js)
 
 %.js: %.pegjs
-	pegjs $+ $@
+	node_modules/.bin/pegjs $+ $@
+
+%.js: %.ts
+	tsc -m commonjs -t ES5 $+
 
 DT_GITHUB := https://raw.githubusercontent.com/borisyankov/DefinitelyTyped/master
 DT_RAWGIT := https://rawgit.com/borisyankov/DefinitelyTyped/master
@@ -15,5 +19,5 @@ type_declarations/DefinitelyTyped/%:
 
 .PHONY: external
 
-EXTERNAL := async/async.d.ts lodash/lodash.d.ts mocha/mocha.d.ts node/node.d.ts yargs/yargs.d.ts
+EXTERNAL := async/async.d.ts lodash/lodash.d.ts mocha/mocha.d.ts node/node.d.ts yargs/yargs.d.ts chalk/chalk.d.ts
 external: $(EXTERNAL:%=type_declarations/DefinitelyTyped/%)
