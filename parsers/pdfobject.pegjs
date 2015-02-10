@@ -10,11 +10,21 @@
 
 OBJECT
   = array:ARRAY { return array; }
+  / indirect_object:INDIRECTOBJECT { return indirect_object; }
+  / reference:REFERENCE { return reference; }
   / dictionary:DICTIONARY { return dictionary; }
   / string:STRING { return string; }
   / name:NAME { return name; }
-  / reference:REFERENCE { return reference; }
   / number:NUMBER { return number; }
+
+INDIRECTOBJECT
+  = object_number:INT SPACE+ generation_number:INT SPACE+ "obj" SPACE+ value:OBJECT SPACE* {
+    return {
+      object_number: object_number,
+      generation_number: generation_number,
+      value: value
+    };
+  }
 
 OBJECTSPACE
   = object:OBJECT SPACE* { return object; }
@@ -80,3 +90,4 @@ SPACE
   = " "
   / "\t"
   / "\n"
+  / "\r"
