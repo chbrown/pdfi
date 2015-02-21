@@ -26,6 +26,7 @@
     "yargs": "*"
   },
   "devDependencies": {
+    "jison": "*",
     "mocha": "*",
     "pegjs": "*",
     "typescript": "*"
