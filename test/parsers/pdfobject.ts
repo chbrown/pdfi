@@ -12,7 +12,7 @@ describe('pdfobject parser', function() {
   it('should parse short binary string', function() {
     var input = `<ea68d4>`;
     var output = [234, 104, 212];
-    assert.deepEqual(parser.parse(input), output);
+    check(input, output);
   });
 
   it('should parse dictionary object with indirect references', function() {
@@ -39,7 +39,7 @@ describe('pdfobject parser', function() {
         [126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139],
       ]
     };
-    assert.deepEqual(parser.parse(input), output);
+    check(input, output);
   });
 
   it('should parse simple dictionary object', function() {
@@ -50,23 +50,25 @@ describe('pdfobject parser', function() {
 /Prev 632196
 /ID (7e19 808b)
 >>`;
-    check(input, {
+    var output = {
       Size: 369,
       Info: 339,
       Root: 342,
       Prev: 632196,
       ID: "7e19 808b",
-    });
+    };
+    check(input, output);
   });
 
   it('should parse real dictionary object', function() {
     var input = `<< /Author (Kenneth Ward Church) /CreationDate (D:20020326140046-05'00') /ModDate (D:20020403103951-05'00') /Title (Char align: A Program for Aligning Parallel Texts at the Character Level) >>`;
-    check(input, {
+    var output = {
       Author: 'Kenneth Ward Church',
       CreationDate: "D:20020326140046-05'00'",
       ModDate: "D:20020403103951-05'00'",
       Title: 'Char align: A Program for Aligning Parallel Texts at the Character Level'
-    });
+    };
+    check(input, output);
   });
 
   it('should parse nested dictionary object', function() {
@@ -97,7 +99,7 @@ describe('pdfobject parser', function() {
       },
       DA: "/Helv 0 Tf 0 g ",
     };
-    assert.deepEqual(parser.parse(input), output);
+    check(input, output);
   });
 
   it('should parse array of names', function() {
@@ -105,7 +107,7 @@ describe('pdfobject parser', function() {
 /PDF /Text /ImageB
 ]`;
     var output = ['PDF', 'Text', 'ImageB'];
-    assert.deepEqual(parser.parse(input), output);
+    check(input, output);
   });
 
   it('should parse array of references', function() {
@@ -117,8 +119,8 @@ describe('pdfobject parser', function() {
       { object_number:  6, generation_number: 0 },
       { object_number:  8, generation_number: 0 },
       { object_number: 10, generation_number: 0 },
-    ]
-    assert.deepEqual(parser.parse(input), output);
+    ];
+    check(input, output);
   });
 
 });

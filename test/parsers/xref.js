@@ -8,7 +8,7 @@ function check(input, expected_output) {
 describe('pdfobject parser', function () {
     it('short xref with trailing newline', function () {
         var input = "xref\n0 2\n0000000000 65535 f\n0000000015 00000 n\n";
-        check(input, [
+        var output = [
             {
                 object_number: 0,
                 offset: 0,
@@ -21,11 +21,12 @@ describe('pdfobject parser', function () {
                 generation_number: 0,
                 in_use: true
             }
-        ]);
+        ];
+        check(input, output);
     });
     it('short xref without trailing newline', function () {
         var input = "xref\n100 3\n0000000197 00000 n\n0000000556 00000 n\n0001000023 00000 n";
-        check(input, [
+        var output = [
             {
                 object_number: 100,
                 offset: 197,
@@ -44,6 +45,7 @@ describe('pdfobject parser', function () {
                 generation_number: 0,
                 in_use: true
             }
-        ]);
+        ];
+        check(input, output);
     });
 });
