@@ -148,16 +148,23 @@ export function open(filepath: string): void {
   term.print('trailer->Root->Pages', Pages);
 
   var pages = <pdfdom.ArrayObject>Pages['Kids'];
+  term.print('Found %d pages', pages.length);
+
+  // iterate through the page objects
+  var page_objects: pdfdom.PDFObject[] = [];
   for (var i = 0, page; (page = pages[i]); i++) {
-    //pages.forEach(function(page: pdfdom.IndirectReference, index: number) {
     var page_object = reader.findObject(<pdfdom.IndirectReference>page, pdf.cross_references);
+    page_objects.push(page_object);
     term.print('Page %d', i, page_object);
+  }
+
+  for (var i = 0, page_object: pdfdom.PDFObject; (page_object = page_objects[i]); i++) {
     // page_object.Contents is a list of IndirectReference instances, or maybe just one
     var page_contents = Array.isArray(page_object['Contents']) ? page_object['Contents'] : [page_object['Contents']];
-    // var contents = reader.findObject(<pdfdom.IndirectReference[]>page_object.Contents, pdf.cross_references);
     for (var j = 0, page_content; (page_content = page_contents[j]); j++) {
       var content_object = reader.findObject(<pdfdom.IndirectReference>page_content, pdf.cross_references);
       term.print('Page %d:%d', i, j, content_object);
     }
   }
+
 }
