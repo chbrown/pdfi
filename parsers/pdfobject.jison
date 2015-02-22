@@ -1,6 +1,7 @@
 %lex
 %x parens
 %x stream
+%x reference
 
 %%
 
@@ -18,7 +19,11 @@
 
 "/"[!-'*-.0-;=?-Z\\^-z|~]+ { return 'NAMESTRING'; }
 
-/*[0-9]+[ \t]+[0-9]+[ \t]+"R" return 'INDIRECT'; // not the best way */
+/* not sure if there's a better way to avoid conflicts with plain integers */
+[0-9]+\s+[0-9]+\s+"R" { this.pushState('reference'); this.unput(yytext); return 'STARTREFERENCE'; }
+<reference>[0-9]+      { return 'DIGITS'; }
+<reference>\s          { }
+<reference>"R"         { this.popState(); return 'ENDREFERENCE'; }
 
 [0-9]+"."[0-9]+ return 'DECIMAL'
 [0-9]+          return 'DIGITS'
@@ -26,14 +31,13 @@
 "true"          return 'BOOLEAN'
 "false"         return 'BOOLEAN'
 
-"<<"[ \t\n\r]*  return '<<'
-[ \t\n\r]*">>"  return '>>'
-"["[ \t\n\r]*   return '['
-[ \t\n\r]*"]"   return ']'
+"<<"            return '<<'
+">>"            return '>>'
+"["             return '['
+"]"             return ']'
 
-[ \t\n\r]+      return 'SPACE'
+[ \t\n\r]      { /* ignore whitespace */ }
 
-"R"             return 'R'
 "."             return '.'
 "obj"           return 'obj'
 
@@ -72,7 +76,6 @@ STREAM
 objects
     : OBJECT { $$ = [$1] }
     | objects OBJECT { $$ = $1; $1.push($2) }
-    | objects SPACE OBJECT { $$ = $1; $1.push($3) }
     ;
 
 
@@ -89,15 +92,15 @@ STRING
     ;
 
 REFERENCE
-    : integer SPACE integer SPACE R { $$ = { object_number: $1, generation_number: $3 } }
+    : STARTREFERENCE integer integer ENDREFERENCE { $$ = { object_number: $2, generation_number: $3 } }
     ;
 
 INDIRECTOBJECT
-    : integer SPACE integer SPACE obj SPACE OBJECT {
+    : integer integer obj OBJECT {
         $$ = {
           object_number: $1,
-          generation_number: $3,
-          value: $5,
+          generation_number: $2,
+          value: $4,
         }
       }
     ;
@@ -111,12 +114,8 @@ DICTIONARY
     ;
 
 keyvaluepairs
-    : NAME OBJECT       { $$ = {}; $$[$1] = $2; } }
-    | NAME SPACE OBJECT { $$ = {}; $$[$1] = $3; } }
-    | keyvaluepairs NAME OBJECT       { $$ = $1; $1[$2] = $3; }
-    | keyvaluepairs NAME SPACE OBJECT { $$ = $1; $1[$2] = $4; }
-    | keyvaluepairs SPACE NAME OBJECT       { $$ = $1; $1[$3] = $4; }
-    | keyvaluepairs SPACE NAME SPACE OBJECT { $$ = $1; $1[$3] = $5; }
+    : NAME OBJECT                { $$ = {}; $$[$1] = $2; }
+    | keyvaluepairs NAME OBJECT  { $$ = $1; $1[$2] = $3; }
     ;
 
 chars
