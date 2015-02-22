@@ -1,5 +1,6 @@
 %lex
 %x parens
+%x stream
 
 %%
 
@@ -36,6 +37,10 @@
 "."             return '.'
 "obj"           return 'obj'
 
+"stream"(\r\n|\n)   { this.pushState('stream'); return 'STARTSTREAM'; }
+<stream>"endstream" { this.popState(); return 'ENDSTREAM'; }
+<stream>.+          { return 'BYTES'; }
+
 <*><<EOF>>      return 'EOF'
 
 /lex
@@ -55,6 +60,13 @@ OBJECT
     | ARRAY { console.log('array') }
     | DICTIONARY { console.log('dictionary') }
     | NAME { console.log('name') }
+    | STREAM { console.log('stream') }
+    ;
+
+STREAM
+    : DICTIONARY STARTSTREAM BYTES ENDSTREAM {
+        $$ = { dictionary: $1, bytes: $3 }
+      }
     ;
 
 objects
