@@ -103,7 +103,7 @@ var PDFFileReader = (function (_super) {
                 break;
         }
         if (cross_reference === undefined) {
-            throw new Error('Could not find a cross reference for ' + reference.object_number + ':' + reference.generation_number);
+            throw new Error("Could not find a cross reference for\n        " + reference.object_number + ":" + reference.generation_number);
         }
         // TODO: also check that cross_reference.in_use == true
         // TODO: only match endobj at the beginning of lines
@@ -112,10 +112,12 @@ var PDFFileReader = (function (_super) {
         var object = pdfobject_parser.parse(object_string);
         // object is a pdfdom.IndirectObject, but we already knew the object number
         // and generation number; that's how we found it. We only want the value of
-        // the object.
-        var value = object.value;
-        term.print('found object with value: %j', value);
-        return value;
+        // the object. But we might as well double check that what we got is what
+        // we were looking for:
+        if (object.object_number != cross_reference.object_number) {
+            throw new Error("PDF cross references are incorrect; the offset\n        " + cross_reference.offset + " does not lead to an object numbered\n        " + cross_reference.object_number + "; instead, the object at that offset is\n        " + object.object_number);
+        }
+        return object.value;
     };
     return PDFFileReader;
 })(FileCursor);
