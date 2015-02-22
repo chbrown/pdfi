@@ -1,10 +1,18 @@
-PEG = $(wildcard parsers/*.pegjs)
-TYPESCRIPT = $(wildcard *.ts dev/*.ts)
+TYPESCRIPT = $(wildcard *.ts dev/*.ts test/parsers/*.ts)
+PARSERS = $(wildcard parsers/*.js)
 
-all: $(PEG:%.pegjs=%.js) $(TYPESCRIPT:%.ts=%.js)
+all: $(TYPESCRIPT:%.ts=%.js) $(PARSERS)
 
-%.js: %.pegjs
-	node_modules/.bin/pegjs $+ $@
+# build the xref parser from TypeScript script
+parsers/xref.js: parsers/xref.ts
+	tsc -m commonjs -t ES5 $+
+
+# build the pdfobject parser from Jison grammar
+parsers/pdfobject.js: parsers/pdfobject.jison
+	node_modules/.bin/jison $+ -m commonjs -p lalr -o $@
+
+# %.js: %.pegjs
+# 	node_modules/.bin/pegjs $+ $@
 
 %.js: %.ts
 	tsc -m commonjs -t ES5 $+
