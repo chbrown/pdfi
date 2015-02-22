@@ -1,4 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import pdfdom = require('../pdfdom');
 
 /** parseEntry()
