@@ -54,7 +54,7 @@ A **Name** is delimited by the `/` character on the left, and any whitespace on 
 **Dictionary** objects consist of a series of key-value pairs (where the keys are all **Names**) delimited by `<<` and `>>` strings. **Type** and **Subtype** names are metadata conventions used to describe the dictionary, but not required. The pairs may be separated by newlines, or maybe each item will simply be separated by a space.
 
 **Stream** objects are delimited by `stream` and `endstream` keywords. Stream objects must be immediately preceded by a **Dictionary** object with the following key-value pairs:
-- `/Length 5190                           % required`
+- `/Length 5190                           % required` -- measures the length of the stream inside the `stream` and `endstream` delimiters, not including a newline after the `stream` keyword.
 - `/Filter /FlateDecode                   % optional` -- can also be an array of names, which are applied in order
 - `/DecodeParms << /K -1 /Columns 2550 >> % optional` -- goes with the Filter; should specify parameters for each Filter in order
 - `/DL 19283                              % optional` -- the length of the completely decoded, decompressed stream, perhaps an approximation
@@ -64,7 +64,7 @@ A **Name** is delimited by the `/` character on the left, and any whitespace on 
 
 The **Null** object is a singleton, literally expressed as `null`, which has the type of "Null".
 
-**Indirect** objects provide a way of referring to an object. E.g.,
+**Indirect** objects (Sec 7.3.10) provide a way of referring to an object. E.g.,
 
     1 0 obj
       (Christopher Brown)
