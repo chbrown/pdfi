@@ -13,34 +13,61 @@
                 // return CLOSEPARENS; else return CHAR
                 return (this.topState() == 'INITIAL') ? 'CLOSEPARENS' : 'CHAR';
               }
-<parens>.     { return 'CHAR' }
+<parens>.     { return 'CHAR'; }
 
+"/"[!-'*-.0-;=?-Z\\^-z|~]+ { return 'NAMESTRING'; }
+
+/*[0-9]+[ \t]+[0-9]+[ \t]+"R" return 'INDIRECT'; // not the best way */
+
+[0-9]+"."[0-9]+ return 'DECIMAL'
 [0-9]+          return 'DIGITS'
 
 "true"          return 'BOOLEAN'
 "false"         return 'BOOLEAN'
 
-"<<"            return '<<'
-">>"            return '>>'
+"<<"[ \t\n\r]*  return '<<'
+[ \t\n\r]*">>"  return '>>'
+"["[ \t\n\r]*   return '['
+[ \t\n\r]*"]"   return ']'
 
 [ \t\n\r]+      return 'SPACE'
 
 "R"             return 'R'
 "."             return '.'
+"obj"           return 'obj'
 
 <*><<EOF>>      return 'EOF'
 
 /lex
 
-%start OBJECT
+%start BODY
 
 %%
 
-OBJECT
-    : STRING { console.log('string'); return $1 }
-    | NUMBER { console.log('number'); return $1 }
-    | REFERENCE { console.log('reference'); return $1 }
+BODY
+    : OBJECT EOF { return $1 }
     ;
+
+OBJECT
+    : STRING { console.log('string') }
+    | NUMBER { console.log('number') }
+    | REFERENCE { console.log('reference') }
+    | ARRAY { console.log('array') }
+    | DICTIONARY { console.log('dictionary') }
+    | NAME { console.log('name') }
+    ;
+
+objects
+    : OBJECT { $$ = [$1] }
+    | objects OBJECT { $$ = $1; $1.push($2) }
+    | objects SPACE OBJECT { $$ = $1; $1.push($3) }
+    ;
+
+
+ARRAY
+    : "[" objects "]" { $$ = $2; }
+    ;
+
 
 STRING
     : HEXSTRING {
@@ -51,6 +78,33 @@ STRING
 
 REFERENCE
     : integer SPACE integer SPACE R { $$ = { object_number: $1, generation_number: $3 } }
+    ;
+
+INDIRECTOBJECT
+    : integer SPACE integer SPACE obj SPACE OBJECT {
+        $$ = {
+          object_number: $1,
+          generation_number: $3,
+          value: $5,
+        }
+      }
+    ;
+
+NAME
+    : NAMESTRING { $$ = $1.slice(1) }
+    ;
+
+DICTIONARY
+    : "<<" keyvaluepairs ">>" { $$ = $2 }
+    ;
+
+keyvaluepairs
+    : NAME OBJECT       { $$ = {}; $$[$1] = $2; } }
+    | NAME SPACE OBJECT { $$ = {}; $$[$1] = $3; } }
+    | keyvaluepairs NAME OBJECT       { $$ = $1; $1[$2] = $3; }
+    | keyvaluepairs NAME SPACE OBJECT { $$ = $1; $1[$2] = $4; }
+    | keyvaluepairs SPACE NAME OBJECT       { $$ = $1; $1[$3] = $4; }
+    | keyvaluepairs SPACE NAME SPACE OBJECT { $$ = $1; $1[$3] = $5; }
     ;
 
 chars
@@ -64,7 +118,7 @@ NUMBER
     ;
 
 float
-    : DIGITS "." DIGITS { $$ = parseFloat($1 + $2 + $3); }
+    : DECIMAL { $$ = parseFloat($1); }
     ;
 
 integer
