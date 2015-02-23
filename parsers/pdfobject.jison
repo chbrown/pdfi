@@ -87,8 +87,11 @@ ARRAY
 
 STRING
     : HEXSTRING {
-      /* handle implied final 0 (PDF32000_2008.pdf:16) */
-      $$ = ($1.length % 2 == 0) ? $1.slice(1, -1) : $1.slice(1, -1) + '0' }
+        /* handle implied final 0 (PDF32000_2008.pdf:16)
+           by adding 0 character to end of odd-length strings */
+        $$ = ($1.length % 2 == 0) ? $1.slice(1, -1) : $1.slice(1, -1) + '0';
+        $$ = $$.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
+      }
     | OPENPARENS chars CLOSEPARENS { $$ = $2.join("") }
     ;
 
