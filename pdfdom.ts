@@ -12,7 +12,7 @@ export class NameObject implements PDFObject {
 
 export interface StringObject extends PDFObject, String {}
 
-export interface ArrayObject extends PDFObject {
+export interface ArrayObject extends PDFObject, Array<PDFObject> {
   [index: number]: PDFObject;
 }
 
@@ -78,6 +78,11 @@ export interface CrossReference {
   offset: number;
   generation_number: number; // non-negative integer
   in_use: boolean;
+}
+
+export interface Stream extends PDFObject {
+  dictionary: DictionaryObject;
+  bytes: string;
 }
 
 export interface PDF {
