@@ -34,8 +34,8 @@
 [0-9]+"."[0-9]+ return 'DECIMAL'
 [0-9]+          return 'DIGITS'
 
-"true"          return 'BOOLEAN'
-"false"         return 'BOOLEAN'
+"true"          return 'TRUE'
+"false"         return 'FALSE'
 
 "<<"            return '<<'
 ">>"            return '>>'
@@ -60,6 +60,7 @@ OBJECT
     : STRING { console.log('string') }
     | NUMBER { console.log('number') }
     | REFERENCE { console.log('reference') }
+    | BOOLEAN { console.log('boolean') }
     | ARRAY { console.log('array') }
     | DICTIONARY { console.log('dictionary') }
     | NAME { console.log('name') }
@@ -136,4 +137,9 @@ float
 
 integer
     : DIGITS { $$ = parseInt($1, 10); }
+    ;
+
+BOOLEAN
+    : TRUE { $$ = true; }
+    | FALSE { $$ = false; }
     ;
