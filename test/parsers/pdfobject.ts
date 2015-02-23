@@ -138,4 +138,10 @@ endobj`;
     check(input, output);
   });
 
+  it('should parse a list of booleans', function() {
+    var input = `[true false true true ]`;
+    var output = [ true, false, true, true, ];
+    check(input, output);
+  });
+
 });
