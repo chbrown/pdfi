@@ -20,10 +20,10 @@
 "/"[!-'*-.0-;=?-Z\\^-z|~]+ { return 'NAMESTRING'; }
 
 /* not sure if there's a better way to avoid conflicts with plain integers */
-[0-9]+\s+[0-9]+\s+"R"   { this.pushState('reference'); this.unput(yytext); return 'STARTREFERENCE'; }
+[0-9]+\s+[0-9]+\s+"R"   { this.pushState('reference'); this.unput(yytext); return 'START_REFERENCE'; }
 <reference>[0-9]+       { return 'DIGITS'; }
 <reference>\s+          { }
-<reference>"R"          { this.popState(); return 'ENDREFERENCE'; }
+<reference>"R"          { this.popState(); return 'END_REFERENCE'; }
 
 [0-9]+\s+[0-9]+\s+"obj" { this.pushState('indirect'); this.unput(yytext); return 'START_INDIRECT_OBJECT_IDENTIFIER'; }
 <indirect>[0-9]+        { return 'DIGITS'; }
@@ -90,7 +90,7 @@ STRING
     ;
 
 REFERENCE
-    : STARTREFERENCE integer integer ENDREFERENCE {
+    : START_REFERENCE integer integer END_REFERENCE {
         $$ = {
           object_number: $2,
           generation_number: $3,
