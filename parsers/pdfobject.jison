@@ -1,7 +1,7 @@
 %lex
 %x parens
-%x stream
 %x reference
+%x indirect
 
 %%
 
@@ -20,10 +20,16 @@
 "/"[!-'*-.0-;=?-Z\\^-z|~]+ { return 'NAMESTRING'; }
 
 /* not sure if there's a better way to avoid conflicts with plain integers */
-[0-9]+\s+[0-9]+\s+"R" { this.pushState('reference'); this.unput(yytext); return 'STARTREFERENCE'; }
-<reference>[0-9]+      { return 'DIGITS'; }
-<reference>\s          { }
-<reference>"R"         { this.popState(); return 'ENDREFERENCE'; }
+[0-9]+\s+[0-9]+\s+"R"   { this.pushState('reference'); this.unput(yytext); return 'STARTREFERENCE'; }
+<reference>[0-9]+       { return 'DIGITS'; }
+<reference>\s+          { }
+<reference>"R"          { this.popState(); return 'ENDREFERENCE'; }
+
+[0-9]+\s+[0-9]+\s+"obj" { this.pushState('indirect'); this.unput(yytext); return 'START_INDIRECT_OBJECT_IDENTIFIER'; }
+<indirect>[0-9]+        { return 'DIGITS'; }
+<indirect>\s+           { }
+<indirect>"obj"         { this.popState(); return 'START_INDIRECT_OBJECT'; }
+"endobj"        return 'END_INDIRECT_OBJECT'
 
 [0-9]+"."[0-9]+ return 'DECIMAL'
 [0-9]+          return 'DIGITS'
@@ -36,14 +42,7 @@
 "["             return '['
 "]"             return ']'
 
-[ \t\n\r]      { /* ignore whitespace */ }
-
-"."             return '.'
-"obj"           return 'obj'
-
-"stream"(\r\n|\n)   { this.pushState('stream'); return 'STARTSTREAM'; }
-<stream>"endstream" { this.popState(); return 'ENDSTREAM'; }
-<stream>.+          { return 'BYTES'; }
+\s+             { /* ignore whitespace */ }
 
 <*><<EOF>>      return 'EOF'
 
@@ -64,13 +63,7 @@ OBJECT
     | ARRAY { console.log('array') }
     | DICTIONARY { console.log('dictionary') }
     | NAME { console.log('name') }
-    | STREAM { console.log('stream') }
-    ;
-
-STREAM
-    : DICTIONARY STARTSTREAM BYTES ENDSTREAM {
-        $$ = { dictionary: $1, bytes: $3 }
-      }
+    | INDIRECT_OBJECT { console.log('indirect_object') }
     ;
 
 objects
@@ -96,15 +89,20 @@ STRING
     ;
 
 REFERENCE
-    : STARTREFERENCE integer integer ENDREFERENCE { $$ = { object_number: $2, generation_number: $3 } }
+    : STARTREFERENCE integer integer ENDREFERENCE {
+        $$ = {
+          object_number: $2,
+          generation_number: $3,
+        }
+      }
     ;
 
-INDIRECTOBJECT
-    : integer integer obj OBJECT {
+INDIRECT_OBJECT
+    : START_INDIRECT_OBJECT_IDENTIFIER integer integer START_INDIRECT_OBJECT OBJECT END_INDIRECT_OBJECT {
         $$ = {
-          object_number: $1,
-          generation_number: $2,
-          value: $4,
+          object_number: $2,
+          generation_number: $3,
+          value: $5,
         }
       }
     ;
