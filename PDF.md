@@ -4,6 +4,7 @@ The primary free version of the PDF specification: [PDF32000_2008.pdf](http://ww
 
 The [GnuPDF Wiki](http://www.gnupdf.org/) seems to be another good resource, too. (E.g., [CCITT_Fax_Filter](http://www.gnupdf.org/CCITT_Fax_Filter).)
 
+
 ### A summary of the basic stuff
 
 PDF includes eight basic types of objects: Boolean values, Integer and Real numbers, Strings, Names, Arrays, Dictionaries, Streams, and the null object.
@@ -21,6 +22,7 @@ Lines in a string literal ending with `\` should ignore the subsequent line brea
 
 Delimiters:
 
+--|-----|-----|-----|---------------------
 ( | 40  | 28  | 50  | LEFT PARENTHESIS
 ) | 41  | 29  | 51  | RIGHT PARENTHESIS
 < | 60  | 3C  | 60  | LESS-THAN SIGN
@@ -32,20 +34,21 @@ Delimiters:
 / | 47  | 2F  | 57  | SOLIDUS
 % | 37  | 25  | 45  | PERCENT SIGN
 
-"Regular characters" are defined as the range [!-~], excluding the above delimiters (PDF32000_2008.pdf:17).
+"Regular characters" are defined as the range `[!-~]`, excluding the above delimiters (PDF32000_2008.pdf:17).
 
 Thus we have
-  !-'
-  *-.
-  0-;
-  =
-  ?-Z
-  \
-  ^-z
-  |
-  ~
 
-Which, in a regex character class, looks like: [!-'*-.0-;=?-Z\\^-z|~]
+    !-'
+    *-.
+    0-;
+    =
+    ?-Z
+    \
+    ^-z
+    |
+    ~
+
+Which, in a regex character class, looks like: `[!-'*-.0-;=?-Z\\^-z|~]`
 
 A **Name** is delimited by the `/` character on the left, and any whitespace on the right. The Name itself not contain the initial slash. If you want funny characters in your Name, like a space or parentheses, you have to escape them with the `#` character. Express the `#` character as `#23`.
 
@@ -95,7 +98,6 @@ A cross-reference section gives byte offsets of where, in the PDF, to find speci
     0000000016 00000 n
     0000000911 00000 n
     0000001006 00000 n
-    end
 
 * `100` is the index of the first of `3` consecutively numbered objects (100, 101, 102)
 * `0000000016` is a 10-digit number denoting the byte offset of object 100
