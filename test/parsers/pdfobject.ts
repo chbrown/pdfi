@@ -11,6 +11,7 @@ function check(input, expected_output) {
 describe('pdfobject parser', function() {
   it('should parse short binary string', function() {
     var input = `<ea68d4>`;
+    // var output = ['ea', '68', 'd4'].map(function(pair) { return parseInt(pair, 16) }
     var output = [234, 104, 212];
     check(input, output);
   });
@@ -120,6 +121,20 @@ describe('pdfobject parser', function() {
       { object_number:  8, generation_number: 0 },
       { object_number: 10, generation_number: 0 },
     ];
+    check(input, output);
+  });
+
+  it('should parse an indirect object', function() {
+    var input = `4 0 obj
+  << /Length 81 >>
+endobj`;
+    var output = {
+      object_number: 4,
+      generation_number: 0,
+      value: {
+        Length: 81,
+      },
+    };
     check(input, output);
   });
 
