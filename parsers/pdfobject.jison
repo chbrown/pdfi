@@ -13,7 +13,13 @@
                 this.popState();
                 // if we just popped all the way out of a parens state stack,
                 // return CLOSEPARENS; else return CHAR
-                return (this.topState() == 'INITIAL') ? 'CLOSEPARENS' : 'CHAR';
+                // jison-lex needs simple return statements, so we don't use a
+                // ternary conditional
+                // return (this.topState() == 'INITIAL') ? 'CLOSEPARENS' : 'CHAR';
+                if (this.topState() == 'INITIAL') {
+                  return 'CLOSEPARENS';
+                }
+                return 'CHAR';
               }
 <parens>.     { return 'CHAR'; }
 
