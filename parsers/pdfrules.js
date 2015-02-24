@@ -1,8 +1,15 @@
 module.exports = [
   {
     condition: 'INITIAL',
-    pattern: /<[A-Fa-f0-9]+>/,
-    action: function() { return 'HEXSTRING'; }
+    pattern: /<([A-Fa-f0-9]+)>/,
+    action: function(match) {
+      // handle implied final 0 (PDF32000_2008.pdf:16)
+      // by adding 0 character to end of odd-length strings
+      var hexstring = match[1];
+      var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
+      this.yytext = padded.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
+      return 'HEXSTRING';
+    }
   },
   {
     condition: 'INITIAL',
