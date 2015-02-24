@@ -110,4 +110,14 @@ describe('pdfobject parser', function () {
         var output = [true, false, true, true,];
         check(input, output);
     });
+    it('should parse a stream', function () {
+        var input = "<< /Length 26 >>\nstream\nhello there\ni am a stream\nendstream";
+        var output = {
+            dictionary: {
+                Length: 26,
+            },
+            value: "hello there\ni am a stream",
+        };
+        check(input, output);
+    });
 });

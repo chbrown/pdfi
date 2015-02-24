@@ -144,4 +144,20 @@ endobj`;
     check(input, output);
   });
 
+  it('should parse a stream', function() {
+    var input = `<< /Length 26 >>
+stream
+hello there
+i am a stream
+endstream`;
+    var output = {
+      dictionary: {
+        Length: 26,
+      },
+      value: `hello there
+i am a stream`,
+    };
+    check(input, output);
+  });
+
 });
