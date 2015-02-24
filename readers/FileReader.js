@@ -1,45 +1,50 @@
-/// <reference path="type_declarations/index.d.ts" />
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
+/// <reference path="../type_declarations/index.d.ts" />
 var fs = require('fs');
-var logger = require('loge');
-var bufferops = require('./bufferops');
-/** A representation of an open file with some helper functions.
+var File = require('../File');
+var bufferops = require('../bufferops');
+/** A representation of an open file with some functions to aid reading.
  */
-var FileCursor = (function () {
-    function FileCursor(filepath) {
-        this.filepath = filepath;
-        this.fd = fs.openSync(filepath, 'r');
-        this.stats = fs.fstatSync(this.fd);
+var FileReader = (function (_super) {
+    __extends(FileReader, _super);
+    function FileReader() {
+        _super.apply(this, arguments);
     }
-    /** FileCursor#readBuffer(length: number): Buffer
-     *
-     * Read the next `length` bytes of the underlying file as a Buffer.
+    FileReader.open = function (filepath) {
+        var fd = fs.openSync(filepath, 'r');
+        return new FileReader(fd);
+    };
+    /**
+    Read the next `length` bytes of the underlying file as a Buffer.
     */
-    FileCursor.prototype.readBuffer = function (length) {
+    FileReader.prototype.readBuffer = function (length) {
         var buffer = new Buffer(length);
-        // Node.js documentation for fs.read():
-        // > position is an integer specifying where to begin reading from in the file.
-        // > If position is null, data will be read from the current file position.
-        var bytesRead = fs.readSync(this.fd, buffer, 0, length, null);
+        var bytesRead = this.read(buffer, 0, length, null);
         if (bytesRead < length) {
             buffer = buffer.slice(0, bytesRead);
         }
         return buffer;
     };
-    /** FileCursor#readBlock(): Buffer
-     *
-     * Read the next block of the underlying file as a Buffer.
+    /**
+    Read the next block of the underlying file as a Buffer.
     */
-    FileCursor.prototype.readBlock = function () {
-        return this.readBuffer(FileCursor.BLOCK_SIZE);
+    FileReader.prototype.readBlock = function () {
+        return this.readBuffer(FileReader.BLOCK_SIZE);
     };
     /**
-     * calls readRangeUntilBuffer(start, needle: Buffer) after converting the
-     * given string to a Buffer
-     */
-    FileCursor.prototype.readRangeUntilString = function (start, needle) {
+    Calls readRangeUntilBuffer(start, needle: Buffer) after converting the
+    given string to a Buffer
+    */
+    FileReader.prototype.readRangeUntilString = function (start, needle) {
         return this.readRangeUntilBuffer(start, new Buffer(needle));
     };
-    /** Starting at 'start', read until EOF or we find `needle`,
+    /**
+     * Starting at 'start', read until EOF or we find `needle`,
      * whichever happens first.
      *
      * 1. If we do find needle, return the intervening content as a Buffer, and
@@ -51,20 +56,20 @@ var FileCursor = (function () {
      * to avoid typeof, etc., comparisons, no? They need some type assertion
      * sugar, too.
      */
-    FileCursor.prototype.readRangeUntilBuffer = function (start, needle) {
+    FileReader.prototype.readRangeUntilBuffer = function (start, needle) {
         var position = start;
         var haystack = new Buffer(0);
         var haystack_search_offset = 0;
-        var block_buffer = new Buffer(FileCursor.BLOCK_SIZE);
-        var bytesRead = FileCursor.BLOCK_SIZE;
-        while (bytesRead == FileCursor.BLOCK_SIZE) {
+        var block_buffer = new Buffer(FileReader.BLOCK_SIZE);
+        var bytesRead = FileReader.BLOCK_SIZE;
+        while (bytesRead == FileReader.BLOCK_SIZE) {
             // we use the position once, to seek, and then set it to null, to use the
             // current position on subsequent reads. Hopefully no one else has seeked
             // on this file descriptor by the next time we use it!
             // TODO: figure out why setting it to null wraps around to the beginning
             //       see s/position += bytesRead;/position = null/ below
-            bytesRead = fs.readSync(this.fd, block_buffer, 0, FileCursor.BLOCK_SIZE, position);
-            //logger.debug('[FileCursor] read %d bytes', bytesRead);
+            bytesRead = this.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
+            //logger.debug('[FileReader] read %d bytes', bytesRead);
             //logger.debug('bytes: %s', block_buffer.toString('ascii', 0, bytesRead));
             position += bytesRead;
             // append new block to stateful buffer; block_buffer may have extra bytes
@@ -83,11 +88,11 @@ var FileCursor = (function () {
                 };
             }
         }
-        logger.debug("FileCursor#readRangeUntilBuffer: failed to find " + needle + " in " + haystack);
+        // logger.debug(`FileReader#readRangeUntilBuffer: failed to find ${needle} in ${haystack}`);
         // we hit EOF before finding needle; return null
         return null;
     };
-    FileCursor.BLOCK_SIZE = 1024;
-    return FileCursor;
-})();
-module.exports = FileCursor;
+    FileReader.BLOCK_SIZE = 1024;
+    return FileReader;
+})(File);
+module.exports = FileReader;

@@ -1,8 +1,7 @@
-/// <reference path="type_declarations/index.d.ts" />
+/// <reference path="../type_declarations/index.d.ts" />
 import fs = require('fs');
-import logger = require('loge');
-
-import bufferops = require('./bufferops');
+import File = require('../File');
+import bufferops = require('../bufferops');
 
 /** ByteRange: used to designate a portion of a file.
  * This allows us to specify where to start
@@ -20,51 +19,45 @@ interface ByteRange {
   end: number;
 }
 
-/** A representation of an open file with some helper functions.
+/** A representation of an open file with some functions to aid reading.
  */
-class FileCursor {
+class FileReader extends File {
   static BLOCK_SIZE = 1024;
 
-  fd: number;
-  stats: fs.Stats;
-  constructor(public filepath: string) {
-    this.fd = fs.openSync(filepath, 'r');
-    this.stats = fs.fstatSync(this.fd);
+  static open(filepath: string): FileReader {
+    var fd = fs.openSync(filepath, 'r');
+    return new FileReader(fd);
   }
 
-  /** FileCursor#readBuffer(length: number): Buffer
-   *
-   * Read the next `length` bytes of the underlying file as a Buffer.
+  /**
+  Read the next `length` bytes of the underlying file as a Buffer.
   */
   readBuffer(length: number): Buffer {
     var buffer = new Buffer(length);
-    // Node.js documentation for fs.read():
-    // > position is an integer specifying where to begin reading from in the file.
-    // > If position is null, data will be read from the current file position.
-    var bytesRead = fs.readSync(this.fd, buffer, 0, length, null);
+    var bytesRead = this.read(buffer, 0, length, null);
     if (bytesRead < length) {
       buffer = buffer.slice(0, bytesRead);
     }
     return buffer;
   }
 
-  /** FileCursor#readBlock(): Buffer
-   *
-   * Read the next block of the underlying file as a Buffer.
+  /**
+  Read the next block of the underlying file as a Buffer.
   */
   readBlock(): Buffer {
-    return this.readBuffer(FileCursor.BLOCK_SIZE);
+    return this.readBuffer(FileReader.BLOCK_SIZE);
   }
 
   /**
-   * calls readRangeUntilBuffer(start, needle: Buffer) after converting the
-   * given string to a Buffer
-   */
+  Calls readRangeUntilBuffer(start, needle: Buffer) after converting the
+  given string to a Buffer
+  */
   readRangeUntilString(start: number, needle: string): ByteRange {
     return this.readRangeUntilBuffer(start, new Buffer(needle));
   }
 
-  /** Starting at 'start', read until EOF or we find `needle`,
+  /**
+   * Starting at 'start', read until EOF or we find `needle`,
    * whichever happens first.
    *
    * 1. If we do find needle, return the intervening content as a Buffer, and
@@ -80,17 +73,17 @@ class FileCursor {
     var position = start;
     var haystack = new Buffer(0);
     var haystack_search_offset = 0;
-    var block_buffer = new Buffer(FileCursor.BLOCK_SIZE);
-    var bytesRead = FileCursor.BLOCK_SIZE;
+    var block_buffer = new Buffer(FileReader.BLOCK_SIZE);
+    var bytesRead = FileReader.BLOCK_SIZE;
     // exit loop once we read fewer bytes than intended (indicating EOF)
-    while (bytesRead == FileCursor.BLOCK_SIZE) {
+    while (bytesRead == FileReader.BLOCK_SIZE) {
       // we use the position once, to seek, and then set it to null, to use the
       // current position on subsequent reads. Hopefully no one else has seeked
       // on this file descriptor by the next time we use it!
       // TODO: figure out why setting it to null wraps around to the beginning
       //       see s/position += bytesRead;/position = null/ below
-      bytesRead = fs.readSync(this.fd, block_buffer, 0, FileCursor.BLOCK_SIZE, position);
-      //logger.debug('[FileCursor] read %d bytes', bytesRead);
+      bytesRead = this.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
+      //logger.debug('[FileReader] read %d bytes', bytesRead);
       //logger.debug('bytes: %s', block_buffer.toString('ascii', 0, bytesRead));
       position += bytesRead;
       // append new block to stateful buffer; block_buffer may have extra bytes
@@ -109,10 +102,10 @@ class FileCursor {
         };
       }
     }
-    logger.debug(`FileCursor#readRangeUntilBuffer: failed to find ${needle} in ${haystack}`);
+    // logger.debug(`FileReader#readRangeUntilBuffer: failed to find ${needle} in ${haystack}`);
     // we hit EOF before finding needle; return null
     return null;
   }
 }
 
-export = FileCursor;
+export = FileReader;
