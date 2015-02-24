@@ -4,18 +4,19 @@
 
 BODY
     : OBJECT EOF { return $1 }
+    | OBJECT OBJECT { return $1 }
     ;
 
 OBJECT
-    : STRING { console.log('string') }
-    | NUMBER { console.log('number') }
-    | REFERENCE { console.log('reference') }
-    | BOOLEAN { console.log('boolean') }
-    | ARRAY { console.log('array') }
-    | DICTIONARY { console.log('dictionary') }
-    | NAME { console.log('name') }
-    | INDIRECT_OBJECT { console.log('indirect_object') }
-    | STREAM { console.log('stream') }
+    : STRING
+    | NUMBER
+    | REFERENCE
+    | BOOLEAN
+    | ARRAY
+    | DICTIONARY
+    | NAME
+    | INDIRECT_OBJECT
+    | STREAM
     ;
 
 objects
@@ -31,12 +32,7 @@ ARRAY
 
 
 STRING
-    : HEXSTRING {
-        /* handle implied final 0 (PDF32000_2008.pdf:16)
-           by adding 0 character to end of odd-length strings */
-        $$ = ($1.length % 2 == 0) ? $1.slice(1, -1) : $1.slice(1, -1) + '0';
-        $$ = $$.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
-      }
+    : HEXSTRING
     | OPENPARENS chars CLOSEPARENS { $$ = $2.join("") }
     ;
 
