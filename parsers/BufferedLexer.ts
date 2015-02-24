@@ -141,7 +141,7 @@ class BufferedLexer implements Lexer {
       }
     }
 
-    throw new Error(`Invalid language; could not find a match in input: ${input}`);
+    throw new Error(`Invalid language; could not find a match in input: "${input}"`);
   }
 
 }

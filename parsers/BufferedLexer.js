@@ -72,7 +72,7 @@ var BufferedLexer = (function () {
                 return token;
             }
         }
-        throw new Error("Invalid language; could not find a match in input: " + input);
+        throw new Error("Invalid language; could not find a match in input: \"" + input + "\"");
     };
     return BufferedLexer;
 })();
