@@ -23,7 +23,7 @@ var File = (function () {
     > If position is null, data will be read from the current file position.
     */
     File.prototype.read = function (buffer, offset, length, position) {
-        return fs.readSync(this.fd, buffer, 0, length, null);
+        return fs.readSync(this.fd, buffer, offset, length, position);
     };
     File.prototype.close = function () {
         fs.closeSync(this.fd);

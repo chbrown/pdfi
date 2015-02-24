@@ -21,7 +21,7 @@ class File {
   > If position is null, data will be read from the current file position.
   */
   read(buffer: Buffer, offset: number, length: number, position: number): number {
-    return fs.readSync(this.fd, buffer, 0, length, null);
+    return fs.readSync(this.fd, buffer, offset, length, position);
   }
 
   close(): void {
