@@ -57,6 +57,25 @@ function parseStartXref(buffer: Buffer): number {
   return parseInt(xref_offset_match[1], 10);
 }
 
+/** findCrossReference()
+
+Helper function for finding a CrossReference in a list of cross references,
+given an IndirectReference, throwing an error if no match is found.
+*/
+
+function findCrossReference(reference: pdfdom.IndirectReference,
+                            cross_references: pdfdom.CrossReference[]): pdfdom.CrossReference {
+  for (var i = 0, cross_reference; (cross_reference = cross_references[i]); i++) {
+  // for (var cross_reference in cross_references) {
+    if (cross_reference.in_use &&
+        cross_reference.object_number === reference.object_number &&
+        cross_reference.generation_number === reference.generation_number) {
+      return cross_reference;
+    }
+  }
+  throw new Error(`Could not find a cross reference for
+    ${reference.object_number}:${reference.generation_number}`);
+}
 
 class PDFFileReader extends FileCursor {
   // the trailer will generally have two important fields: "Root" and "Info",
@@ -105,16 +124,7 @@ class PDFFileReader extends FileCursor {
   */
   findObject(reference: pdfdom.IndirectReference,
              cross_references: pdfdom.CrossReference[]): pdfdom.PDFObject {
-    var cross_reference;
-    for (var i = 0; (cross_reference = cross_references[i]); i++) {
-      // TODO: also check generation number
-      if (cross_reference.object_number === reference.object_number) break;
-    }
-    if (cross_reference === undefined) {
-      throw new Error(`Could not find a cross reference for
-        ${reference.object_number}:${reference.generation_number}`);
-    }
-    // TODO: also check that cross_reference.in_use == true
+    var cross_reference = findCrossReference(reference, cross_references);
     // TODO: only match endobj at the beginning of lines
     var object_content = this.readRangeUntilString(cross_reference.offset, 'endobj');
     var object_string = object_content.buffer.toString('ascii');

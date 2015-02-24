@@ -52,6 +52,20 @@ function parseStartXref(buffer) {
         throw new Error('Could not find final startxref');
     return parseInt(xref_offset_match[1], 10);
 }
+/** findCrossReference()
+
+Helper function for finding a CrossReference in a list of cross references,
+given an IndirectReference, throwing an error if no match is found.
+*/
+function findCrossReference(reference, cross_references) {
+    for (var i = 0, cross_reference; (cross_reference = cross_references[i]); i++) {
+        // for (var cross_reference in cross_references) {
+        if (cross_reference.in_use && cross_reference.object_number === reference.object_number && cross_reference.generation_number === reference.generation_number) {
+            return cross_reference;
+        }
+    }
+    throw new Error("Could not find a cross reference for\n    " + reference.object_number + ":" + reference.generation_number);
+}
 var PDFFileReader = (function (_super) {
     __extends(PDFFileReader, _super);
     // the trailer will generally have two important fields: "Root" and "Info",
@@ -96,16 +110,7 @@ var PDFFileReader = (function (_super) {
        {object_number: number, generation_number: number}
     */
     PDFFileReader.prototype.findObject = function (reference, cross_references) {
-        var cross_reference;
-        for (var i = 0; (cross_reference = cross_references[i]); i++) {
-            // TODO: also check generation number
-            if (cross_reference.object_number === reference.object_number)
-                break;
-        }
-        if (cross_reference === undefined) {
-            throw new Error("Could not find a cross reference for\n        " + reference.object_number + ":" + reference.generation_number);
-        }
-        // TODO: also check that cross_reference.in_use == true
+        var cross_reference = findCrossReference(reference, cross_references);
         // TODO: only match endobj at the beginning of lines
         var object_content = this.readRangeUntilString(cross_reference.offset, 'endobj');
         var object_string = object_content.buffer.toString('ascii');
