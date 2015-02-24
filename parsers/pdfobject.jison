@@ -23,7 +23,7 @@
               }
 <parens>.     { return 'CHAR'; }
 
-"/"[!-'*-.0-;=?-Z\\^-z|~]+ { return 'NAMESTRING'; }
+"/"[!-'*-.0-;=?-Z\\^-z|~]+ { yytext = yytext.slice(1); return 'NAME'; }
 
 /* not sure if there's a better way to avoid conflicts with plain integers */
 [0-9]+\s+[0-9]+\s+"R"   { this.pushState('reference'); this.unput(yytext); return 'START_REFERENCE'; }
@@ -37,8 +37,8 @@
 <indirect>"obj"         { this.popState(); return 'START_INDIRECT_OBJECT'; }
 "endobj"        return 'END_INDIRECT_OBJECT'
 
-[0-9]+"."[0-9]+ return 'DECIMAL'
-[0-9]+          return 'DIGITS'
+[0-9]+"."[0-9]+         { yytext = parseFloat(yytext);   return 'NUMBER'; }
+[0-9]+                  { yytext = parseInt(yytext, 10); return 'NUMBER'; }
 
 "true"          return 'TRUE'
 "false"         return 'FALSE'
@@ -114,10 +114,6 @@ INDIRECT_OBJECT
       }
     ;
 
-NAME
-    : NAMESTRING { $$ = $1.slice(1) }
-    ;
-
 DICTIONARY
     : "<<" keyvaluepairs ">>" { $$ = $2 }
     ;
@@ -130,15 +126,6 @@ keyvaluepairs
 chars
     : CHAR { $$ = [$1] }
     | chars CHAR { $$ = $1; $1.push($2) }
-    ;
-
-NUMBER
-    : float
-    | integer
-    ;
-
-float
-    : DECIMAL { $$ = parseFloat($1); }
     ;
 
 integer
