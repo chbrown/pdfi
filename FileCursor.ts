@@ -32,6 +32,30 @@ class FileCursor {
     this.stats = fs.fstatSync(this.fd);
   }
 
+  /** FileCursor#readBuffer(length: number): Buffer
+   *
+   * Read the next `length` bytes of the underlying file as a Buffer.
+  */
+  readBuffer(length: number): Buffer {
+    var buffer = new Buffer(length);
+    // Node.js documentation for fs.read():
+    // > position is an integer specifying where to begin reading from in the file.
+    // > If position is null, data will be read from the current file position.
+    var bytesRead = fs.readSync(this.fd, buffer, 0, length, null);
+    if (bytesRead < length) {
+      buffer = buffer.slice(0, bytesRead);
+    }
+    return buffer;
+  }
+
+  /** FileCursor#readBlock(): Buffer
+   *
+   * Read the next block of the underlying file as a Buffer.
+  */
+  readBlock(): Buffer {
+    return this.readBuffer(FileCursor.BLOCK_SIZE);
+  }
+
   /**
    * calls readRangeUntilBuffer(start, needle: Buffer) after converting the
    * given string to a Buffer
@@ -85,7 +109,7 @@ class FileCursor {
         };
       }
     }
-    logger.debug('FileCursor failed to find %s in %s', needle, haystack);
+    logger.debug(`FileCursor#readRangeUntilBuffer: failed to find ${needle} in ${haystack}`);
     // we hit EOF before finding needle; return null
     return null;
   }
