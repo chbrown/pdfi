@@ -1,30 +1,23 @@
-var __extends = this.__extends || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
-/// <reference path="../type_declarations/index.d.ts" />
-var fs = require('fs');
-var File = require('../File');
 var bufferops = require('../bufferops');
 /** A representation of an open file with some functions to aid reading.
  */
-var FileReader = (function (_super) {
-    __extends(FileReader, _super);
-    function FileReader() {
-        _super.apply(this, arguments);
+var FileReader = (function () {
+    function FileReader(file) {
+        this.file = file;
     }
-    FileReader.open = function (filepath) {
-        var fd = fs.openSync(filepath, 'r');
-        return new FileReader(fd);
-    };
+    Object.defineProperty(FileReader.prototype, "size", {
+        get: function () {
+            return this.file.size;
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
     Read the next `length` bytes of the underlying file as a Buffer.
     */
     FileReader.prototype.readBuffer = function (length) {
         var buffer = new Buffer(length);
-        var bytesRead = this.read(buffer, 0, length, null);
+        var bytesRead = this.file.read(buffer, 0, length, null);
         if (bytesRead < length) {
             buffer = buffer.slice(0, bytesRead);
         }
@@ -68,7 +61,7 @@ var FileReader = (function (_super) {
             // on this file descriptor by the next time we use it!
             // TODO: figure out why setting it to null wraps around to the beginning
             //       see s/position += bytesRead;/position = null/ below
-            bytesRead = this.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
+            bytesRead = this.file.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
             //logger.debug('[FileReader] read %d bytes', bytesRead);
             //logger.debug('bytes: %s', block_buffer.toString('ascii', 0, bytesRead));
             position += bytesRead;
@@ -94,5 +87,5 @@ var FileReader = (function (_super) {
     };
     FileReader.BLOCK_SIZE = 1024;
     return FileReader;
-})(File);
+})();
 module.exports = FileReader;

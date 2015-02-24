@@ -21,12 +21,13 @@ interface ByteRange {
 
 /** A representation of an open file with some functions to aid reading.
  */
-class FileReader extends File {
+class FileReader {
   static BLOCK_SIZE = 1024;
 
-  static open(filepath: string): FileReader {
-    var fd = fs.openSync(filepath, 'r');
-    return new FileReader(fd);
+  constructor(private file: File) { }
+
+  get size(): number {
+    return this.file.size;
   }
 
   /**
@@ -34,7 +35,7 @@ class FileReader extends File {
   */
   readBuffer(length: number): Buffer {
     var buffer = new Buffer(length);
-    var bytesRead = this.read(buffer, 0, length, null);
+    var bytesRead = this.file.read(buffer, 0, length, null);
     if (bytesRead < length) {
       buffer = buffer.slice(0, bytesRead);
     }
@@ -82,7 +83,7 @@ class FileReader extends File {
       // on this file descriptor by the next time we use it!
       // TODO: figure out why setting it to null wraps around to the beginning
       //       see s/position += bytesRead;/position = null/ below
-      bytesRead = this.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
+      bytesRead = this.file.read(block_buffer, 0, FileReader.BLOCK_SIZE, position);
       //logger.debug('[FileReader] read %d bytes', bytesRead);
       //logger.debug('bytes: %s', block_buffer.toString('ascii', 0, bytesRead));
       position += bytesRead;
