@@ -117,7 +117,7 @@ describe('pdfobject parser', function () {
             dictionary: {
                 Length: 26,
             },
-            value: "hello there\ni am a stream",
+            buffer: new Buffer("hello there\ni am a stream\n"),
         };
         check(input, output);
     });

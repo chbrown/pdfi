@@ -157,8 +157,9 @@ endstream`;
       dictionary: {
         Length: 26,
       },
-      value: `hello there
-i am a stream`,
+      buffer: new Buffer(`hello there
+i am a stream
+`),
     };
     check(input, output);
   });
