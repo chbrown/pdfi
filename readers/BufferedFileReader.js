@@ -2,8 +2,10 @@
 Provide buffered (and Buffer-friendly) access to a file.
 */
 var BufferedFileReader = (function () {
-    function BufferedFileReader(file) {
+    function BufferedFileReader(file, position) {
+        if (position === void 0) { position = 0; }
         this.file = file;
+        this.position = position;
         this.buffer = new Buffer(0);
     }
     /**
@@ -26,7 +28,10 @@ var BufferedFileReader = (function () {
     Returns false iff EOF has been reached, otherwise returns true. */
     BufferedFileReader.prototype.fillBuffer = function (length) {
         var fresh_buffer = new Buffer(length);
-        var bytesRead = this.file.read(fresh_buffer, 0, length, null);
+        // always read from the reader's current position
+        var bytesRead = this.file.read(fresh_buffer, 0, length, this.position);
+        // and update it accordingly
+        this.position += bytesRead;
         // use the Buffer.concat totalLength argument to slice the fresh buffer if needed
         this.buffer = Buffer.concat([this.buffer, fresh_buffer], this.buffer.length + bytesRead);
         return bytesRead < length;

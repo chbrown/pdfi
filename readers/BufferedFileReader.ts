@@ -11,7 +11,7 @@ class BufferedFileReader implements BufferedReader {
   static BLOCK_SIZE = 1024;
   private buffer: Buffer;
 
-  constructor(private file: File) {
+  constructor(private file: File, private position: number = 0) {
     this.buffer = new Buffer(0);
   }
 
@@ -37,7 +37,10 @@ class BufferedFileReader implements BufferedReader {
   Returns false iff EOF has been reached, otherwise returns true. */
   private fillBuffer(length: number): boolean {
     var fresh_buffer = new Buffer(length);
-    var bytesRead = this.file.read(fresh_buffer, 0, length, null);
+    // always read from the reader's current position
+    var bytesRead = this.file.read(fresh_buffer, 0, length, this.position);
+    // and update it accordingly
+    this.position += bytesRead;
     // use the Buffer.concat totalLength argument to slice the fresh buffer if needed
     this.buffer = Buffer.concat([this.buffer, fresh_buffer], this.buffer.length + bytesRead);
     return bytesRead < length;
