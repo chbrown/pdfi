@@ -15,6 +15,7 @@ OBJECT
     | DICTIONARY { console.log('dictionary') }
     | NAME { console.log('name') }
     | INDIRECT_OBJECT { console.log('indirect_object') }
+    | STREAM { console.log('stream') }
     ;
 
 objects
@@ -39,24 +40,29 @@ STRING
     | OPENPARENS chars CLOSEPARENS { $$ = $2.join("") }
     ;
 
-REFERENCE
-    : START_REFERENCE integer integer END_REFERENCE {
+INDIRECT_OBJECT
+    : INDIRECT_OBJECT_IDENTIFIER OBJECT END_INDIRECT_OBJECT {
         $$ = {
-          object_number: $2,
-          generation_number: $3,
+          object_number: $1.object_number,
+          generation_number: $1.generation_number,
+          value: $2,
         }
       }
     ;
 
-INDIRECT_OBJECT
-    : START_INDIRECT_OBJECT_IDENTIFIER integer integer START_INDIRECT_OBJECT OBJECT END_INDIRECT_OBJECT {
-        $$ = {
-          object_number: $2,
-          generation_number: $3,
-          value: $5,
-        }
+STREAM_HEADER
+    : DICTIONARY START_STREAM {
+        // pretty ugly hack right here
+        yy.lexer.stream_length = $1.Length;
       }
     ;
+
+STREAM
+    : STREAM_HEADER STREAM_BUFFER END_STREAM {
+        $$ = { dictionary: $1, buffer: $2 }
+      }
+    ;
+
 
 DICTIONARY
     : "<<" keyvaluepairs ">>" { $$ = $2 }
@@ -70,13 +76,4 @@ keyvaluepairs
 chars
     : CHAR { $$ = [$1] }
     | chars CHAR { $$ = $1; $1.push($2) }
-    ;
-
-integer
-    : DIGITS { $$ = parseInt($1, 10); }
-    ;
-
-BOOLEAN
-    : TRUE { $$ = true; }
-    | FALSE { $$ = false; }
     ;
