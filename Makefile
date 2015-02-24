@@ -1,14 +1,14 @@
-TYPESCRIPT = $(wildcard *.ts dev/*.ts test/parsers/*.ts)
+TYPESCRIPT = $(wildcard *.ts dev/*.ts readers/*.ts test/parsers/*.ts)
 PARSERS = $(wildcard parsers/*.js)
 
 all: $(TYPESCRIPT:%.ts=%.js) $(PARSERS)
 
 # build the xref parser from TypeScript script
-parsers/xref.js: parsers/xref.ts
-	tsc -m commonjs -t ES5 $+
+# parsers/xref.js: parsers/xref.ts
+# 	tsc -m commonjs -t ES5 $+
 
-# build the pdfobject parser from Jison grammar
-parsers/pdfobject.js: parsers/pdfobject.jison
+# build the pdfobject parser script from Jison grammar
+parsers/pdfobject.parser.js: parsers/pdfobject.jison
 	node_modules/.bin/jison $+ -m commonjs -p lalr -o $@
 
 # %.js: %.pegjs
