@@ -22,11 +22,12 @@ function compare(haystack, needle, haystack_offset, haystack_length, needle_leng
 }
 exports.compare = compare;
 /** bufferops#indexOf(haystack: Buffer, needle: Buffer, ...): number
- *
- * Returns the first index of needle within haystack that's greater than or
- * equal to haystack_offset.
- * Returns null if haystack does not contain needle.
- */
+
+Returns the index (within `haystack`) of the first character of the first
+occurrence of `needle` after haystack_offset.
+
+Returns null if haystack does not contain needle.
+*/
 function indexOf(haystack, needle, haystack_offset, haystack_length, needle_length) {
     if (haystack_offset === void 0) { haystack_offset = 0; }
     if (haystack_length === void 0) { haystack_length = haystack.length; }
@@ -40,9 +41,11 @@ function indexOf(haystack, needle, haystack_offset, haystack_length, needle_leng
 }
 exports.indexOf = indexOf;
 /** bufferops#equalTo(left: Buffer, right: Buffer, ...): boolean
- * Returns true iff the designated slices of left and right are equal.
- *   left[left_offset:left_length] == right[right_offset:right_length]
- */
+
+Returns true iff the designated slices of left and right are equal.
+
+    left[left_offset:left_length] == right[right_offset:right_length]
+*/
 function equalTo(left, right, left_offset, left_end, right_offset, right_end) {
     if (left_offset === void 0) { left_offset = 0; }
     if (left_end === void 0) { left_end = left.length - left_offset; }

@@ -23,11 +23,12 @@ export function compare(haystack: Buffer,
 }
 
 /** bufferops#indexOf(haystack: Buffer, needle: Buffer, ...): number
- *
- * Returns the first index of needle within haystack that's greater than or
- * equal to haystack_offset.
- * Returns null if haystack does not contain needle.
- */
+
+Returns the index (within `haystack`) of the first character of the first
+occurrence of `needle` after haystack_offset.
+
+Returns null if haystack does not contain needle.
+*/
 export function indexOf(haystack: Buffer,
                         needle: Buffer,
                         haystack_offset: number = 0,
@@ -42,9 +43,11 @@ export function indexOf(haystack: Buffer,
 }
 
 /** bufferops#equalTo(left: Buffer, right: Buffer, ...): boolean
- * Returns true iff the designated slices of left and right are equal.
- *   left[left_offset:left_length] == right[right_offset:right_length]
- */
+
+Returns true iff the designated slices of left and right are equal.
+
+    left[left_offset:left_length] == right[right_offset:right_length]
+*/
 export function equalTo(left: Buffer, right: Buffer,
                         left_offset: number = 0,
                         left_end: number = left.length - left_offset,
