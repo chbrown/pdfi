@@ -121,6 +121,14 @@ module.exports = [
       return 'START_STREAM';
     },
   },
+  // this is kind of hack to get around Jison not being able to exit immediately
+  {
+    condition: 'INITIAL',
+    pattern: /xref/,
+    action: function(match) {
+      return 'EOF';
+    },
+  },
   // STREAM conditions
   {
     condition: 'STREAM',
