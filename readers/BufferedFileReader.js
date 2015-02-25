@@ -8,6 +8,13 @@ var BufferedFileReader = (function () {
         this.position = position;
         this.buffer = new Buffer(0);
     }
+    Object.defineProperty(BufferedFileReader.prototype, "size", {
+        get: function () {
+            return this.file.size;
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
     Ensure that the available buffer is at least `length` bytes long.
   

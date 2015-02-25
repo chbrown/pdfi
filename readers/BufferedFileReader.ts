@@ -15,6 +15,10 @@ class BufferedFileReader implements BufferedReader {
     this.buffer = new Buffer(0);
   }
 
+  get size(): number {
+    return this.file.size;
+  }
+
   /**
   Ensure that the available buffer is at least `length` bytes long.
 
