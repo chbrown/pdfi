@@ -27,13 +27,6 @@ var FileReader = (function () {
         }
         return buffer;
     };
-    // /**
-    // Calls readRangeUntilBuffer(needle: Buffer) after converting the
-    // given string to a Buffer.
-    // */
-    // readUntilString(needle: string): ByteRange {
-    //   return this.readUntilBuffer(new Buffer(needle));
-    // }
     /**
     Starting at the current position, read until EOF or we find `needle`,
     whichever happens first.
@@ -41,9 +34,11 @@ var FileReader = (function () {
     1. If we do find needle, return the position of it within the file, and set
        the current position to point at the first character of `needle`.
     2. If we can't find it, return null.
+  
+    TODO: add optional fromIndex argument.
     */
-    FileReader.prototype.indexOf = function (needle_string) {
-        var needle = new Buffer(needle_string);
+    FileReader.prototype.indexOf = function (searchValue) {
+        var needle = new Buffer(searchValue);
         var haystack = new Buffer(0);
         var haystack_file_position = this.position;
         var haystack_search_offset = 0;
@@ -70,7 +65,6 @@ var FileReader = (function () {
                 return haystack_file_position + needle_haystack_index;
             }
         }
-        // logger.debug(`FileReader#readRangeUntilBuffer: failed to find ${needle} in ${haystack}`);
         // we hit EOF before finding needle; return null
         return null;
     };
