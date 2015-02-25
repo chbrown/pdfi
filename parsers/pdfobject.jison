@@ -33,6 +33,7 @@ ARRAY
 
 STRING
     : HEXSTRING
+    | OPENPARENS CLOSEPARENS { $$ = "" }
     | OPENPARENS chars CLOSEPARENS { $$ = $2.join("") }
     ;
 
