@@ -99,7 +99,7 @@ module.exports = [
   },
   {
     condition: 'INITIAL',
-    pattern: /[0-9]+\.[0-9]+/,
+    pattern: /-?[0-9]+\.[0-9]+/,
     action: function(match) {
       this.yytext = parseFloat(match[0]);
       return 'NUMBER';
@@ -107,7 +107,7 @@ module.exports = [
   },
   {
     condition: 'INITIAL',
-    pattern: /[0-9]+/,
+    pattern: /-?[0-9]+/,
     action: function(match) {
       this.yytext = parseInt(match[0], 10);
       return 'NUMBER';
