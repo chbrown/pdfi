@@ -4,7 +4,7 @@ import assert = require('assert');
 var parser = require('../../parsers/pdfobject');
 
 function check(input, expected_output) {
-  var output = parser.parse(input);
+  var output = parser.parseString(input);
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected_output)}`;
