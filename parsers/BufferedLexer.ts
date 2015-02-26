@@ -114,6 +114,7 @@ class BufferedLexer implements Lexer {
     while (token === null) {
       token = this.next()
     }
+    // logger.debug(`lex[${token}] ->`, this.yytext);
     return token;
   }
 
@@ -133,8 +134,12 @@ class BufferedLexer implements Lexer {
     for (var i = 0, rule; (rule = current_rules[i]); i++) {
       var match = input.match(rule.pattern);
       if (match) {
-        // logger.info(`match: ${rule.pattern.source}, ${rule.condition}`);
         this.yytext = match[0];
+        this.yyleng = this.yytext.length;
+        var newline_matches = this.yytext.match(/(\r\n|\n|\r)/g);
+        if (newline_matches) {
+          this.yylineno += newline_matches.length;
+        }
         this.reader.skip(this.yytext.length);
         var token = rule.action.call(this, match);
         return token;
