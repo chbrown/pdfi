@@ -1,4 +1,3 @@
-var logger = require('loge');
 var File = require('./File');
 var FileReader = require('./readers/FileReader');
 var BufferedFileReader = require('./readers/BufferedFileReader');
@@ -38,7 +37,6 @@ var PDFReader = (function () {
             throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
         // the reader's position is now pointed at the first character of the "trailer" marker
         var trailer_string = reader.readBuffer(256).toString('ascii');
-        logger.debug("trailer = \"" + trailer_string + "\"");
         // TODO: what if the trailer contains the string "startxref" somewhere?
         var startxref_index = trailer_string.indexOf('startxref');
         if (startxref_index === -1)
@@ -105,7 +103,7 @@ var PDFReader = (function () {
                 return cross_reference;
             }
         }
-        throw new Error("Could not find a cross reference for\n      " + reference.object_number + ":" + reference.generation_number);
+        throw new Error("Could not find a cross reference for " + reference.object_number + ":" + reference.generation_number);
     };
     /**
     Read a specific object from a PDF, given a desired reference and list of cross

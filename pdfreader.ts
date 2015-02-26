@@ -47,7 +47,6 @@ class PDFReader {
     if (trailer_index === null) throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
     // the reader's position is now pointed at the first character of the "trailer" marker
     var trailer_string = reader.readBuffer(256).toString('ascii');
-    logger.debug(`trailer = "${trailer_string}"`);
     // TODO: what if the trailer contains the string "startxref" somewhere?
     var startxref_index = trailer_string.indexOf('startxref');
     if (startxref_index === -1) throw new Error('Could not find "startxref" in trailer');
@@ -115,8 +114,7 @@ class PDFReader {
         return cross_reference;
       }
     }
-    throw new Error(`Could not find a cross reference for
-      ${reference.object_number}:${reference.generation_number}`);
+    throw new Error(`Could not find a cross reference for ${reference.object_number}:${reference.generation_number}`);
   }
 
   /**
