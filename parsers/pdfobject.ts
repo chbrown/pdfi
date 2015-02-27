@@ -9,7 +9,7 @@ import BufferedReader = require('../readers/BufferedReader');
 import BufferedFileReader = require('../readers/BufferedFileReader');
 import BufferedStringReader = require('../readers/BufferedStringReader');
 
-import BufferedLexer = require('./BufferedLexer');
+import JisonLexer = require('./JisonLexer');
 
 function printParseException(reader, exception) {
   console.error(chalk.red(exception.message));
@@ -28,7 +28,7 @@ function printParseException(reader, exception) {
 
 // load the precompiled Jison parser
 var Parser = require('./pdfobject.parser').Parser;
-
+// and the lexing rules
 var pdfrules = require('./pdfrules');
 
 export function parseString(input: string): pdfdom.PDFObject {
@@ -38,7 +38,7 @@ export function parseString(input: string): pdfdom.PDFObject {
 
 export function parse(reader: BufferedReader): pdfdom.PDFObject {
   var parser = new Parser();
-  parser.lexer = new BufferedLexer(pdfrules);
+  parser.lexer = new JisonLexer(pdfrules);
 
   try {
     return parser.parse(reader);

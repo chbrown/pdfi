@@ -3,7 +3,7 @@ var logger = require('loge');
 var chalk = require('chalk');
 var term = require('../dev/term');
 var BufferedStringReader = require('../readers/BufferedStringReader');
-var BufferedLexer = require('./BufferedLexer');
+var JisonLexer = require('./JisonLexer');
 function printParseException(reader, exception) {
     console.error(chalk.red(exception.message));
     return;
@@ -19,6 +19,7 @@ function printParseException(reader, exception) {
 }
 // load the precompiled Jison parser
 var Parser = require('./pdfobject.parser').Parser;
+// and the lexing rules
 var pdfrules = require('./pdfrules');
 function parseString(input) {
     var reader = new BufferedStringReader(input);
@@ -27,7 +28,7 @@ function parseString(input) {
 exports.parseString = parseString;
 function parse(reader) {
     var parser = new Parser();
-    parser.lexer = new BufferedLexer(pdfrules);
+    parser.lexer = new JisonLexer(pdfrules);
     try {
         return parser.parse(reader);
     }
