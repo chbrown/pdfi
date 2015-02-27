@@ -9,7 +9,6 @@ import BufferedFileReader = require('./readers/BufferedFileReader');
 
 import pdfdom = require('./pdfdom');
 import pdfobject_parser = require('./parsers/pdfobject');
-import xref_parser = require('./parsers/xref');
 
 import run = require('./dev/run');
 import term = require('./dev/term');
@@ -37,34 +36,23 @@ class PDFReader {
       123456
       %%EOF
 
+  The trailer dictionary will generally have two important fields: "Root" and
+  "Info", both of which are object references. Size is the number of objects in
+  the document (or maybe just those in the cross references section that
+  immediately follows the trailer?)
+
   TODO: figure out where the trailer starts more intelligently
-  TODO: parse the trailer better
   */
   readTrailer(): pdfdom.DictionaryObject {
     // the trailer should happen somewhere in the last 256 bytes or so
-    var reader = new FileReader(this.file, this.file.size - 256);
-    var trailer_index = reader.indexOf('trailer');
-    if (trailer_index === null) throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
-    // the reader's position is now pointed at the first character of the "trailer" marker
-    var trailer_string = reader.readBuffer(256).toString('ascii');
-    // TODO: what if the trailer contains the string "startxref" somewhere?
-    var startxref_index = trailer_string.indexOf('startxref');
-    if (startxref_index === -1) throw new Error('Could not find "startxref" in trailer');
-    var startxref_string = trailer_string.slice(startxref_index);
+    var simple_reader = new FileReader(this.file, this.file.size - 256);
+    var trailer_index = simple_reader.indexOf('trailer');
+    if (trailer_index === null) {
+      throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
+    }
 
-    var startxref_match = startxref_string.match(/^startxref\s+(\d+)\s+%%EOF/);
-    if (startxref_match === null) throw new Error(`Could not match xref position in "${startxref_string}"`);
-    var startxref = parseInt(startxref_match[1], 10);
-
-    // slice(7, ...) to skip over the "trailer" marker
-    var trailer_object_string = trailer_string.slice(7, startxref_index);
-    var trailer = <pdfdom.DictionaryObject>pdfobject_parser.parseString(trailer_object_string);
-
-    // the cross reference position is technically part of the trailer, so we
-    // store it in the trailer object.
-    trailer['startxref'] = startxref;
-
-    return trailer;
+    var reader = new BufferedFileReader(this.file, trailer_index);
+    return <pdfdom.DictionaryObject>pdfobject_parser.parse(reader);
   }
 
   get trailer(): pdfdom.DictionaryObject {
@@ -75,23 +63,12 @@ class PDFReader {
   }
 
   /**
-  Reads the final xref and trailer from the opened PDF file, returning a
-  minimal pdfdom.PDF structure (just trailer and cross_references)
-
-  The trailer will generally have two important fields: "Root" and "Info",
-  both of which are object references.
+  Reads the xref section referenced from the trailer.
   */
   readCrossReferences(): pdfdom.CrossReference[] {
     // requires reading the trailer, if it hasn't already been read.
-    var reader = new FileReader(this.file, <number>this.trailer['startxref']);
-    // read until EOF
-    var xref_content = reader.readBuffer(65536).toString('ascii');
-    // find and slice up to the trailer
-    var trailer_index = xref_content.indexOf('trailer');
-    if (trailer_index === -1) throw new Error('Could not find "trailer" after xref section');
-    var xref_string = xref_content.slice(0, trailer_index);
-
-    return xref_parser.parse(xref_string);
+    var reader = new BufferedFileReader(this.file, <number>this.trailer['startxref']);
+    return <pdfdom.CrossReference[]>pdfobject_parser.parse(reader);
   }
 
   get cross_references(): pdfdom.CrossReference[] {

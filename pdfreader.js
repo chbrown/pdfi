@@ -2,7 +2,6 @@ var File = require('./File');
 var FileReader = require('./readers/FileReader');
 var BufferedFileReader = require('./readers/BufferedFileReader');
 var pdfobject_parser = require('./parsers/pdfobject');
-var xref_parser = require('./parsers/xref');
 var PDFReader = (function () {
     function PDFReader(file) {
         this.file = file;
@@ -26,33 +25,22 @@ var PDFReader = (function () {
         123456
         %%EOF
   
+    The trailer dictionary will generally have two important fields: "Root" and
+    "Info", both of which are object references. Size is the number of objects in
+    the document (or maybe just those in the cross references section that
+    immediately follows the trailer?)
+  
     TODO: figure out where the trailer starts more intelligently
-    TODO: parse the trailer better
     */
     PDFReader.prototype.readTrailer = function () {
         // the trailer should happen somewhere in the last 256 bytes or so
-        var reader = new FileReader(this.file, this.file.size - 256);
-        var trailer_index = reader.indexOf('trailer');
-        if (trailer_index === null)
+        var simple_reader = new FileReader(this.file, this.file.size - 256);
+        var trailer_index = simple_reader.indexOf('trailer');
+        if (trailer_index === null) {
             throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
-        // the reader's position is now pointed at the first character of the "trailer" marker
-        var trailer_string = reader.readBuffer(256).toString('ascii');
-        // TODO: what if the trailer contains the string "startxref" somewhere?
-        var startxref_index = trailer_string.indexOf('startxref');
-        if (startxref_index === -1)
-            throw new Error('Could not find "startxref" in trailer');
-        var startxref_string = trailer_string.slice(startxref_index);
-        var startxref_match = startxref_string.match(/^startxref\s+(\d+)\s+%%EOF/);
-        if (startxref_match === null)
-            throw new Error("Could not match xref position in \"" + startxref_string + "\"");
-        var startxref = parseInt(startxref_match[1], 10);
-        // slice(7, ...) to skip over the "trailer" marker
-        var trailer_object_string = trailer_string.slice(7, startxref_index);
-        var trailer = pdfobject_parser.parseString(trailer_object_string);
-        // the cross reference position is technically part of the trailer, so we
-        // store it in the trailer object.
-        trailer['startxref'] = startxref;
-        return trailer;
+        }
+        var reader = new BufferedFileReader(this.file, trailer_index);
+        return pdfobject_parser.parse(reader);
     };
     Object.defineProperty(PDFReader.prototype, "trailer", {
         get: function () {
@@ -65,23 +53,12 @@ var PDFReader = (function () {
         configurable: true
     });
     /**
-    Reads the final xref and trailer from the opened PDF file, returning a
-    minimal pdfdom.PDF structure (just trailer and cross_references)
-  
-    The trailer will generally have two important fields: "Root" and "Info",
-    both of which are object references.
+    Reads the xref section referenced from the trailer.
     */
     PDFReader.prototype.readCrossReferences = function () {
         // requires reading the trailer, if it hasn't already been read.
-        var reader = new FileReader(this.file, this.trailer['startxref']);
-        // read until EOF
-        var xref_content = reader.readBuffer(65536).toString('ascii');
-        // find and slice up to the trailer
-        var trailer_index = xref_content.indexOf('trailer');
-        if (trailer_index === -1)
-            throw new Error('Could not find "trailer" after xref section');
-        var xref_string = xref_content.slice(0, trailer_index);
-        return xref_parser.parse(xref_string);
+        var reader = new BufferedFileReader(this.file, this.trailer['startxref']);
+        return pdfobject_parser.parse(reader);
     };
     Object.defineProperty(PDFReader.prototype, "cross_references", {
         get: function () {
