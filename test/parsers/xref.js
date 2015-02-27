@@ -1,8 +1,8 @@
 /// <reference path="../../type_declarations/index.d.ts" />
 var assert = require('assert');
-var parser = require('../../parsers/xref');
+var parser = require('../../parsers/pdfobject');
 function check(input, expected_output) {
-    var output = parser.parse(input);
+    var output = parser.parseString(input);
     var message = "parse result does not match expected output.\n      parse(\"" + input + "\") => " + JSON.stringify(output) + "\n      but should == " + JSON.stringify(expected_output);
     assert.deepEqual(output, expected_output, message);
 }
