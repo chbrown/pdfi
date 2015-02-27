@@ -1,141 +1,232 @@
+// each action function has the BufferedLexer instance bound as `this`,
+// allowing manipulating this.states, or this.lexer.reader (a BufferedReader)
+//
+// interface Rule<T> {
+//   condition: string;
+//   pattern: RegExp;
+//   action: (match: RegExpMatchArray) => [string, any];
+// }
 module.exports = [
   {
     condition: 'INITIAL',
-    pattern: /<([A-Fa-f0-9]+)>/,
+    pattern: /^$/,
+    action: function(match) {
+      return ['EOF', null];
+    }
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^<([A-Fa-f0-9]+)>/,
     action: function(match) {
       // handle implied final 0 (PDF32000_2008.pdf:16)
       // by adding 0 character to end of odd-length strings
       var hexstring = match[1];
       var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
-      this.yytext = padded.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
-      return 'HEXSTRING';
+      var bytes = padded.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
+      return ['HEXSTRING', bytes];
     }
   },
   {
     condition: 'INITIAL',
-    pattern: /true/,
+    pattern: /^true/,
     action: function(match) {
-      this.yytext = true;
-      return 'BOOLEAN';
+      return ['BOOLEAN', true];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /false/,
+    pattern: /^false/,
     action: function(match) {
-      this.yytext = false;
-      return 'BOOLEAN';
+      return ['BOOLEAN', false];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /\s+/,
+    pattern: /^null/,
     action: function(match) {
+      return ['NULL', null];
+    },
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^\s+/,
+    action: function(match) {
+      // skip over whitespace
       return null;
     }
   },
   {
     condition: 'INITIAL',
-    pattern: /\(/,
+    pattern: /^\(/,
     action: function(match) {
-      this.pushState('INPARENS');
-      return 'OPENPARENS';
+      this.states.push('INPARENS');
+      return ['OPENPARENS', null];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /\/[!-'*-.0-;=?-Z\\^-z|~]+/,
+    pattern: /^\/([!-'*-.0-;=?-Z\\^-z|~]+)/,
     action: function(match) {
-      this.yytext = this.yytext.slice(1);
-      return 'NAME';
+      return ['NAME', match[1]];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /<</,
-    action: function() { return '<<'; }
-  },
-  {
-    condition: 'INITIAL',
-    pattern: />>/,
-    action: function() { return '>>'; }
-  },
-  {
-    condition: 'INITIAL',
-    pattern: /\[/,
-    action: function() { return '['; }
-  },
-  {
-    condition: 'INITIAL',
-    pattern: /\]/,
-    action: function() { return ']'; }
-  },
-  {
-    condition: 'INITIAL',
-    pattern: /([0-9]+)\s+([0-9]+)\s+R/,
+    pattern: /^<</,
     action: function(match) {
-      this.yytext = {
-        object_number: parseInt(match[1], 10),
-        generation_number: parseInt(match[2], 10),
-      };
-      return 'REFERENCE';
+      return ['<<', match[0]];
     }
   },
   {
     condition: 'INITIAL',
-    pattern: /([0-9]+)\s+([0-9]+)\s+obj/,
+    pattern: /^>>/,
     action: function(match) {
-      this.yytext = {
-        object_number: parseInt(match[1], 10),
-        generation_number: parseInt(match[2], 10),
-      };
-      return 'INDIRECT_OBJECT_IDENTIFIER';
+      return ['>>', match[0]];
     }
   },
   {
     condition: 'INITIAL',
-    pattern: /endobj/,
-    action: function() { return 'END_INDIRECT_OBJECT'; }
+    pattern: /^\[/,
+    action: function(match) {
+      return ['[', match[0]];
+    }
   },
   {
     condition: 'INITIAL',
-    pattern: /-?[0-9]+\.[0-9]+/,
+    pattern: /^\]/,
     action: function(match) {
-      this.yytext = parseFloat(match[0]);
-      return 'NUMBER';
+      return [']', match[0]];
+    }
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^([0-9]+)\s+([0-9]+)\s+R/,
+    action: function(match) {
+      return ['REFERENCE', {
+        object_number: parseInt(match[1], 10),
+        generation_number: parseInt(match[2], 10),
+      }];
+    }
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^([0-9]+)\s+([0-9]+)\s+obj/,
+    action: function(match) {
+      return ['INDIRECT_OBJECT_IDENTIFIER', {
+        object_number: parseInt(match[1], 10),
+        generation_number: parseInt(match[2], 10),
+      }];
+    }
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^endobj/,
+    action: function(match) {
+      return ['END_INDIRECT_OBJECT', match[0]];
+    }
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^-?[0-9]+\.[0-9]+/,
+    action: function(match) {
+      return ['NUMBER', parseFloat(match[0])];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /-?[0-9]+/,
+    pattern: /^-?[0-9]+/,
     action: function(match) {
-      this.yytext = parseInt(match[0], 10);
-      return 'NUMBER';
+      return ['NUMBER', parseInt(match[0], 10)];
     },
   },
   {
     condition: 'INITIAL',
-    pattern: /stream(\r\n|\n)/,
+    pattern: /^stream(\r\n|\n)/,
     action: function(match) {
-      this.pushState('STREAM');
-      return 'START_STREAM';
+      this.states.push('STREAM');
+      return ['START_STREAM', match[0]];
     },
   },
-  // this is kind of hack to get around Jison not being able to exit immediately
+  /*  trailer
+      << /Info 2 0 R /Root 1 0 R /Size 105 >>
+      startxref
+      123456
+      %%EOF
+  */
   {
     condition: 'INITIAL',
-    pattern: /xref/,
+    pattern: /^trailer/,
     action: function(match) {
-      return 'EOF';
+      // this.states.push('XREF');
+      return ['TRAILER_START', match[0]];
+    },
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^startxref/,
+    action: function(match) {
+      return ['TRAILER_STARTXREF', match[0]];
+    },
+  },
+  {
+    condition: 'INITIAL',
+    pattern: /^%%EOF/,
+    action: function(match) {
+      return ['TRAILER_END', match[0]];
+    },
+  },
+
+  {
+    condition: 'INITIAL',
+    pattern: /^xref\s*(\r\n|\n|\r)/,
+    action: function(match) {
+      this.states.push('XREF');
+      return ['XREF_START', match[0]];
+    },
+  },
+  // XREF conditions
+  {
+    condition: 'XREF',
+    pattern: /^(\d+)\s+(\d+)\s*(\r\n|\n|\r)/,
+    action: function(match) {
+      // this.states.pop();
+      var object_count = parseInt(match[2], 10);
+      for (var i = 0; i < object_count; i++) {
+        this.states.push('XREF_SUBSECTION');
+      }
+
+      return ['XREF_SUBSECTION_HEADER', parseInt(match[1], 10)];
+    },
+  },
+  {
+    condition: 'XREF',
+    pattern: /^/,
+    action: function(match) {
+      this.states.pop();
+      return ['XREF_END', null];
+    },
+  },
+  // XREF_SUBSECTION conditions
+  {
+    condition: 'XREF_SUBSECTION',
+    pattern: /^(\d{10}) (\d{5}) (f|n)( \r| \n|\r\n)/,
+    action: function(match) {
+      this.states.pop();
+      return ['XREF_REFERENCE', {
+        // object_number: object_number,
+        offset: parseInt(match[1], 10),
+        generation_number: parseInt(match[2], 10),
+        in_use: match[3] === 'n',
+      }];
     },
   },
   // STREAM conditions
   {
     condition: 'STREAM',
-    pattern: /endstream/,
+    pattern: /^endstream/,
     action: function(match) {
-      this.popState();
-      return 'END_STREAM';
+      this.states.pop();
+      return ['END_STREAM', match[0]];
     },
   },
   {
@@ -143,32 +234,38 @@ module.exports = [
     pattern: /^/,
     action: function(match) {
       // other side of the dirty lexer<->parser hack
-      this.yytext = this.reader.readBuffer(this.stream_length);
-      // this.buffer = this.buffer.slice(this.yytext.length);
+      var buffer = this.reader.readBuffer(this.stream_length);
       this.stream_length = null;
-      return 'STREAM_BUFFER';
+      return ['STREAM_BUFFER', buffer];
     },
   },
   // INPARENS conditions
   {
     condition: 'INPARENS',
-    pattern: /\(/,
+    pattern: /^\(/,
     action: function(match) {
-      this.pushState('INPARENS');
-      return 'CHAR';
+      this.states.push('INPARENS');
+      return ['CHAR', match[0]];
     },
   },
   {
     condition: 'INPARENS',
-    pattern: /\)/,
+    pattern: /^\)/,
     action: function(match) {
-      this.state_stack.pop();
-      return (this.currentState() == 'INITIAL') ? 'CLOSEPARENS' : 'CHAR';
+      this.states.pop();
+      if (this.states.top === 'INITIAL') {
+        return ['CLOSEPARENS', null];
+      }
+      else {
+        return ['CHAR', match[0]];
+      }
     },
   },
   {
     condition: 'INPARENS',
-    pattern: /./,
-    action: function() { return 'CHAR'; }
+    pattern: /^./,
+    action: function(match) {
+      return ['CHAR', match[0]];
+    }
   },
 ];
