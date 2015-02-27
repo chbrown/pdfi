@@ -72,12 +72,12 @@
   }
 */
 var parser = (function(){
-var o=function(k,v,o,l){for(o=o||{},l=k.length;l--;o[k[l]]=v);return o},$V0=[1,4],$V1=[1,5],$V2=[1,6],$V3=[1,9],$V4=[1,14],$V5=[1,12],$V6=[1,13],$V7=[1,16],$V8=[1,15],$V9=[1,5,7,8,9,12,16,17,18,19,22,23,28,30],$Va=[20,31],$Vb=[7,8,9,12,16,17,18,19,22,28],$Vc=[12,30];
+var o=function(k,v,o,l){for(o=o||{},l=k.length;l--;o[k[l]]=v);return o},$V0=[1,4],$V1=[1,5],$V2=[1,6],$V3=[1,9],$V4=[1,12],$V5=[1,17],$V6=[1,15],$V7=[1,16],$V8=[1,19],$V9=[1,18],$Va=[1,21],$Vb=[1,22],$Vc=[1,5,7,8,9,12,15,19,20,21,22,25,26,31,33,35,42],$Vd=[1,38],$Ve=[23,34],$Vf=[7,8,9,12,15,19,20,21,22,25,31,35,42],$Vg=[37,39],$Vh=[12,33],$Vi=[37,39,41];
 var parser = {trace: function trace() { },
 yy: {},
-symbols_: {"error":2,"BODY":3,"OBJECT":4,"EOF":5,"STRING":6,"NUMBER":7,"REFERENCE":8,"BOOLEAN":9,"ARRAY":10,"DICTIONARY":11,"NAME":12,"INDIRECT_OBJECT":13,"STREAM":14,"objects":15,"[":16,"]":17,"HEXSTRING":18,"OPENPARENS":19,"CLOSEPARENS":20,"chars":21,"INDIRECT_OBJECT_IDENTIFIER":22,"END_INDIRECT_OBJECT":23,"STREAM_HEADER":24,"START_STREAM":25,"STREAM_BUFFER":26,"END_STREAM":27,"<<":28,"keyvaluepairs":29,">>":30,"CHAR":31,"$accept":0,"$end":1},
-terminals_: {2:"error",5:"EOF",7:"NUMBER",8:"REFERENCE",9:"BOOLEAN",12:"NAME",16:"[",17:"]",18:"HEXSTRING",19:"OPENPARENS",20:"CLOSEPARENS",22:"INDIRECT_OBJECT_IDENTIFIER",23:"END_INDIRECT_OBJECT",25:"START_STREAM",26:"STREAM_BUFFER",27:"END_STREAM",28:"<<",30:">>",31:"CHAR"},
-productions_: [0,[3,2],[3,2],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[15,1],[15,2],[10,3],[10,2],[6,1],[6,2],[6,3],[13,3],[24,2],[14,3],[11,3],[29,2],[29,3],[21,1],[21,2]],
+symbols_: {"error":2,"BODY":3,"OBJECT":4,"EOF":5,"STRING":6,"NUMBER":7,"REFERENCE":8,"BOOLEAN":9,"ARRAY":10,"DICTIONARY":11,"NAME":12,"INDIRECT_OBJECT":13,"STREAM":14,"NULL":15,"XREF":16,"TRAILER":17,"objects":18,"[":19,"]":20,"HEXSTRING":21,"OPENPARENS":22,"CLOSEPARENS":23,"chars":24,"INDIRECT_OBJECT_IDENTIFIER":25,"END_INDIRECT_OBJECT":26,"STREAM_HEADER":27,"START_STREAM":28,"STREAM_BUFFER":29,"END_STREAM":30,"<<":31,"keyvaluepairs":32,">>":33,"CHAR":34,"XREF_START":35,"XREF_SUBSECTIONS":36,"XREF_END":37,"XREF_SUBSECTION":38,"XREF_SUBSECTION_HEADER":39,"XREF_REFERENCES":40,"XREF_REFERENCE":41,"TRAILER_START":42,"TRAILER_STARTXREF":43,"TRAILER_END":44,"$accept":0,"$end":1},
+terminals_: {2:"error",5:"EOF",7:"NUMBER",8:"REFERENCE",9:"BOOLEAN",12:"NAME",15:"NULL",19:"[",20:"]",21:"HEXSTRING",22:"OPENPARENS",23:"CLOSEPARENS",25:"INDIRECT_OBJECT_IDENTIFIER",26:"END_INDIRECT_OBJECT",28:"START_STREAM",29:"STREAM_BUFFER",30:"END_STREAM",31:"<<",33:">>",34:"CHAR",35:"XREF_START",37:"XREF_END",39:"XREF_SUBSECTION_HEADER",41:"XREF_REFERENCE",42:"TRAILER_START",43:"TRAILER_STARTXREF",44:"TRAILER_END"},
+productions_: [0,[3,2],[3,2],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[4,1],[18,1],[18,2],[10,3],[10,2],[6,1],[6,2],[6,3],[13,3],[27,2],[14,3],[11,3],[32,2],[32,3],[24,1],[24,2],[16,3],[38,2],[36,1],[36,2],[40,1],[40,2],[17,5]],
 performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate /* action[1] */, $$ /* vstack */, _$ /* lstack */) {
 /* this == yyval */
 
@@ -86,25 +86,25 @@ switch (yystate) {
 case 1: case 2:
  return $$[$0-1] 
 break;
-case 12: case 25:
+case 15: case 28: case 32: case 34:
  this.$ = [$$[$0]] 
 break;
-case 13: case 26:
+case 16: case 29: case 33: case 35:
  this.$ = $$[$0-1]; $$[$0-1].push($$[$0]) 
 break;
-case 14:
+case 17:
  this.$ = $$[$0-1]; 
 break;
-case 15:
+case 18:
  this.$ = []; 
 break;
-case 17:
+case 20:
  this.$ = "" 
 break;
-case 18:
+case 21:
  this.$ = $$[$0-1].join("") 
 break;
-case 19:
+case 22:
 
         this.$ = {
           object_number: $$[$0-2].object_number,
@@ -113,30 +113,52 @@ case 19:
         }
       
 break;
-case 20:
+case 23:
 
         // pretty ugly hack right here
+        // yy is the Jison sharedState
+        // yy.lexer is the JisonLexer-extends-BufferedLexer instance
         yy.lexer.stream_length = $$[$0-1].Length;
       
 break;
-case 21:
+case 24:
 
         this.$ = { dictionary: $$[$0-2], buffer: $$[$0-1] }
       
 break;
-case 22:
+case 25:
  this.$ = $$[$0-1] 
 break;
-case 23:
+case 26:
  this.$ = {}; this.$[$$[$0-1]] = $$[$0]; 
 break;
-case 24:
+case 27:
  this.$ = $$[$0-2]; $$[$0-2][$$[$0-1]] = $$[$0]; 
+break;
+case 30:
+
+        // produce single array
+        this.$ = Array.prototype.concat.apply([], $$[$0-1]);
+      
+break;
+case 31:
+
+        this.$ = $$[$0];
+        for (var i = 0; i < this.$.length; i++) {
+          this.$[i].object_number = $$[$0-1] + i;
+        }
+      
+break;
+case 36:
+
+        this.$ = $$[$0-3];
+        this.$.startxref = $$[$0-1];
+      
 break;
 }
 },
-table: [{3:1,4:2,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,18:$V5,19:$V6,22:$V7,24:17,28:$V8},{1:[3]},{4:19,5:[1,18],6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,18:$V5,19:$V6,22:$V7,24:17,28:$V8},o($V9,[2,3]),o($V9,[2,4]),o($V9,[2,5]),o($V9,[2,6]),o($V9,[2,7]),o($V9,[2,8],{25:[1,20]}),o($V9,[2,9]),o($V9,[2,10]),o($V9,[2,11]),o($V9,[2,16]),{20:[1,21],21:22,31:[1,23]},{4:26,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:24,16:$V4,17:[1,25],18:$V5,19:$V6,22:$V7,24:17,28:$V8},{12:[1,28],29:27},{4:29,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,18:$V5,19:$V6,22:$V7,24:17,28:$V8},{26:[1,30]},{1:[2,1]},{1:[2,2]},{26:[2,20]},o($V9,[2,17]),{20:[1,31],31:[1,32]},o($Va,[2,25]),{4:34,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,17:[1,33],18:$V5,19:$V6,22:$V7,24:17,28:$V8},o($V9,[2,15]),o($Vb,[2,12]),{12:[1,36],30:[1,35]},{4:37,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,18:$V5,19:$V6,22:$V7,24:17,28:$V8},{23:[1,38]},{27:[1,39]},o($V9,[2,18]),o($Va,[2,26]),o($V9,[2,14]),o($Vb,[2,13]),o([1,5,7,8,9,12,16,17,18,19,22,23,25,28,30],[2,22]),{4:40,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,16:$V4,18:$V5,19:$V6,22:$V7,24:17,28:$V8},o($Vc,[2,23]),o($V9,[2,19]),o($V9,[2,21]),o($Vc,[2,24])],
-defaultActions: {18:[2,1],19:[2,2],20:[2,20]},
+table: [{3:1,4:2,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},{1:[3]},{4:24,5:[1,23],6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},o($Vc,[2,3]),o($Vc,[2,4]),o($Vc,[2,5]),o($Vc,[2,6]),o($Vc,[2,7]),o($Vc,[2,8],{28:[1,25]}),o($Vc,[2,9]),o($Vc,[2,10]),o($Vc,[2,11]),o($Vc,[2,12]),o($Vc,[2,13]),o($Vc,[2,14]),o($Vc,[2,19]),{23:[1,26],24:27,34:[1,28]},{4:31,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,18:29,19:$V5,20:[1,30],21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},{12:[1,33],32:32},{4:34,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},{29:[1,35]},{36:36,38:37,39:$Vd},{11:39,31:$V9},{1:[2,1]},{1:[2,2]},{29:[2,23]},o($Vc,[2,20]),{23:[1,40],34:[1,41]},o($Ve,[2,28]),{4:43,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,20:[1,42],21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},o($Vc,[2,18]),o($Vf,[2,15]),{12:[1,45],33:[1,44]},{4:46,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},{26:[1,47]},{30:[1,48]},{37:[1,49],38:50,39:$Vd},o($Vg,[2,32]),{40:51,41:[1,52]},{43:[1,53]},o($Vc,[2,21]),o($Ve,[2,29]),o($Vc,[2,17]),o($Vf,[2,16]),o([1,5,7,8,9,12,15,19,20,21,22,25,26,28,31,33,35,42,43],[2,25]),{4:54,6:3,7:$V0,8:$V1,9:$V2,10:7,11:8,12:$V3,13:10,14:11,15:$V4,16:13,17:14,19:$V5,21:$V6,22:$V7,25:$V8,27:20,31:$V9,35:$Va,42:$Vb},o($Vh,[2,26]),o($Vc,[2,22]),o($Vc,[2,24]),o($Vc,[2,30]),o($Vg,[2,33]),o($Vg,[2,31],{41:[1,55]}),o($Vi,[2,34]),{7:[1,56]},o($Vh,[2,27]),o($Vi,[2,35]),{44:[1,57]},o($Vc,[2,36])],
+defaultActions: {23:[2,1],24:[2,2],25:[2,23]},
 parseError: function parseError(str, hash) {
     if (hash.recoverable) {
         this.trace(str);

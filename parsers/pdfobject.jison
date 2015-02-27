@@ -17,6 +17,9 @@ OBJECT
     | NAME
     | INDIRECT_OBJECT
     | STREAM
+    | NULL
+    | XREF
+    | TRAILER
     ;
 
 objects
@@ -50,6 +53,8 @@ INDIRECT_OBJECT
 STREAM_HEADER
     : DICTIONARY START_STREAM {
         // pretty ugly hack right here
+        // yy is the Jison sharedState
+        // yy.lexer is the JisonLexer-extends-BufferedLexer instance
         yy.lexer.stream_length = $1.Length;
       }
     ;
@@ -73,4 +78,37 @@ keyvaluepairs
 chars
     : CHAR { $$ = [$1] }
     | chars CHAR { $$ = $1; $1.push($2) }
+    ;
+
+XREF
+    : XREF_START XREF_SUBSECTIONS XREF_END {
+        // produce single array
+        $$ = Array.prototype.concat.apply([], $2);
+      }
+    ;
+
+XREF_SUBSECTION
+    : XREF_SUBSECTION_HEADER XREF_REFERENCES {
+        $$ = $2;
+        for (var i = 0; i < $$.length; i++) {
+          $$[i].object_number = $1 + i;
+        }
+      }
+    ;
+
+XREF_SUBSECTIONS
+    : XREF_SUBSECTION { $$ = [$1] }
+    | XREF_SUBSECTIONS XREF_SUBSECTION { $$ = $1; $1.push($2) }
+    ;
+
+XREF_REFERENCES
+    : XREF_REFERENCE { $$ = [$1] }
+    | XREF_REFERENCES XREF_REFERENCE { $$ = $1; $1.push($2) }
+    ;
+
+TRAILER
+    : TRAILER_START DICTIONARY TRAILER_STARTXREF NUMBER TRAILER_END {
+        $$ = $2;
+        $$.startxref = $4;
+      }
     ;
