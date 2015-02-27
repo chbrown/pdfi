@@ -26,7 +26,6 @@ function parseEntry(reader: StringReader, object_number: number): pdfdom.CrossRe
 
 input should look like the following:
 
-    xref
     0 3
     0000000197 00000 n
     0000000556 00000 n
