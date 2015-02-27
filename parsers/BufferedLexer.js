@@ -1,83 +1,74 @@
-var Machine = (function () {
-    function Machine(rules) {
-        // fix each Rule to a standard Rule
-        this.rules = rules.map(function (rule) {
-            rule.pattern = new RegExp('^' + rule.pattern.source);
-            return rule;
-        });
+var Stack = (function () {
+    function Stack(items) {
+        if (items === void 0) { items = []; }
+        this.items = items;
     }
-    Machine.prototype.getRules = function (name) {
-        return this.rules.filter(function (rule) {
-            return rule.condition == name;
-        });
+    Stack.prototype.push = function (item) {
+        return this.items.push(item);
     };
-    return Machine;
+    Stack.prototype.pop = function () {
+        return this.items.pop();
+    };
+    Object.defineProperty(Stack.prototype, "top", {
+        get: function () {
+            return this.items[this.items.length - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Stack.prototype, "size", {
+        get: function () {
+            return this.items.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Stack.prototype.toString = function () {
+        return this.items[this.items.length - 1];
+    };
+    return Stack;
 })();
 var BufferedLexer = (function () {
-    function BufferedLexer(rules, options) {
-        if (options === void 0) { options = { ranges: false }; }
-        this.machine = new Machine(rules);
-        // initialize with empty values
-        this.yytext = '';
-        this.yyleng = 0;
-        this.yylineno = 0;
-        this.yyloc = this.yylloc = {
-            first_line: 1,
-            first_column: 0,
-            last_line: 1,
-            last_column: 0,
-        };
-        this.state_stack = ['INITIAL'];
-        this.options = options;
-    }
-    BufferedLexer.prototype.pushState = function (state) {
-        return this.state_stack.push(state);
-    };
-    BufferedLexer.prototype.popState = function () {
-        return this.state_stack.pop();
-    };
-    BufferedLexer.prototype.currentState = function () {
-        return this.state_stack[this.state_stack.length - 1];
-    };
-    BufferedLexer.prototype.setInput = function (reader, yy) {
-        this.yy = yy;
+    function BufferedLexer(rules, reader) {
+        this.rules = rules;
         this.reader = reader;
-        // this.file_cursor_EOF = false;
-    };
-    BufferedLexer.prototype.lex = function () {
-        var token = null;
-        while (token === null) {
-            token = this.next();
-        }
-        // logger.debug(`lex[${token}] ->`, this.yytext);
-        return token;
-    };
-    BufferedLexer.prototype.next = function () {
-        // pull in some data from the underlying file
-        var buffer = this.reader.peekBuffer(256);
-        // if we ask for 256 bytes and get back 0, we are at EOF
-        if (buffer.length === 0) {
-            return 'EOF';
-        }
-        // TODO: optimize this
-        var input = buffer.toString('ascii');
-        var current_state = this.currentState();
-        var current_rules = this.machine.getRules(current_state);
-        for (var i = 0, rule; (rule = current_rules[i]); i++) {
-            var match = input.match(rule.pattern);
-            if (match) {
-                this.yytext = match[0];
-                this.yyleng = this.yytext.length;
-                var newline_matches = this.yytext.match(/(\r\n|\n|\r)/g);
-                if (newline_matches) {
-                    this.yylineno += newline_matches.length;
+        this.states = new Stack(['INITIAL']);
+    }
+    /**
+    Returns the next available pair from the input reader (usually [token, data]).
+  
+    If the matching rule's action returns null, this will return null.
+    */
+    BufferedLexer.prototype.read = function () {
+        // TODO: abstract out the peekBuffer + toString, back into the reader?
+        //   optimize string conversion
+        var input = this.reader.peekBuffer(256).toString('ascii');
+        var current_state = this.states.top;
+        for (var i = 0, rule; (rule = this.rules[i]); i++) {
+            if (rule.condition === current_state) {
+                var match = input.match(rule.pattern);
+                if (match) {
+                    // var newline_matches = match[0].match(/(\r\n|\n|\r)/g);
+                    // var newlines = newline_matches ? newline_matches.length : 0;
+                    this.reader.skip(match[0].length);
+                    return rule.action.call(this, match);
                 }
-                this.reader.skip(this.yytext.length);
-                var token = rule.action.call(this, match);
-                return token;
             }
         }
         throw new Error("Invalid language; could not find a match in input: \"" + input + "\"");
+    };
+    /**
+    Returns the next available non-null token / symbol output from the input
+    reader (usually a token_data: [string, any] tuple).
+  
+    This will never return null.
+    */
+    BufferedLexer.prototype.next = function () {
+        var result;
+        do {
+            result = this.read();
+        } while (result === null);
+        return result;
     };
     return BufferedLexer;
 })();

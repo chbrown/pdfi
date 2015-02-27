@@ -1,154 +1,75 @@
 import BufferedReader = require('../readers/BufferedReader');
 import logger = require('loge');
 
-interface Location {
-  first_line: number;
-  first_column: number;
-  last_line: number;
-  last_column: number;
-  range?: [number, number];
-}
-
-interface Rule {
+interface Rule<T> {
   pattern: RegExp;
-  action: (match: RegExpMatchArray) => string;
-  condition: string;
+  action: (match: RegExpMatchArray) => T;
+  // condition: string;
 }
 
-class Machine {
-  rules: Rule[];
-
-  constructor(rules: Rule[]) {
-    // fix each Rule to a standard Rule
-    this.rules = rules.map(function(rule) {
-      rule.pattern = new RegExp('^' + (<RegExp>rule.pattern).source);
-      return rule;
-    });
+class Stack {
+  constructor(private items: string[] = []) { }
+  push(item: string) {
+    return this.items.push(item);
   }
-
-  getRules(name: string): Rule[] {
-    return this.rules.filter(function(rule) {
-      return rule.condition == name;
-    });
+  pop(): string {
+    return this.items.pop();
+  }
+  get top(): string {
+    return this.items[this.items.length - 1];
+  }
+  get size(): number {
+    return this.items.length;
+  }
+  toString(): string {
+    return this.items[this.items.length - 1];
   }
 }
 
-interface LexerOptions {
-  ranges: boolean; // defaults to false
-}
+class BufferedLexer<T> {
+  states: Stack = new Stack(['INITIAL']);
 
-interface Lexer {
-  yy: any; // {lexer: [Circular], parser: jison.Parser}
+  constructor(private rules: Rule<T>[], public reader?: BufferedReader) { }
 
-  yytext: any; // the content represented by the current token
-  yyleng: number; // length of yytext
-  yylineno: number; // the current line number in the input
-  yyloc: Location;
-  yylloc: Location; // same as yyloc, except describes the previous location
+  /**
+  Returns the next available pair from the input reader (usually [token, data]).
 
-  options: LexerOptions;
-
-  setInput(input: any, yy: any): void;
-  lex(): string;
-
-  /** For error messages:
-    lexer.match: string
-    lexer.yylineno: number
-    lexer.showPosition(): string
+  If the matching rule's action returns null, this will return null.
   */
-}
+  read(): T {
+    // TODO: abstract out the peekBuffer + toString, back into the reader?
+    //   optimize string conversion
+    var input = this.reader.peekBuffer(256).toString('ascii');
 
-class BufferedLexer implements Lexer {
-  // interface:
-  yy: any;
-  yytext: any;
-  yyleng: number;
-  yylineno: number;
-  yyloc: Location;
-  yylloc: Location;
-  options: LexerOptions;
-  // implementation
-  machine: Machine;
-  state_stack: string[];
-  reader: BufferedReader;
-
-  pushState(state: string) {
-    return this.state_stack.push(state);
-  }
-  popState(): string {
-    return this.state_stack.pop();
-  }
-  currentState(): string {
-    return this.state_stack[this.state_stack.length - 1];
-  }
-
-  constructor(rules: Rule[], options: LexerOptions = {ranges: false}) {
-    this.machine = new Machine(rules);
-
-    // initialize with empty values
-    this.yytext = '';
-    this.yyleng = 0;
-    this.yylineno = 0;
-    this.yyloc = this.yylloc = {
-      first_line: 1,
-      first_column: 0,
-      last_line: 1,
-      last_column: 0,
-    };
-
-    this.state_stack = ['INITIAL'];
-
-    this.options = options;
-  }
-
-  setInput(reader: BufferedReader, yy: any): void {
-    this.yy = yy;
-
-    this.reader = reader;
-    // this.file_cursor_EOF = false;
-  }
-
-  lex(): string {
-    var token: string = null;
-    // parse until we get a non-null token
-    while (token === null) {
-      token = this.next()
-    }
-    // logger.debug(`lex[${token}] ->`, this.yytext);
-    return token;
-  }
-
-  next(): string {
-    // pull in some data from the underlying file
-    var buffer = this.reader.peekBuffer(256);
-    // if we ask for 256 bytes and get back 0, we are at EOF
-    if (buffer.length === 0) {
-      return 'EOF';
-    }
-
-    // TODO: optimize this
-    var input = buffer.toString('ascii');
-
-    var current_state = this.currentState();
-    var current_rules = this.machine.getRules(current_state);
-    for (var i = 0, rule; (rule = current_rules[i]); i++) {
-      var match = input.match(rule.pattern);
-      if (match) {
-        this.yytext = match[0];
-        this.yyleng = this.yytext.length;
-        var newline_matches = this.yytext.match(/(\r\n|\n|\r)/g);
-        if (newline_matches) {
-          this.yylineno += newline_matches.length;
+    var current_state = this.states.top;
+    for (var i = 0, rule; (rule = this.rules[i]); i++) {
+      if (rule.condition === current_state) {
+        var match = input.match(rule.pattern);
+        if (match) {
+          // var newline_matches = match[0].match(/(\r\n|\n|\r)/g);
+          // var newlines = newline_matches ? newline_matches.length : 0;
+          this.reader.skip(match[0].length);
+          return rule.action.call(this, match);
         }
-        this.reader.skip(this.yytext.length);
-        var token = rule.action.call(this, match);
-        return token;
       }
     }
 
     throw new Error(`Invalid language; could not find a match in input: "${input}"`);
   }
 
+  /**
+  Returns the next available non-null token / symbol output from the input
+  reader (usually a token_data: [string, any] tuple).
+
+  This will never return null.
+  */
+  next(): T {
+    var result;
+    do {
+      result = this.read();
+    } while (result === null);
+    return result;
+  }
 }
 
 export = BufferedLexer;
