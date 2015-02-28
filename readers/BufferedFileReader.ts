@@ -9,15 +9,23 @@ Provide buffered (and Buffer-friendly) access to a file.
 class BufferedFileReader implements BufferedReader {
   // when reading more data, pull in chunks of `BLOCK_SIZE` bytes.
   static BLOCK_SIZE = 1024;
-  private buffer: Buffer;
+  private buffer: Buffer = new Buffer(0);
 
-  constructor(private file: File, private position: number = 0) {
-    this.buffer = new Buffer(0);
-  }
+  constructor(private file: File, private file_position: number = 0) { }
 
   get size(): number {
     return this.file.size;
   }
+
+  /**
+  Return the position in the file that would be read from if we called
+  readBuffer(...). This is different from the internally-held position, which
+  points to the end of the currently held buffer.
+  */
+  get position(): number {
+    return this.file_position - this.buffer.length;
+  }
+
 
   /**
   Ensure that the available buffer is at least `length` bytes long.
@@ -43,9 +51,9 @@ class BufferedFileReader implements BufferedReader {
   private fillBuffer(length: number): boolean {
     var buffer = new Buffer(length);
     // always read from the reader's current position
-    var bytesRead = this.file.read(buffer, 0, length, this.position);
+    var bytesRead = this.file.read(buffer, 0, length, this.file_position);
     // and update it accordingly
-    this.position += bytesRead;
+    this.file_position += bytesRead;
     // use the Buffer.concat totalLength argument to slice the fresh buffer if needed
     this.buffer = Buffer.concat([this.buffer, buffer], this.buffer.length + bytesRead);
     return bytesRead < length;
