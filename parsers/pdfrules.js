@@ -139,14 +139,6 @@ module.exports = [
       return ['NUMBER', parseInt(match[0], 10)];
     },
   },
-  {
-    condition: 'INITIAL',
-    pattern: /^stream(\r\n|\n)/,
-    action: function(match) {
-      this.states.push('STREAM');
-      return ['START_STREAM', match[0]];
-    },
-  },
   /*  trailer
       << /Info 2 0 R /Root 1 0 R /Size 105 >>
       startxref
@@ -220,15 +212,35 @@ module.exports = [
       }];
     },
   },
-  // STREAM conditions
+  // STREAM handling
+  /**
+  From PDF32000_2008.pdf:7.3.8
+  > The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE RETURN alone.
+  */
+  {
+    condition: 'INITIAL',
+    pattern: /^stream(\r\n|\n)/,
+    action: function(match) {
+      this.states.push('STREAM');
+      return ['START_STREAM', match[0]];
+    },
+  },
+  /**
+  From PDF32000_2008.pdf:7.3.8
+  > There should be an end-of-line marker after the data and before endstream; this marker shall not be included in the stream length. There shall not be any extra bytes, other than white space, between endstream and endobj.
+  */
   {
     condition: 'STREAM',
-    pattern: /^endstream/,
+    pattern: /^\s*(\r\n|\n|\r)\s*endstream/,
     action: function(match) {
       this.states.pop();
       return ['END_STREAM', match[0]];
     },
   },
+  /**
+  From PDF32000_2008.pdf:7.3.8
+  > The sequence of bytes that make up a stream lie between the end-of-line marker following the stream keyword and the endstream keyword; the stream dictionary specifies the exact number of bytes.
+  */
   {
     condition: 'STREAM',
     pattern: /^/,
