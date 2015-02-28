@@ -32,8 +32,14 @@ var BufferedLexer = (function () {
     function BufferedLexer(rules, reader) {
         this.rules = rules;
         this.reader = reader;
-        this.states = new Stack(['INITIAL']);
+        this.reset();
     }
+    /**
+    Reset the Lexer back to its initial state.
+    */
+    BufferedLexer.prototype.reset = function () {
+        this.states = new Stack(['INITIAL']);
+    };
     /**
     Returns the next available pair from the input reader (usually [token, data]).
   

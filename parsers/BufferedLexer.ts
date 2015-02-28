@@ -27,9 +27,18 @@ class Stack {
 }
 
 class BufferedLexer<T> {
-  states: Stack = new Stack(['INITIAL']);
+  states: Stack;
 
-  constructor(private rules: Rule<T>[], public reader?: BufferedReader) { }
+  constructor(private rules: Rule<T>[], public reader?: BufferedReader) {
+    this.reset();
+  }
+
+  /**
+  Reset the Lexer back to its initial state.
+  */
+  reset(): void {
+    this.states = new Stack(['INITIAL'])
+  }
 
   /**
   Returns the next available pair from the input reader (usually [token, data]).
