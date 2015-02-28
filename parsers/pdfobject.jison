@@ -1,5 +1,3 @@
-%start BODY
-
 %%
 
 BODY
