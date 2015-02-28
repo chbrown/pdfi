@@ -1,9 +1,10 @@
 /// <reference path="../../type_declarations/index.d.ts" />
 import assert = require('assert');
 
-var parser = require('../../parsers/pdfobject');
+var PDFObjectParser = require('../../parsers/PDFObjectParser');
 
 function check(input, expected_output) {
+  var parser = new PDFObjectParser();
   var output = parser.parseString(input);
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}

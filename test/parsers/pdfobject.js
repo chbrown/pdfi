@@ -1,7 +1,8 @@
 /// <reference path="../../type_declarations/index.d.ts" />
 var assert = require('assert');
-var parser = require('../../parsers/pdfobject');
+var PDFObjectParser = require('../../parsers/PDFObjectParser');
 function check(input, expected_output) {
+    var parser = new PDFObjectParser();
     var output = parser.parseString(input);
     var message = "parse result does not match expected output.\n      parse(\"" + input + "\") => " + JSON.stringify(output) + "\n      but should == " + JSON.stringify(expected_output);
     assert.deepEqual(output, expected_output, message);
@@ -51,6 +52,39 @@ describe('pdfobject parser', function () {
             CreationDate: "D:20020326140046-05'00'",
             ModDate: "D:20020403103951-05'00'",
             Title: 'Char align: A Program for Aligning Parallel Texts at the Character Level'
+        };
+        check(input, output);
+    });
+    it('should parse real dictionary object #2', function () {
+        var input = "<< /Contents [ 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R 22 0 R 23 0 R 24 0 R ] /CropBox [ 0 0 612 792 ] /MediaBox [ 0 0 612 792 ] /Parent 5 0 R /Resources << /Font << /F0 25 0 R /F1 26 0 R /F2 27 0 R >> /ProcSet 28 0 R /XObject << /Im1 29 0 R >> >> /Rotate 0 /Thumb 30 0 R /Type /Page >>";
+        var output = {
+            Contents: [
+                { object_number: 17, generation_number: 0 },
+                { object_number: 18, generation_number: 0 },
+                { object_number: 19, generation_number: 0 },
+                { object_number: 20, generation_number: 0 },
+                { object_number: 21, generation_number: 0 },
+                { object_number: 22, generation_number: 0 },
+                { object_number: 23, generation_number: 0 },
+                { object_number: 24, generation_number: 0 },
+            ],
+            CropBox: [0, 0, 612, 792],
+            MediaBox: [0, 0, 612, 792],
+            Parent: { object_number: 5, generation_number: 0 },
+            Resources: {
+                Font: {
+                    F0: { object_number: 25, generation_number: 0 },
+                    F1: { object_number: 26, generation_number: 0 },
+                    F2: { object_number: 27, generation_number: 0 },
+                },
+                ProcSet: { object_number: 28, generation_number: 0 },
+                XObject: {
+                    Im1: { object_number: 29, generation_number: 0 },
+                }
+            },
+            Rotate: 0,
+            Thumb: { object_number: 30, generation_number: 0 },
+            Type: "Page"
         };
         check(input, output);
     });

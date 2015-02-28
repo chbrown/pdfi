@@ -29,3 +29,6 @@ type_declarations/DefinitelyTyped/%:
 
 EXTERNAL := async/async.d.ts lodash/lodash.d.ts mocha/mocha.d.ts node/node.d.ts yargs/yargs.d.ts chalk/chalk.d.ts
 external: $(EXTERNAL:%=type_declarations/DefinitelyTyped/%)
+
+test: all
+	node_modules/.bin/mocha --recursive test/
