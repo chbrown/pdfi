@@ -1,9 +1,9 @@
 /// <reference path="../../type_declarations/index.d.ts" />
 var assert = require('assert');
-var PDFObjectParser = require('../../parsers/PDFObjectParser');
+var PDF = require('../../PDF');
 function check(input, expected_output) {
-    var parser = new PDFObjectParser();
-    var output = parser.parseString(input);
+    var pdf = new PDF();
+    var output = pdf.parseString(input);
     var message = "parse result does not match expected output.\n      parse(\"" + input + "\") => " + JSON.stringify(output) + "\n      but should == " + JSON.stringify(expected_output);
     assert.deepEqual(output, expected_output, message);
 }
@@ -146,12 +146,12 @@ describe('pdfobject parser', function () {
         check(input, output);
     });
     it('should parse a stream', function () {
-        var input = "<< /Length 26 >>\nstream\nhello there\ni am a stream\nendstream";
+        var input = "<< /Length 25 >>\nstream\nhello there\ni am a stream\nendstream";
         var output = {
             dictionary: {
-                Length: 26,
+                Length: 25,
             },
-            buffer: new Buffer("hello there\ni am a stream\n"),
+            buffer: new Buffer("hello there\ni am a stream"),
         };
         check(input, output);
     });

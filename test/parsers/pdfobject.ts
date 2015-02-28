@@ -1,11 +1,11 @@
 /// <reference path="../../type_declarations/index.d.ts" />
 import assert = require('assert');
 
-var PDFObjectParser = require('../../parsers/PDFObjectParser');
+var PDF = require('../../PDF');
 
 function check(input, expected_output) {
-  var parser = new PDFObjectParser();
-  var output = parser.parseString(input);
+  var pdf = new PDF();
+  var output = pdf.parseString(input);
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected_output)}`;
@@ -183,18 +183,17 @@ endobj`;
   });
 
   it('should parse a stream', function() {
-    var input = `<< /Length 26 >>
+    var input = `<< /Length 25 >>
 stream
 hello there
 i am a stream
 endstream`;
     var output = {
       dictionary: {
-        Length: 26,
+        Length: 25,
       },
       buffer: new Buffer(`hello there
-i am a stream
-`),
+i am a stream`),
     };
     check(input, output);
   });
