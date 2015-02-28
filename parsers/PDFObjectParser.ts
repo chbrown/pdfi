@@ -4,10 +4,9 @@ import chalk = require('chalk');
 
 import pdfdom = require('../pdfdom');
 import BufferedReader = require('../readers/BufferedReader');
-import BufferedStringReader = require('../readers/BufferedStringReader');
+import PDF = require('../PDF');
 
 import JisonLexer = require('./JisonLexer');
-
 // load the precompiled Jison parser
 var JisonParser = require('./pdfobject.parser').Parser;
 // and the lexing rules
@@ -16,18 +15,10 @@ var pdfrules = require('./pdfrules');
 class PDFObjectParser {
   jison_parser: any;
 
-  constructor() {
+  constructor(pdf: PDF) {
     this.jison_parser = new JisonParser();
     this.jison_parser.lexer = new JisonLexer(pdfrules);
-  }
-
-  get yy(): any {
-    return this.jison_parser.yy;
-  }
-
-  parseString(input: string): pdfdom.PDFObject {
-    var reader = new BufferedStringReader(input);
-    return this.parse(reader);
+    this.jison_parser.yy.pdf = pdf;
   }
 
   parse(reader: BufferedReader): pdfdom.PDFObject {

@@ -6,19 +6,20 @@ import logger = require('loge');
 import File = require('./File');
 import FileReader = require('./readers/FileReader');
 import BufferedFileReader = require('./readers/BufferedFileReader');
+import BufferedStringReader = require('./readers/BufferedStringReader');
 
 import pdfdom = require('./pdfdom');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
 
-class PDFReader {
+class PDF {
   _trailer: pdfdom.DictionaryObject;
   _cross_references: pdfdom.CrossReference[];
 
   constructor(public file: File) { }
 
-  static open(filepath: string): PDFReader {
-    return new PDFReader(File.open(filepath));
+  static open(filepath: string): PDF {
+    return new PDF(File.open(filepath));
   }
 
   get size(): number {
@@ -54,35 +55,28 @@ class PDFReader {
   the document (or maybe just those in the cross references section that
   immediately follows the trailer?)
   */
-  readTrailer(): pdfdom.DictionaryObject {
-    var trailer_index = this.findFinalTrailerPosition();
-
-    return <pdfdom.DictionaryObject>this.parseObjectAt(trailer_index);
-  }
-
   get trailer(): pdfdom.DictionaryObject {
     if (!this._trailer) {
-      this._trailer = this.readTrailer();
+      var trailer_index = this.findFinalTrailerPosition();
+
+      this._trailer = <pdfdom.DictionaryObject>this.parseObjectAt(trailer_index);
     }
     return this._trailer;
   }
 
   /**
   Reads the xref section referenced from the trailer.
-  */
-  readCrossReferences(): pdfdom.CrossReference[] {
-    // requires reading the trailer, if it hasn't already been read.
-    var cross_references = <pdfdom.CrossReference[]>this.parseObjectAt(<number>this.trailer['startxref']);
-    if (this.trailer['Prev'] !== undefined) {
-      var Prev_cross_references = <pdfdom.CrossReference[]>this.parseObjectAt(<number>this.trailer['Prev']);
-      Array.prototype.push.apply(cross_references, Prev_cross_references);
-    }
-    return cross_references;
-  }
 
+  Requires reading the trailer, if it hasn't already been read.
+  */
   get cross_references(): pdfdom.CrossReference[] {
     if (!this._cross_references) {
-      this._cross_references = this.readCrossReferences();
+      this._cross_references = <pdfdom.CrossReference[]>this.parseObjectAt(<number>this.trailer['startxref']);
+      // TODO: can there be a chain of trailers and Prev's?
+      if (this.trailer['Prev'] !== undefined) {
+        var cross_references = <pdfdom.CrossReference[]>this.parseObjectAt(<number>this.trailer['Prev']);
+        Array.prototype.push.apply(this._cross_references, cross_references);
+      }
     }
     return this._cross_references;
   }
@@ -152,12 +146,16 @@ class PDFReader {
   parseObjectAt(position: number): pdfdom.PDFObject {
     var reader = new BufferedFileReader(this.file, position);
 
-    var parser = new PDFObjectParser();
-    parser.yy.pdf_reader = this;
-
+    var parser = new PDFObjectParser(this);
     return parser.parse(reader);
   }
 
+  parseString(input: string): pdfdom.PDFObject {
+    var reader = new BufferedStringReader(input);
+
+    var parser = new PDFObjectParser(this);
+    return parser.parse(reader);
+  }
 }
 
-export = PDFReader;
+export = PDF;

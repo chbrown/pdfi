@@ -1,15 +1,16 @@
 var File = require('./File');
 var FileReader = require('./readers/FileReader');
 var BufferedFileReader = require('./readers/BufferedFileReader');
+var BufferedStringReader = require('./readers/BufferedStringReader');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
-var PDFReader = (function () {
-    function PDFReader(file) {
+var PDF = (function () {
+    function PDF(file) {
         this.file = file;
     }
-    PDFReader.open = function (filepath) {
-        return new PDFReader(File.open(filepath));
+    PDF.open = function (filepath) {
+        return new PDF(File.open(filepath));
     };
-    Object.defineProperty(PDFReader.prototype, "size", {
+    Object.defineProperty(PDF.prototype, "size", {
         get: function () {
             return this.file.size;
         },
@@ -21,7 +22,7 @@ var PDFReader = (function () {
   
     TODO: figure out where the trailer starts more intelligently.
     */
-    PDFReader.prototype.findFinalTrailerPosition = function () {
+    PDF.prototype.findFinalTrailerPosition = function () {
         // the trailer should happen somewhere in the last 256 bytes or so
         var simple_reader = new FileReader(this.file, this.file.size - 256);
         var trailer_index = simple_reader.indexOf('trailer');
@@ -30,50 +31,45 @@ var PDFReader = (function () {
         }
         return trailer_index;
     };
-    /**
-    read the trailer, which gives the location of the cross-reference table and of certain special objects within the body of the file (PDF32000_2008.pdf:7.5.1). For example:
-  
-        trailer
-        << /Info 2 0 R /Root 1 0 R /Size 105 >>
-        startxref
-        123456
-        %%EOF
-  
-    The trailer dictionary will generally have two important fields: "Root" and
-    "Info", both of which are object references. Size is the number of objects in
-    the document (or maybe just those in the cross references section that
-    immediately follows the trailer?)
-    */
-    PDFReader.prototype.readTrailer = function () {
-        var trailer_index = this.findFinalTrailerPosition();
-        return this.parseObjectAt(trailer_index);
-    };
-    Object.defineProperty(PDFReader.prototype, "trailer", {
+    Object.defineProperty(PDF.prototype, "trailer", {
+        /**
+        read the trailer, which gives the location of the cross-reference table and of certain special objects within the body of the file (PDF32000_2008.pdf:7.5.1). For example:
+      
+            trailer
+            << /Info 2 0 R /Root 1 0 R /Size 105 >>
+            startxref
+            123456
+            %%EOF
+      
+        The trailer dictionary will generally have two important fields: "Root" and
+        "Info", both of which are object references. Size is the number of objects in
+        the document (or maybe just those in the cross references section that
+        immediately follows the trailer?)
+        */
         get: function () {
             if (!this._trailer) {
-                this._trailer = this.readTrailer();
+                var trailer_index = this.findFinalTrailerPosition();
+                this._trailer = this.parseObjectAt(trailer_index);
             }
             return this._trailer;
         },
         enumerable: true,
         configurable: true
     });
-    /**
-    Reads the xref section referenced from the trailer.
-    */
-    PDFReader.prototype.readCrossReferences = function () {
-        // requires reading the trailer, if it hasn't already been read.
-        var cross_references = this.parseObjectAt(this.trailer['startxref']);
-        if (this.trailer['Prev'] !== undefined) {
-            var Prev_cross_references = this.parseObjectAt(this.trailer['Prev']);
-            Array.prototype.push.apply(cross_references, Prev_cross_references);
-        }
-        return cross_references;
-    };
-    Object.defineProperty(PDFReader.prototype, "cross_references", {
+    Object.defineProperty(PDF.prototype, "cross_references", {
+        /**
+        Reads the xref section referenced from the trailer.
+      
+        Requires reading the trailer, if it hasn't already been read.
+        */
         get: function () {
             if (!this._cross_references) {
-                this._cross_references = this.readCrossReferences();
+                this._cross_references = this.parseObjectAt(this.trailer['startxref']);
+                // TODO: can there be a chain of trailers and Prev's?
+                if (this.trailer['Prev'] !== undefined) {
+                    var cross_references = this.parseObjectAt(this.trailer['Prev']);
+                    Array.prototype.push.apply(this._cross_references, cross_references);
+                }
             }
             return this._cross_references;
         },
@@ -86,7 +82,7 @@ var PDFReader = (function () {
   
     Throws an Error if no match is found.
     */
-    PDFReader.prototype.findCrossReference = function (reference) {
+    PDF.prototype.findCrossReference = function (reference) {
         for (var i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
             if (cross_reference.in_use && cross_reference.object_number === reference.object_number && cross_reference.generation_number === reference.generation_number) {
                 return cross_reference;
@@ -104,7 +100,7 @@ var PDFReader = (function () {
     Also throws an Error if the matched CrossReference points to an IndirectObject
     that doesn't match the originally requested IndirectReference.
     */
-    PDFReader.prototype.findObject = function (reference) {
+    PDF.prototype.findObject = function (reference) {
         var cross_reference = this.findCrossReference(reference);
         var object = this.parseObjectAt(cross_reference.offset);
         // object is a pdfdom.IndirectObject, but we already knew the object number
@@ -123,7 +119,7 @@ var PDFReader = (function () {
        actual object.
     2. Otherwise, returns the input object.
     */
-    PDFReader.prototype.resolveObject = function (input) {
+    PDF.prototype.resolveObject = function (input) {
         // logger.info('PDFReader#resolveObject(%j)', input);
         // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
         if (input['object_number'] !== undefined && input['generation_number'] !== undefined) {
@@ -133,12 +129,16 @@ var PDFReader = (function () {
         }
         return input;
     };
-    PDFReader.prototype.parseObjectAt = function (position) {
+    PDF.prototype.parseObjectAt = function (position) {
         var reader = new BufferedFileReader(this.file, position);
-        var parser = new PDFObjectParser();
-        parser.yy.pdf_reader = this;
+        var parser = new PDFObjectParser(this);
         return parser.parse(reader);
     };
-    return PDFReader;
+    PDF.prototype.parseString = function (input) {
+        var reader = new BufferedStringReader(input);
+        var parser = new PDFObjectParser(this);
+        return parser.parse(reader);
+    };
+    return PDF;
 })();
-module.exports = PDFReader;
+module.exports = PDF;

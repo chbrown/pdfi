@@ -1,1 +1,1 @@
-exports.PDFReader = require('./pdfreader');
+exports.PDF = require('./PDF');

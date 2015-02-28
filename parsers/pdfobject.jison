@@ -56,7 +56,7 @@ STREAM_HEADER
         // yy is the Jison sharedState
         // yy.lexer is the JisonLexer-extends-BufferedLexer instance
         // yy.pdf_reader is the original pdf_reader instance
-        yy.lexer.stream_length = yy.pdf_reader.resolveObject($1.Length);
+        yy.lexer.stream_length = yy.pdf.resolveObject($1.Length);
       }
     ;
 

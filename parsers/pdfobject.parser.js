@@ -119,7 +119,7 @@ case 23:
         // yy is the Jison sharedState
         // yy.lexer is the JisonLexer-extends-BufferedLexer instance
         // yy.pdf_reader is the original pdf_reader instance
-        yy.lexer.stream_length = yy.pdf_reader.resolveObject($$[$0-1].Length);
+        yy.lexer.stream_length = yy.pdf.resolveObject($$[$0-1].Length);
       
 break;
 case 24:
