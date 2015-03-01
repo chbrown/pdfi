@@ -1,5 +1,7 @@
 /// <reference path="type_declarations/index.d.ts" />
 
+export type Rectangle = [number, number, number, number]
+
 export interface PDFObject {}
 
 export interface BooleanObject extends PDFObject, Boolean {}
@@ -15,15 +17,6 @@ export interface StringObject extends PDFObject, String {}
 export interface ArrayObject extends PDFObject, Array<PDFObject> {
   [index: number]: PDFObject;
 }
-
-//interface KeyValue {
-//  /** Not an actual PDF object, but maybe helpful when reading Dictionary
-//   * objects. `key` is the value of a PDF Name Object. `value` is some kind
-//   * of a PDFObject.
-//   */
-//  key: string;
-//  value: PDFObject;
-//}
 
 export interface DictionaryObject extends PDFObject {
   [index: string]: PDFObject;
@@ -82,7 +75,27 @@ export interface CrossReference {
 
 export interface Stream extends PDFObject {
   dictionary: DictionaryObject;
-  bytes: string;
+  buffer: Buffer;
+}
+
+export interface Catalog extends DictionaryObject {
+  Type: string; // "Catalog"
+  Pages: IndirectReference; // -> Pages
+  // Names: IndirectReference;
+}
+
+export interface Pages extends DictionaryObject {
+  Type: string; // "Pages"
+  Kids: IndirectReference[]; // -> Array<Pages | Page>
+}
+
+export interface Page extends DictionaryObject {
+  Type: string; // 'Page'
+  Annots?: IndirectReference;
+  Parent: IndirectReference;
+  Resources: IndirectReference;
+  Contents: IndirectReference | IndirectReference[];
+  MediaBox: Rectangle;
 }
 
 export interface PDF {

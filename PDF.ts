@@ -111,7 +111,8 @@ class PDF {
   */
   findObject(reference: pdfdom.IndirectReference): pdfdom.PDFObject {
     var cross_reference = this.findCrossReference(reference);
-    var object = <pdfdom.IndirectObject>this.parseObjectAt(cross_reference.offset);
+    // logger.info(chalk.green(`findObject(${reference.object_number}:${reference.generation_number}): offset=${cross_reference.offset}`));
+    var object = <pdfdom.IndirectObject>this.parseObjectAt(cross_reference.offset, "INDIRECT_OBJECT");
     // object is a pdfdom.IndirectObject, but we already knew the object number
     // and generation number; that's how we found it. We only want the value of
     // the object. But we might as well double check that what we got is what
@@ -143,17 +144,66 @@ class PDF {
     return input;
   }
 
-  parseObjectAt(position: number): pdfdom.PDFObject {
-    var reader = new BufferedFileReader(this.file, position);
+  /**
+  "Pages"-type objects have a field, Kids: IndirectReference[].
+  Each indirect reference will resolve to a Page or Pages object.
 
-    var parser = new PDFObjectParser(this);
-    return parser.parse(reader);
+  This function will flatten the page list breadth-first, returning
+  */
+  flattenPages(Pages: pdfdom.Pages): pdfdom.Page[] {
+    var PageGroups: pdfdom.Page[][] = Pages.Kids.map(KidReference => {
+      var Kid = this.resolveObject(KidReference);
+      if (Kid['Type'] == 'Pages') {
+        return this.flattenPages(<pdfdom.Pages>Kid);
+      }
+      else if (Kid['Type'] == 'Page') {
+        return [<pdfdom.Page>Kid];
+      }
+      else {
+        throw new Error('Unknown Kid type: ' + Kid['Type']);
+      }
+    });
+    return Array.prototype.concat.apply([], PageGroups);
+  }
+
+  get catalog(): pdfdom.Catalog {
+    return <pdfdom.Catalog>this.resolveObject(this.trailer['Root']);
+  }
+
+  get pages(): pdfdom.Page[] {
+    var Pages = <pdfdom.Pages>this.resolveObject(this.catalog.Pages);
+    return this.flattenPages(Pages);
+  }
+
+  printContext(start_position: number, error_position: number, margin: number = 256): void {
+    logger.error('Context (%d:%d:%d)', start_position, error_position, error_position + margin);
+    // File#readBuffer(length: number, position: number): Buffer
+    var preface_buffer = this.file.readBuffer(error_position - start_position, start_position);
+    var preface_string = preface_buffer.toString('ascii')
+    var error_buffer = this.file.readBuffer(margin, error_position);
+    var error_string = error_buffer.toString('ascii')
+    logger.error('%s%s', chalk.yellow(preface_string), chalk.red(error_string));
+  }
+
+  parseObjectAt(position: number, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
+    var reader = new BufferedFileReader(this.file, position);
+    var parser = new PDFObjectParser(this, start);
+
+    try {
+      return parser.parse(reader);
+    }
+    catch (exc) {
+      logger.error('%s', chalk.red(exc.message));
+      this.printContext(position, reader.position);
+
+      throw exc;
+    }
   }
 
   parseString(input: string): pdfdom.PDFObject {
     var reader = new BufferedStringReader(input);
 
-    var parser = new PDFObjectParser(this);
+    var parser = new PDFObjectParser(this, "OBJECT_HACK");
     return parser.parse(reader);
   }
 }
