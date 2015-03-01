@@ -19,12 +19,9 @@ var FileReader = (function () {
     Buffer shorter than `length` iff EOF has been reached.
     */
     FileReader.prototype.readBuffer = function (length) {
-        var buffer = new Buffer(length);
-        var bytesRead = this.file.read(buffer, 0, length, this.position);
-        this.position += bytesRead;
-        if (bytesRead < length) {
-            buffer = buffer.slice(0, bytesRead);
-        }
+        var buffer = this.file.readBuffer(length, this.position);
+        // `buffer.length` might not equal `length`!
+        this.position += buffer.length;
         return buffer;
     };
     /**
