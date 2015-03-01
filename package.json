@@ -19,6 +19,7 @@
     "adts": "~0.1.0",
     "async": "*",
     "chalk": "*",
+    "jison": "*",
     "js-yaml": "*",
     "lodash": "*",
     "loge": "*",
@@ -26,7 +27,6 @@
     "yargs": "*"
   },
   "devDependencies": {
-    "jison": "*",
     "mocha": "*",
     "pegjs": "*",
     "typescript": "*"

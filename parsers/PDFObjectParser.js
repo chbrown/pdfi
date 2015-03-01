@@ -1,25 +1,21 @@
-/// <reference path="../type_declarations/index.d.ts" />
-var logger = require('loge');
-var chalk = require('chalk');
+var jison = require('jison');
+var bnf = require('./bnf.json');
 var JisonLexer = require('./JisonLexer');
 // load the precompiled Jison parser
-var JisonParser = require('./pdfobject.parser').Parser;
+// import JisonParser = require('./JisonParser');
 // and the lexing rules
 var pdfrules = require('./pdfrules');
 var PDFObjectParser = (function () {
-    function PDFObjectParser(pdf) {
-        this.jison_parser = new JisonParser();
+    function PDFObjectParser(pdf, start) {
+        this.jison_parser = new jison.Parser({
+            start: start,
+            bnf: bnf,
+        });
         this.jison_parser.lexer = new JisonLexer(pdfrules);
-        this.jison_parser.yy.pdf = pdf;
+        this.jison_parser.yy = { pdf: pdf };
     }
     PDFObjectParser.prototype.parse = function (reader) {
-        try {
-            return this.jison_parser.parse(reader);
-        }
-        catch (exc) {
-            logger.error(chalk.red(exc.message).toString());
-            throw exc;
-        }
+        return this.jison_parser.parse(reader);
     };
     return PDFObjectParser;
 })();
