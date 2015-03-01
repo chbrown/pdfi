@@ -228,10 +228,13 @@ module.exports = [
   /**
   From PDF32000_2008.pdf:7.3.8
   > There should be an end-of-line marker after the data and before endstream; this marker shall not be included in the stream length. There shall not be any extra bytes, other than white space, between endstream and endobj.
+
+  That "should be" is a recommendation. Sometimes there isn't anything, not even
+  a newline, before the "endstream" marker.
   */
   {
     condition: 'STREAM',
-    pattern: /^\s*(\r\n|\n|\r)\s*endstream/,
+    pattern: /^\s*endstream/,
     action: function(match) {
       this.states.pop();
       return ['END_STREAM', match[0]];
