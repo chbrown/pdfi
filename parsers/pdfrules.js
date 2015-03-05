@@ -278,7 +278,7 @@ module.exports = [
   },
   {
     condition: 'INPARENS',
-    pattern: /^./,
+    pattern: /^(.|\r|\n)/,
     action: function(match) {
       return ['CHAR', match[0]];
     }
