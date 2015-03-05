@@ -1,47 +1,54 @@
 /// <reference path="type_declarations/index.d.ts" />
-/** bufferops#compare(haystack: Buffer, needle: Buffer, ...): boolean
- *
- * returns true if haystack starts with needle, i.e.:
- *
- *     haystack[haystack_offset:haystack_length] == needle[:needle_length]
- *
- * Effectively bufferops#startsWith if only haystack and needle are given.
- */
-function compare(haystack, needle, haystack_offset, haystack_length, needle_length) {
-    if (haystack_offset === void 0) { haystack_offset = 0; }
-    if (haystack_length === void 0) { haystack_length = haystack.length; }
-    if (needle_length === void 0) { needle_length = needle.length; }
-    if ((haystack_offset + needle_length) > haystack_length)
+/**
+Returns true iff `haystack`, starting at fromIndex, matches `needle`.
+
+    haystack[fromIndex:haystack.length] == needle[:needle.length]
+*/
+function compare(haystack, needle, fromIndex) {
+    if (fromIndex === void 0) { fromIndex = 0; }
+    if ((fromIndex + needle.length) > haystack.length)
         return false;
-    for (var i = 0; i < needle_length; i++) {
-        if (needle[i] !== haystack[haystack_offset + i]) {
+    for (var i = 0; i < needle.length; i++) {
+        if (needle[i] !== haystack[fromIndex + i]) {
             return false;
         }
     }
     return true;
 }
 exports.compare = compare;
-/** bufferops#indexOf(haystack: Buffer, needle: Buffer, ...): number
-
+/**
 Returns the index (within `haystack`) of the first character of the first
 occurrence of `needle` after haystack_offset.
 
 Returns null if haystack does not contain needle.
 */
-function indexOf(haystack, needle, haystack_offset, haystack_length, needle_length) {
-    if (haystack_offset === void 0) { haystack_offset = 0; }
-    if (haystack_length === void 0) { haystack_length = haystack.length; }
-    if (needle_length === void 0) { needle_length = needle.length; }
-    for (var i = haystack_offset; i < haystack_length; i++) {
-        if (compare(haystack, needle, i, haystack_length, needle_length)) {
+function indexOf(haystack, needle, fromIndex) {
+    if (fromIndex === void 0) { fromIndex = 0; }
+    for (var i = fromIndex; i < haystack.length; i++) {
+        if (compare(haystack, needle, i)) {
             return i;
         }
     }
     return null;
 }
 exports.indexOf = indexOf;
-/** bufferops#equalTo(left: Buffer, right: Buffer, ...): boolean
+/**
+Returns the index (within `haystack`) of the first character of the last
+occurrence of `needle` before haystack_offset.
 
+Returns null if haystack does not contain needle.
+*/
+function lastIndexOf(haystack, needle, fromIndex) {
+    if (fromIndex === void 0) { fromIndex = haystack.length; }
+    for (var i = fromIndex; i > -1; i--) {
+        if (compare(haystack, needle, i)) {
+            return i;
+        }
+    }
+    return null;
+}
+exports.lastIndexOf = lastIndexOf;
+/**
 Returns true iff the designated slices of left and right are equal.
 
     left[left_offset:left_length] == right[right_offset:right_length]
