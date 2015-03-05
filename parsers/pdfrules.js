@@ -278,8 +278,25 @@ module.exports = [
     },
   },
   {
+    // escaped newline: skip over it.
+    // This is from a real-world example; I'm not sure it's in the spec.
     condition: 'INPARENS',
-    pattern: /^(.|\r|\n)/,
+    pattern: /^\\(\r\n|\n|\r)/,
+    action: function(match) {
+      return null;
+    }
+  },
+  // {
+  //   // literal newline: is this in the spec? Or is there a real-world example?
+  //   condition: 'INPARENS',
+  //   pattern: /^(\r\n|\n|\r)/,
+  //   action: function(match) {
+  //     return ['CHAR', match[0]];
+  //   }
+  // },
+  {
+    condition: 'INPARENS',
+    pattern: /^./,
     action: function(match) {
       return ['CHAR', match[0]];
     }
