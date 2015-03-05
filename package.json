@@ -24,6 +24,7 @@
     "lodash": "*",
     "loge": "*",
     "streaming": "*",
+    "util-enhanced": "*",
     "yargs": "*"
   },
   "devDependencies": {
