@@ -149,22 +149,23 @@ module.exports = [
     condition: 'INITIAL',
     pattern: /^trailer/,
     action: function(match) {
-      // this.states.push('XREF');
-      return ['TRAILER_START', match[0]];
+      return ['TRAILER', match[0]];
     },
   },
   {
     condition: 'INITIAL',
     pattern: /^startxref/,
     action: function(match) {
-      return ['TRAILER_STARTXREF', match[0]];
+      return ['STARTXREF', match[0]];
     },
   },
   {
     condition: 'INITIAL',
     pattern: /^%%EOF/,
     action: function(match) {
-      return ['TRAILER_END', match[0]];
+      // not really EOF, but we never want to read past it in one go,
+      // so we might as well treat it like one
+      return ['EOF', match[0]];
     },
   },
 

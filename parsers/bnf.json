@@ -18,115 +18,97 @@
     "DICTIONARY",
     "NAME",
     "STREAM",
-    "NULL",
-    "XREF",
-    "TRAILER"
+    "NULL"
   ],
   "objects": [
     [
       "OBJECT",
-      " $$ = [$1] "
+      "$$ = [$1]"
     ],
     [
       "objects OBJECT",
-      " $$ = $1; $1.push($2) "
+      "$$ = $1; $1.push($2)"
     ]
   ],
   "ARRAY": [
     [
       "[ objects ]",
-      " $$ = $2; "
+      "$$ = $2;"
     ],
     [
       "[ ]",
-      " $$ = []; "
+      "$$ = [];"
     ]
   ],
   "STRING": [
     "HEXSTRING",
     [
       "OPENPARENS CLOSEPARENS",
-      " $$ = \"\" "
+      "$$ = \"\""
     ],
     [
       "OPENPARENS chars CLOSEPARENS",
-      " $$ = $2.join(\"\") "
+      "$$ = $2.join(\"\")"
     ]
   ],
   "STREAM_HEADER": [
     [
       "DICTIONARY START_STREAM",
-      "\n        // pretty ugly hack right here\n        // yy is the Jison sharedState\n        // yy.lexer is the JisonLexer-extends-BufferedLexer instance\n        // yy.pdf_reader is the original pdf_reader instance\n        yy.lexer.stream_length = yy.pdf.resolveObject($1.Length);\n      "
+      "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexer-extends-BufferedLexer instance; yy.pdf_reader is the original pdf_reader instance*/ yy.lexer.stream_length = yy.pdf.resolveObject($1.Length);"
     ]
   ],
   "STREAM": [
     [
       "STREAM_HEADER STREAM_BUFFER END_STREAM",
-      "\n        $$ = { dictionary: $1, buffer: $2 }\n      "
+      "$$ = { dictionary: $1, buffer: $2 }"
     ]
   ],
   "DICTIONARY": [
-    [
-      "<< keyvaluepairs >>",
-      " $$ = $2 "
-    ]
+    [ "<< keyvaluepairs >>", "$$ = $2" ]
   ],
   "keyvaluepairs": [
     [
       "NAME OBJECT",
-      " $$ = {}; $$[$1] = $2; "
+      "$$ = {}; $$[$1] = $2;"
     ],
     [
       "keyvaluepairs NAME OBJECT",
-      " $$ = $1; $1[$2] = $3; "
+      "$$ = $1; $1[$2] = $3;"
     ]
   ],
   "chars": [
+    [ "CHAR", "$$ = [$1]" ],
+    [ "chars CHAR", "$$ = $1; $1.push($2)" ]
+  ],
+
+
+  "STARTXREF_ONLY": [
+    [ "STARTXREF NUMBER EOF", "return $2" ]
+  ],
+  "XREF_TRAILER_ONLY": [
     [
-      "CHAR",
-      " $$ = [$1] "
-    ],
-    [
-      "chars CHAR",
-      " $$ = $1; $1.push($2) "
+      "CROSS_REFERENCES TRAILER DICTIONARY STARTXREF NUMBER EOF",
+      "return {cross_references: $1, trailer: $3, startxref: $5};"
     ]
   ],
-  "XREF": [
+  "CROSS_REFERENCES": [
     [
       "XREF_START XREF_SUBSECTIONS XREF_END",
-      "\n        // produce single array\n        $$ = Array.prototype.concat.apply([], $2);\n      "
+      "$$ = Array.prototype.concat.apply([], $2); // produce single array"
     ]
   ],
   "XREF_SUBSECTION": [
     [
       "XREF_SUBSECTION_HEADER XREF_REFERENCES",
-      "\n        $$ = $2;\n        for (var i = 0; i < $$.length; i++) {\n          $$[i].object_number = $1 + i;\n        }\n      "
+      "$$ = $2; for (var i = 0; i < $$.length; i++) { $$[i].object_number = $1 + i; }"
     ]
   ],
   "XREF_SUBSECTIONS": [
-    [
-      "XREF_SUBSECTION",
-      " $$ = [$1] "
-    ],
-    [
-      "XREF_SUBSECTIONS XREF_SUBSECTION",
-      " $$ = $1; $1.push($2) "
-    ]
+    [ "XREF_SUBSECTION", "$$ = [$1]" ],
+    [ "XREF_SUBSECTIONS XREF_SUBSECTION", "$$ = $1; $1.push($2)" ]
   ],
   "XREF_REFERENCES": [
-    [
-      "XREF_REFERENCE",
-      " $$ = [$1] "
-    ],
-    [
-      "XREF_REFERENCES XREF_REFERENCE",
-      " $$ = $1; $1.push($2) "
-    ]
-  ],
-  "TRAILER": [
-    [
-      "TRAILER_START DICTIONARY TRAILER_STARTXREF NUMBER TRAILER_END",
-      "\n        $$ = $2;\n        $$.startxref = $4;\n      "
-    ]
+    [ "XREF_REFERENCE", "$$ = [$1]" ],
+    [ "XREF_REFERENCES XREF_REFERENCE", "$$ = $1; $1.push($2)" ]
   ]
 }

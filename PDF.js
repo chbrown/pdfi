@@ -1,13 +1,17 @@
 var chalk = require('chalk');
 var logger = require('loge');
+var term = require('./dev/term');
 var File = require('./File');
 var FileReader = require('./readers/FileReader');
 var BufferedFileReader = require('./readers/BufferedFileReader');
 var BufferedStringReader = require('./readers/BufferedStringReader');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
+var util = require('util-enhanced');
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
+        this._trailer = {};
+        this._cross_references = [];
     }
     PDF.open = function (filepath) {
         return new PDF(File.open(filepath));
@@ -19,19 +23,28 @@ var PDF = (function () {
         enumerable: true,
         configurable: true
     });
-    /**
-    Final the offset of the final trailer. Used by readTrailer().
-  
-    TODO: figure out where the trailer starts more intelligently.
+    /** Since the trailers and crossreferences overlap so much,
+    we might as well read them all at once.
     */
-    PDF.prototype.findFinalTrailerPosition = function () {
-        // the trailer should happen somewhere in the last 256 bytes or so
-        var simple_reader = new FileReader(this.file, this.file.size - 256);
-        var trailer_index = simple_reader.indexOf('trailer');
-        if (trailer_index === null) {
-            throw new Error('Could not find "trailer" marker in last 256 bytes of the file');
+    PDF.prototype.readTrailers = function () {
+        // Find the offset of the first item in the xref-trailer chain
+        var simple_reader = new FileReader(this.file);
+        var startxref_position = simple_reader.lastIndexOf('startxref');
+        if (startxref_position === null) {
+            throw new Error('Could not find "startxref" marker in file');
         }
-        return trailer_index;
+        var next_xref_position = this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
+        while (next_xref_position) {
+            // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
+            var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
+            // TODO: are there really chains of trailers and multiple `Prev` links?
+            next_xref_position = xref_trailer['trailer']['Prev'];
+            // merge the cross references
+            var cross_references = xref_trailer['cross_references'];
+            Array.prototype.push.apply(this._cross_references, cross_references);
+            // merge the trailer (but the later trailer's values should be preferred)
+            this._trailer = util.extend(xref_trailer['trailer'], this._trailer);
+        }
     };
     Object.defineProperty(PDF.prototype, "trailer", {
         /**
@@ -49,9 +62,8 @@ var PDF = (function () {
         immediately follows the trailer?)
         */
         get: function () {
-            if (!this._trailer) {
-                var trailer_index = this.findFinalTrailerPosition();
-                this._trailer = this.parseObjectAt(trailer_index);
+            if (this._trailer['Root'] === undefined) {
+                this.readTrailers();
             }
             return this._trailer;
         },
@@ -65,13 +77,8 @@ var PDF = (function () {
         Requires reading the trailer, if it hasn't already been read.
         */
         get: function () {
-            if (!this._cross_references) {
-                this._cross_references = this.parseObjectAt(this.trailer['startxref']);
-                // TODO: can there be a chain of trailers and Prev's?
-                if (this.trailer['Prev'] !== undefined) {
-                    var cross_references = this.parseObjectAt(this.trailer['Prev']);
-                    Array.prototype.push.apply(this._cross_references, cross_references);
-                }
+            if (this._cross_references.length == 0) {
+                this.readTrailers();
             }
             return this._cross_references;
         },
@@ -125,7 +132,7 @@ var PDF = (function () {
     PDF.prototype.resolveObject = function (input) {
         // logger.info('PDFReader#resolveObject(%j)', input);
         // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
-        if (input['object_number'] !== undefined && input['generation_number'] !== undefined) {
+        if (input !== undefined && input['object_number'] !== undefined && input['generation_number'] !== undefined) {
             var resolution = this.findObject(input);
             // logger.info('PDFReader#resolveObject => %j', resolution);
             return resolution;
@@ -177,7 +184,7 @@ var PDF = (function () {
         var preface_string = preface_buffer.toString('ascii');
         var error_buffer = this.file.readBuffer(margin, error_position);
         var error_string = error_buffer.toString('ascii');
-        logger.error('%s%s', chalk.yellow(preface_string), chalk.red(error_string));
+        term.print('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
     };
     PDF.prototype.parseObjectAt = function (position, start) {
         if (start === void 0) { start = "OBJECT_HACK"; }
@@ -187,7 +194,7 @@ var PDF = (function () {
             return parser.parse(reader);
         }
         catch (exc) {
-            logger.error('%s', chalk.red(exc.message));
+            term.print('%s', chalk.red(exc.message));
             this.printContext(position, reader.position);
             throw exc;
         }
