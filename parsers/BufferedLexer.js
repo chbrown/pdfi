@@ -57,7 +57,9 @@ var BufferedLexer = (function () {
                     // var newline_matches = match[0].match(/(\r\n|\n|\r)/g);
                     // var newlines = newline_matches ? newline_matches.length : 0;
                     this.reader.skip(match[0].length);
-                    return rule.action.call(this, match);
+                    var data = rule.action.call(this, match);
+                    // term.print('lex', input.slice(0, 24), '->', data);
+                    return data;
                 }
             }
         }
