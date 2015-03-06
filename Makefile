@@ -1,4 +1,4 @@
-TYPESCRIPT = $(wildcard *.ts dev/*.ts readers/*.ts test/parsers/*.ts)
+TYPESCRIPT = $(wildcard *.ts dev/*.ts readers/*.ts test/parsers/*.ts test/*.ts)
 PARSERS = $(wildcard parsers/*.js)
 
 all: $(TYPESCRIPT:%.ts=%.js) $(PARSERS)
