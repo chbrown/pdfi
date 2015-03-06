@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+var logger = require('loge');
+var term = require('../dev/term');
+var PDF = require('../PDF');
+
+var yargs = require('yargs')
+  .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
+  .describe({
+    filename: 'pdf file to open',
+    object: 'object(s) to dump',
+    trailer: 'dump trailer',
+    xref: 'dump cross references',
+    pages: 'dump pages',
+    help: 'print this help message',
+    verbose: 'print extra output',
+  })
+  .alias({
+    verbose: 'v',
+    filename: 'f',
+    object: 'o',
+  })
+  .demand(['filename'])
+  .boolean(['help', 'verbose', 'trailer', 'xref', 'pages']);
+
+var argv = yargs.argv;
+logger.level = argv.verbose ? 'debug' : 'info';
+
+function main() {
+  var pdf = PDF.open(argv.filename);
+  if (argv.trailer) {
+    term.print('trailer', pdf.trailer);
+  }
+  if (argv.xref) {
+    term.print('cross_references', term.inspect(pdf.cross_references));
+  }
+  // var Info = pdf.resolveObject(pdf.trailer.Info);
+  // term.print('trailer->Info', Info);
+  // var Root = pdf.resolveObject(pdf.trailer.Root);
+  // term.print('trailer->Root', Root);
+  // var Pages = pdf.resolveObject(Root.Pages);
+  // term.print('trailer->Root->Pages', Pages);
+
+  if (argv.pages) {
+    // iterate through the page objects
+    pdf.pages.forEach(function(page, i, pages) {
+      term.print('Page %d of %d', i, pages.length);
+      // page.Contents is a list of IndirectReference instances, or maybe just one
+      var contents = Array.isArray(page.Contents) ? page.Contents : [page.Contents];
+      for (var j = 0, content; (content = contents[j]); j++) {
+        var content_object = pdf.resolveObject(content);
+        term.print(term.inspect(content_object));
+      }
+    });
+  }
+
+  if (argv.object) {
+    var reference_arguments = Array.isArray(argv.object) ? argv.object : [argv.object];
+    reference_arguments.forEach(function(reference_argument) {
+      var object_parts = reference_argument.split(':');
+      var reference = {
+        object_number: parseInt(object_parts[0], 10),
+        generation_number: parseInt(object_parts[1] || '0', 10),
+      };
+      var object = pdf.findObject(reference);
+      term.print('%d:%d =>', reference.object_number, reference.generation_number, term.inspect(object));
+    });
+  }
+}
+
+if (argv.help) {
+  yargs.showHelp();
+}
+else if (argv.version) {
+  console.log(require('../package').version);
+}
+else { // if (require.main == module)
+  main();
+}

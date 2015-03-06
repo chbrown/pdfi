@@ -33,7 +33,7 @@
     "typescript": "*"
   },
   "bin": {
-    "pdf-dump-structure": "bin/pdf-dump-structure.js"
+    "pdf-dump": "bin/pdf-dump"
   },
   "scripts": {
     "test": "mocha --recursive test/"
