@@ -3,30 +3,35 @@ import assert = require('assert');
 
 import filters = require('../filters');
 
-describe('pdf filters', function() {
+describe('pdf filters: ASCII85Decode', function() {
 
-  it('should base85-decode an ascii string', function() {
+  it('should decode an ascii string', function() {
     var output = filters.ASCII85Decode(new Buffer('87cURD]j7BEbo80'));
     assert.deepEqual(output, new Buffer('Hello world!'));
   });
 
-  it('should base85-decode a buffer of 0xFF bytes', function() {
+  it('should decode an ascii string with an EOF marker', function() {
+    var output = filters.ASCII85Decode(new Buffer('87cURD]j7BEbo80~>'));
+    assert.deepEqual(output, new Buffer('Hello world!'));
+  });
+
+  it('should decode a buffer of 0xFF bytes', function() {
     var output = filters.ASCII85Decode(new Buffer('s8W-!'));
     assert.deepEqual(output, new Buffer([255, 255, 255, 255]));
   });
 
-  it('should base85-decode a random buffer of length 12', function() {
+  it('should decode a random buffer of length 12', function() {
     var output = filters.ASCII85Decode(new Buffer("%V'A!!<ZDmrr"));
     assert.deepEqual(output, new Buffer([14, 99, 109, 203, 1, 3, 87, 155, 255]));
   });
 
-  it('should base85-decode a random buffer of length 5', function() {
+  it('should decode a random buffer of length 5', function() {
     // e.g., comparison point: python3.4 >>> import base64; base64.a85encode(bytes([200, 8, 104, 63]))
     var output = filters.ASCII85Decode(new Buffer('a9ZHD'));
     assert.deepEqual(output, new Buffer([200, 8, 104, 63]));
   });
 
-  it('should base85-decode the leviathan example from wikipedia', function() {
+  it('should decode the leviathan example from wikipedia', function() {
     var input = [
       '9jqo^BlbD-BleB1DJ+*+F(f,q/0JhKF<GL>Cj@.4Gp$d7F!,L7@<6@)/0JDEF<G%<+EV:2F!,',
       'O<DJ+*.@<*K0@<6L(Df-\\0Ec5e;DffZ(EZee.Bl.9pF"AGXBPCsi+DGm>@3BB/F*&OCAfu2/AKY',

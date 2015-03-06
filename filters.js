@@ -1,3 +1,5 @@
+/// <reference path="type_declarations/index.d.ts" />
+var zlib = require('zlib');
 /**
 
 FILTER name     [Has Parameters] Description
@@ -35,6 +37,12 @@ function ASCII85Lexer(input) {
                 }
                 return null;
             }
+            else if (next == 126 && input[i] == 62) {
+                i++;
+                if (input.length > i) {
+                    throw new Error('EOF marker (~>) reached before the end of the input');
+                }
+            }
             else if (next == 9 || next == 10 || next == 13 || next == 32) {
             }
             else if (next == 122) {
@@ -57,24 +65,13 @@ function ASCII85Lexer(input) {
 
 All values are in the range 0x21-0x75 == 33-117 == '!'-'u' and 0x7A == 122 == 'z'
 
-0x7E,0x3E == 122,62 == '~>' serves as the EOF marker
+0x7E,0x3E == 126,62 == '~>' serves as the EOF marker
 
 While decoding, all whitespace should be ignored. Any other invalid characters should produce an error.
 
-Specifically, ASCII base-85 encoding shall produce 5 ASCII characters for every 4 bytes of binary data. Each group of 4 binary input bytes, (b1 b2 b3 b4), shall be converted to a group of 5 output bytes, (c1 c2 c3 c4 c5), using the relation
-
-(b1 × 2563) + (b2 × 2562) + (b3 × 2561) + b4 = (c1 × 854) + (c2 × 853) + (c3 × 852) + (c4 × 851) + c
-
-In other words, 4 bytes of binary data shall be interpreted as a base-256 number and then shall be converted to a base-85 number. The five bytes of the base-85 number shall then be converted to ASCII characters by adding 33 (the ASCII code for the character !) to each. The resulting encoded data shall contain only printable ASCII characters with codes in the range 33 (!) to 117 (u). As a special case, if all five bytes are 0, they shall be represented by the character with code 122 (z) instead of by five exclamation points (!!!!!).
-
-If the length of the data to be encoded is not a multiple of 4 bytes, the last, partial group of 4 shall be used to produce a last, partial group of 5 output characters. Given n (1, 2, or 3) bytes of binary data, the encoder shall first append 4 - n zero bytes to make a complete group of 4. It shall encode this group in the usual way, but shall not apply the special z case. Finally, it shall write only the first n + 1 characters of the resulting group of 5. These characters shall be immediately followed by the ~> EOD marker.
-
-The following conditions shall never occur in a correctly encoded byte sequence:
-• The value represented by a group of 5 characters is greater than 232 - 1.
-• A z character occurs in the middle of a group.
-• A final partial group contains only one character.
-
-
+TODO:
+throw when encountering a 'z' inside a group (or any other out-of-range character)
+throw when a final group contains only one character
 */
 function ASCII85Decode(ascii) {
     // ascii.length * (4 / 5) <- we can't use this for the length since we have
@@ -133,5 +130,8 @@ function ASCII85Decode(ascii) {
     return new Buffer(bytes);
 }
 exports.ASCII85Decode = ASCII85Decode;
-// exports.apply = function(stream, dictionary, callback) {
-// };
+function FlateDecode(buffer) {
+    return zlib.inflateSync(buffer);
+}
+exports.FlateDecode = FlateDecode;
+// exports.apply = function(stream, dictionary, callback) { };

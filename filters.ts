@@ -1,4 +1,5 @@
 /// <reference path="type_declarations/index.d.ts" />
+var zlib = require('zlib');
 import streaming = require('streaming');
 import term = require('./dev/term');
 
@@ -37,11 +38,17 @@ function ASCII85Lexer(input: Buffer) {
     var stack = [];
     while (1) {
       var next = input[i++];
-      if (next === undefined || (next == 122 && input[i] == 62)) {
+      if (next === undefined) {
         if (stack.length !== 0) {
           return stack;
         }
         return null;
+      }
+      else if (next == 126 && input[i] == 62) {
+        i++;
+        if (input.length > i) {
+          throw new Error('EOF marker (~>) reached before the end of the input');
+        }
       }
       else if (next == 9 || next == 10 || next == 13 || next == 32) { // \t, \n, \r, or ' '
         // ignore
@@ -67,7 +74,7 @@ function ASCII85Lexer(input: Buffer) {
 
 All values are in the range 0x21-0x75 == 33-117 == '!'-'u' and 0x7A == 122 == 'z'
 
-0x7E,0x3E == 122,62 == '~>' serves as the EOF marker
+0x7E,0x3E == 126,62 == '~>' serves as the EOF marker
 
 While decoding, all whitespace should be ignored. Any other invalid characters should produce an error.
 
@@ -141,6 +148,8 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
   return new Buffer(bytes);
 }
 
-// exports.apply = function(stream, dictionary, callback) {
+export function FlateDecode(buffer: Buffer): Buffer {
+  return zlib.inflateSync(buffer);
+}
 
-// };
+// exports.apply = function(stream, dictionary, callback) { };
