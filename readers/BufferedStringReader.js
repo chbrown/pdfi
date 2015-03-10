@@ -1,36 +1,16 @@
-var BufferedStringReader = (function () {
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
+/// <reference path="../type_declarations/index.d.ts" />
+var BufferedBufferReader = require('./BufferedBufferReader');
+var BufferedStringReader = (function (_super) {
+    __extends(BufferedStringReader, _super);
     function BufferedStringReader(input, encoding) {
-        this.buffer = new Buffer(input, encoding);
+        _super.call(this, new Buffer(input, encoding));
     }
-    BufferedStringReader.prototype.peekByte = function () {
-        return this.buffer[0];
-    };
-    BufferedStringReader.prototype.peekBuffer = function (length) {
-        return this.buffer.slice(0, length);
-    };
-    BufferedStringReader.prototype.readByte = function () {
-        var byte = this.peekByte();
-        this.buffer = this.buffer.slice(1);
-        return byte;
-    };
-    BufferedStringReader.prototype.readBuffer = function (length) {
-        var buffer = this.peekBuffer(length);
-        this.buffer = this.buffer.slice(length);
-        return buffer;
-    };
-    /**
-    Skip over the next `length` characters, returning the number of skipped
-    characters (which may be < `length` iff EOF has been reached).
-    */
-    BufferedStringReader.prototype.skip = function (length) {
-        // we cannot skip more than `this.buffer.length` bytes
-        var bytesSkipped = Math.min(length, this.buffer.length);
-        this.buffer = this.buffer.slice(length);
-        return bytesSkipped;
-    };
-    BufferedStringReader.prototype.toString = function () {
-        return this.buffer.toString();
-    };
     return BufferedStringReader;
-})();
+})(BufferedBufferReader);
 module.exports = BufferedStringReader;
