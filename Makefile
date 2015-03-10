@@ -3,19 +3,12 @@ PARSERS = $(wildcard parsers/*.js)
 
 all: $(TYPESCRIPT:%.ts=%.js) $(PARSERS)
 
-# build the xref parser from TypeScript script
-# parsers/xref.js: parsers/xref.ts
-# 	tsc -m commonjs -t ES5 $+
-
 # build the pdfobject parser script from Jison grammar
-parsers/pdfobject.parser.js: parsers/pdfobject.jison
-	node_modules/.bin/jison $+ -m commonjs -p lalr -o $@
-
-# %.js: %.pegjs
-# 	node_modules/.bin/pegjs $+ $@
+# parsers/pdfobject.parser.js: parsers/pdfobject.jison
+# 	node_modules/.bin/jison $+ -m commonjs -p lalr -o $@
 
 %.js: %.ts
-	tsc -m commonjs -t ES5 $+
+	node_modules/.bin/tsc -m commonjs -t ES5 $+
 
 DT_GITHUB := https://raw.githubusercontent.com/borisyankov/DefinitelyTyped/master
 DT_RAWGIT := https://rawgit.com/borisyankov/DefinitelyTyped/master
