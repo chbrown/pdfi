@@ -45,7 +45,7 @@ function main() {
     pdf.pages.forEach(function(page, i, pages) {
       term.print('Page %d of %d', i, pages.length);
       // page.Contents is a list of IndirectReference instances, or maybe just one
-      var contents = Array.isArray(page.Contents) ? page.Contents : [page.Contents];
+      var contents = [].concat(page.Contents);
       for (var j = 0, content; (content = contents[j]); j++) {
         var content_object = pdf.resolveObject(content);
         term.print(term.inspect(content_object));
@@ -54,7 +54,7 @@ function main() {
   }
 
   if (argv.object) {
-    var reference_arguments = Array.isArray(argv.object) ? argv.object : [argv.object];
+    var reference_arguments = [].concat(argv.object);
     reference_arguments.forEach(function(reference_argument) {
       var object_parts = reference_argument.split(':');
       var reference = {
@@ -62,7 +62,7 @@ function main() {
         generation_number: parseInt(object_parts[1] || '0', 10),
       };
       var object = pdf.findObject(reference);
-      term.print('%d:%d =>', reference.object_number, reference.generation_number, term.inspect(object));
+      term.print('%d:%d => %s', reference.object_number, reference.generation_number, term.inspect(object));
     });
   }
 }
