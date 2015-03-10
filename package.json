@@ -5,10 +5,7 @@
   "description": "PDF parser",
   "keywords": ["pdf", "parser"],
   "homepage": "https://github.com/chbrown/pdf",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/chbrown/pdf.git"
-  },
+  "repository": "git://github.com/chbrown/pdf.git",
   "bugs": {
     "email": "Christopher Brown <io@henrian.com>",
     "url": "http://github.com/chbrown/pdf/issues"
@@ -29,7 +26,6 @@
   },
   "devDependencies": {
     "mocha": "*",
-    "pegjs": "*",
     "typescript": "*"
   },
   "bin": {
