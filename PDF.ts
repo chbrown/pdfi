@@ -9,6 +9,7 @@ import FileReader = require('./readers/FileReader');
 import BufferedFileReader = require('./readers/BufferedFileReader');
 import BufferedStringReader = require('./readers/BufferedStringReader');
 
+import filters = require('./filters');
 import pdfdom = require('./pdfdom');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
@@ -118,18 +119,36 @@ class PDF {
   findObject(reference: pdfdom.IndirectReference): pdfdom.PDFObject {
     var cross_reference = this.findCrossReference(reference);
     // logger.info(chalk.green(`findObject(${reference.object_number}:${reference.generation_number}): offset=${cross_reference.offset}`));
-    var object = <pdfdom.IndirectObject>this.parseObjectAt(cross_reference.offset, "INDIRECT_OBJECT");
-    // object is a pdfdom.IndirectObject, but we already knew the object number
+    var indirect_object = <pdfdom.IndirectObject>this.parseObjectAt(cross_reference.offset, "INDIRECT_OBJECT");
+    // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
     // and generation number; that's how we found it. We only want the value of
     // the object. But we might as well double check that what we got is what
     // we were looking for:
-    if (object.object_number != cross_reference.object_number) {
+    if (indirect_object.object_number != cross_reference.object_number) {
       throw new Error(`PDF cross references are incorrect; the offset
         ${cross_reference.offset} does not lead to an object numbered
         ${cross_reference.object_number}; instead, the object at that offset is
-        ${object.object_number}`);
+        ${indirect_object.object_number}`);
     }
-    return object.value;
+
+    var object = indirect_object.value;
+
+    if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
+      var stream = <pdfdom.Stream>object;
+      var filter_names = [].concat(stream.dictionary['Filter']);
+      filter_names.forEach(filter_name => {
+        var filter = filters[filter_name];
+        if (filter) {
+          stream.buffer = filters[filter_name](stream.buffer);
+        }
+        else {
+          logger.error(`Could not find filter "${filter_name}" to decode stream`);
+        }
+      });
+      return stream;
+    }
+
+    return object;
   }
 
   /**
