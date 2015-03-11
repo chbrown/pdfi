@@ -191,13 +191,14 @@ var PDF = (function () {
     });
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
-        logger.error('Context (%d:%d:%d)', start_position, error_position, error_position + margin);
+        logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
         // File#readBuffer(length: number, position: number): Buffer
         var preface_buffer = this.file.readBuffer(error_position - start_position, start_position);
-        var preface_string = preface_buffer.toString('ascii');
+        var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
         var error_buffer = this.file.readBuffer(margin, error_position);
-        var error_string = error_buffer.toString('ascii');
-        term.print('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
+        var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
+        // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
+        console.log('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
     };
     PDF.prototype.parseObjectAt = function (position, start) {
         if (start === void 0) { start = "OBJECT_HACK"; }
