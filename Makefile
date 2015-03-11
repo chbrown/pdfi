@@ -1,7 +1,6 @@
-TYPESCRIPT = $(wildcard *.ts dev/*.ts readers/*.ts test/parsers/*.ts test/*.ts)
-PARSERS = $(wildcard parsers/*.js)
+TYPESCRIPT = $(wildcard *.ts parsers/*.ts dev/*.ts test/parsers/*.ts test/*.ts)
 
-all: $(TYPESCRIPT:%.ts=%.js) $(PARSERS)
+all: $(TYPESCRIPT:%.ts=%.js)
 
 # build the pdfobject parser script from Jison grammar
 # parsers/pdfobject.parser.js: parsers/pdfobject.jison

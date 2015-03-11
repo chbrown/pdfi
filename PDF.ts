@@ -2,12 +2,10 @@
 import fs = require('fs');
 import chalk = require('chalk');
 import logger = require('loge');
+import lexing = require('lexing');
 import term = require('./dev/term');
 
 import File = require('./File');
-import FileReader = require('./readers/FileReader');
-import BufferedFileReader = require('./readers/BufferedFileReader');
-import BufferedStringReader = require('./readers/BufferedStringReader');
 
 import filters = require('./filters');
 import pdfdom = require('./pdfdom');
@@ -35,8 +33,7 @@ class PDF {
   */
   readTrailers(): void {
     // Find the offset of the first item in the xref-trailer chain
-    var simple_reader = new FileReader(this.file);
-    var startxref_position = simple_reader.lastIndexOf('startxref');
+    var startxref_position = this.file.lastIndexOf('startxref');
     if (startxref_position === null) {
       throw new Error('Could not find "startxref" marker in file');
     }
@@ -213,7 +210,7 @@ class PDF {
   }
 
   parseObjectAt(position: number, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var reader = new BufferedFileReader(this.file, position);
+    var reader = new lexing.BufferedFileReader(this.file.fd, position);
     var parser = new PDFObjectParser(this, start);
 
     try {
@@ -227,10 +224,10 @@ class PDF {
     }
   }
 
-  parseString(input: string): pdfdom.PDFObject {
-    var reader = new BufferedStringReader(input);
+  parseString(input: string, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
+    var reader = new lexing.BufferedStringReader(input);
 
-    var parser = new PDFObjectParser(this, "OBJECT_HACK");
+    var parser = new PDFObjectParser(this, start);
     return parser.parse(reader);
   }
 }

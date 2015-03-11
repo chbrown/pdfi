@@ -1,35 +1,119 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import logger = require('loge');
-import chalk = require('chalk');
+import lexing = require('lexing');
+var jison = require('jison');
 
 import pdfdom = require('../pdfdom');
-import BufferedReader = require('../readers/BufferedReader');
 import PDF = require('../PDF');
 
-var jison = require('jison');
-var bnf = require('./bnf.json');
+import PDFObjectLexer = require('./PDFObjectLexer');
+import JisonLexerWrapper = require('./JisonLexerWrapper');
 
-import JisonLexer = require('./JisonLexer');
-// load the precompiled Jison parser
-// import JisonParser = require('./JisonParser');
-// and the lexing rules
-var pdfrules = require('./pdfrules');
+var bnf = {
+  "INDIRECT_OBJECT": [
+    [
+      "INDIRECT_OBJECT_IDENTIFIER OBJECT END_INDIRECT_OBJECT",
+      "return { object_number: $1.object_number, generation_number: $1.generation_number, value: $2 }"
+    ]
+  ],
+  "OBJECT_HACK": [
+    [ "OBJECT EOF", "return $1" ],
+    [ "OBJECT OBJECT", "return $1" ]
+  ],
+  "OBJECT": [
+    "STRING",
+    "NUMBER",
+    "REFERENCE",
+    "BOOLEAN",
+    "ARRAY",
+    "DICTIONARY",
+    "NAME",
+    "STREAM",
+    "NULL"
+  ],
+  "objects": [
+    ["OBJECT", "$$ = [$1]"],
+    ["objects OBJECT", "$$ = $1; $1.push($2)"]
+  ],
+  "ARRAY": [
+    ["[ objects ]", "$$ = $2;"],
+    ["[ ]", "$$ = [];"]
+  ],
+  "STRING": [
+    "HEXSTRING",
+    ["OPENPARENS CLOSEPARENS", "$$ = \"\""],
+    ["OPENPARENS chars CLOSEPARENS", "$$ = $2.join(\"\")"]
+  ],
+  "STREAM_HEADER": [
+    [
+      "DICTIONARY START_STREAM",
+      "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance*/ yy.lexer.lexer.stream_length = yy.pdf.resolveObject($1.Length);"
+    ]
+  ],
+  "STREAM": [
+    ["STREAM_HEADER STREAM_BUFFER END_STREAM", "$$ = { dictionary: $1, buffer: $2 }"]
+  ],
+  "DICTIONARY": [
+    [ "<< keyvaluepairs >>", "$$ = $2" ]
+  ],
+  "keyvaluepairs": [
+    ["NAME OBJECT", "$$ = {}; $$[$1] = $2;"],
+    ["keyvaluepairs NAME OBJECT", "$$ = $1; $1[$2] = $3;"]
+  ],
+  "chars": [
+    [ "CHAR", "$$ = [$1]" ],
+    [ "chars CHAR", "$$ = $1; $1.push($2)" ]
+  ],
+  "STARTXREF_ONLY": [
+    [ "STARTXREF NUMBER EOF", "return $2" ]
+  ],
+  "XREF_ONLY": [
+    ["CROSS_REFERENCES TRAILER", "return $1"],
+    ["CROSS_REFERENCES EOF", "return $1"],
+  ],
+  "XREF_TRAILER_ONLY": [
+    [
+      "CROSS_REFERENCES TRAILER DICTIONARY STARTXREF NUMBER EOF",
+      "return {cross_references: $1, trailer: $3, startxref: $5};"
+    ]
+  ],
+  "CROSS_REFERENCES": [
+    [
+      "XREF_START XREF_SUBSECTIONS XREF_END",
+      "$$ = Array.prototype.concat.apply([], $2); // produce single array"
+    ]
+  ],
+  "XREF_SUBSECTION": [
+    [
+      "XREF_SUBSECTION_HEADER XREF_REFERENCES",
+      "$$ = $2; for (var i = 0; i < $$.length; i++) { $$[i].object_number = $1 + i; }"
+    ]
+  ],
+  "XREF_SUBSECTIONS": [
+    [ "XREF_SUBSECTION", "$$ = [$1]" ],
+    [ "XREF_SUBSECTIONS XREF_SUBSECTION", "$$ = $1; $1.push($2)" ]
+  ],
+  "XREF_REFERENCES": [
+    [ "XREF_REFERENCE", "$$ = [$1]" ],
+    [ "XREF_REFERENCES XREF_REFERENCE", "$$ = $1; $1.push($2)" ]
+  ]
+}
+
 
 class PDFObjectParser {
   jison_parser: any;
 
   constructor(pdf: PDF, start: string) {
-    this.jison_parser = new jison.Parser({
-      start: start,
-      bnf: bnf,
-    });
-    this.jison_parser.lexer = new JisonLexer(pdfrules);
+    var lexer = new PDFObjectLexer();
+    this.jison_parser = new jison.Parser({start: start, bnf: bnf});
+    this.jison_parser.lexer = new JisonLexerWrapper(lexer);
     this.jison_parser.yy = {pdf: pdf};
   }
 
-  parse(reader: BufferedReader): pdfdom.PDFObject {
+  parse(reader: lexing.BufferedReader): pdfdom.PDFObject {
     return this.jison_parser.parse(reader);
   }
+
 }
 
 export = PDFObjectParser;

@@ -1,11 +1,6 @@
-import BufferedReader = require('../readers/BufferedReader');
-import BufferedLexer = require('./BufferedLexer');
-
-// TODO: import Rule from a more general source
-interface Rule<T> {
-  pattern: RegExp;
-  action: (match: RegExpMatchArray) => T;
-}
+/// <reference path="../type_declarations/index.d.ts" />
+import logger = require('loge');
+import lexing = require('lexing');
 
 interface JisonLocation {
   first_line: number;
@@ -16,7 +11,7 @@ interface JisonLocation {
 }
 
 interface JisonSharedState {
-  lexer: JisonLexer;
+  lexer: JisonLexerWrapper;
   parser: any; // an instance of Jison's Parser
 }
 
@@ -34,23 +29,17 @@ Error messages require:
     lexer.showPosition(): string
 
 */
-class JisonLexer extends BufferedLexer<[string, any]> {
+class JisonLexerWrapper {
   // interface:
   yy: JisonSharedState;
-  yytext: any; // the content represented by the current token
-  yyleng: number; // length of yytext
+  yytext: any = ''; // the content represented by the current token
+  yyleng: number = 0; // length of yytext
   yylineno: number; // the current line number in the input
   yyloc: JisonLocation;
   yylloc: JisonLocation; // same as yyloc, except describes the previous location
-  // BufferedLexer needs/provides the following properties:
-  // states: Stack;
-  // rules: Rule[];
-  // reader: BufferedReader;
+  options: JisonLexerOptions = {ranges: false};
 
-  constructor(rules: Rule<[string, any]>[],
-              public options: JisonLexerOptions = {ranges: false}) {
-    super(rules);
-  }
+  constructor(public lexer: lexing.BufferedLexer<[string, any]>) { }
 
   /** setInput(input: any, yy: JisonSharedState): void
 
@@ -61,8 +50,8 @@ class JisonLexer extends BufferedLexer<[string, any]> {
   But for the purpose of wrapping BufferedLexer, we need to ensure it's a
   BufferedReader.
   */
-  setInput(input: BufferedReader, yy: JisonSharedState): void {
-    this.reader = input;
+  setInput(input: lexing.BufferedReader, yy: JisonSharedState): void {
+    this.lexer.reader = input;
     this.yy = yy;
 
     this.yytext = '';
@@ -76,11 +65,13 @@ class JisonLexer extends BufferedLexer<[string, any]> {
     };
   }
 
+  /**
+  This is how the parser hooks into the lexer.
+  */
   lex(): string {
-    var token: string = null;
     // next() runs read() until we get a non-null token
-    var token_value_pair = this.next()
-    token = token_value_pair[0];
+    var token_value_pair = this.lexer.next()
+    var token = token_value_pair[0];
     this.yytext = token_value_pair[1];
     this.yyleng = this.yytext ? this.yytext.length : 0;
     // logger.debug(`lex[${token}] ->`, this.yytext);
@@ -88,4 +79,4 @@ class JisonLexer extends BufferedLexer<[string, any]> {
   }
 }
 
-export = JisonLexer;
+export = JisonLexerWrapper;

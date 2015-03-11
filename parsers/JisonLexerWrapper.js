@@ -1,10 +1,3 @@
-var __extends = this.__extends || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
-var BufferedLexer = require('./BufferedLexer');
 /**
 This mostly functions to wrap an abstract Lexer into the form that Jison expects.
 
@@ -15,16 +8,12 @@ Error messages require:
     lexer.showPosition(): string
 
 */
-var JisonLexer = (function (_super) {
-    __extends(JisonLexer, _super);
-    // BufferedLexer needs/provides the following properties:
-    // states: Stack;
-    // rules: Rule[];
-    // reader: BufferedReader;
-    function JisonLexer(rules, options) {
-        if (options === void 0) { options = { ranges: false }; }
-        _super.call(this, rules);
-        this.options = options;
+var JisonLexerWrapper = (function () {
+    function JisonLexerWrapper(lexer) {
+        this.lexer = lexer;
+        this.yytext = ''; // the content represented by the current token
+        this.yyleng = 0; // length of yytext
+        this.options = { ranges: false };
     }
     /** setInput(input: any, yy: JisonSharedState): void
   
@@ -35,8 +24,8 @@ var JisonLexer = (function (_super) {
     But for the purpose of wrapping BufferedLexer, we need to ensure it's a
     BufferedReader.
     */
-    JisonLexer.prototype.setInput = function (input, yy) {
-        this.reader = input;
+    JisonLexerWrapper.prototype.setInput = function (input, yy) {
+        this.lexer.reader = input;
         this.yy = yy;
         this.yytext = '';
         this.yyleng = 0;
@@ -48,16 +37,18 @@ var JisonLexer = (function (_super) {
             last_column: 0,
         };
     };
-    JisonLexer.prototype.lex = function () {
-        var token = null;
+    /**
+    This is how the parser hooks into the lexer.
+    */
+    JisonLexerWrapper.prototype.lex = function () {
         // next() runs read() until we get a non-null token
-        var token_value_pair = this.next();
-        token = token_value_pair[0];
+        var token_value_pair = this.lexer.next();
+        var token = token_value_pair[0];
         this.yytext = token_value_pair[1];
         this.yyleng = this.yytext ? this.yytext.length : 0;
         // logger.debug(`lex[${token}] ->`, this.yytext);
         return token;
     };
-    return JisonLexer;
-})(BufferedLexer);
-module.exports = JisonLexer;
+    return JisonLexerWrapper;
+})();
+module.exports = JisonLexerWrapper;
