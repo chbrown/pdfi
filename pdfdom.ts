@@ -1,7 +1,5 @@
 /// <reference path="type_declarations/index.d.ts" />
 
-export type Rectangle = [number, number, number, number]
-
 export interface PDFObject {}
 
 export interface BooleanObject extends PDFObject, Boolean {}
@@ -18,8 +16,10 @@ export interface ArrayObject extends PDFObject, Array<PDFObject> {
   [index: number]: PDFObject;
 }
 
+export type Rectangle = [number, number, number, number]
+
 export interface DictionaryObject extends PDFObject {
-  [index: string]: PDFObject;
+  [index: string]: any; // really, it could be so much
 }
 
 /** An object declaration. For example, the following snippet would evaluate
