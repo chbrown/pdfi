@@ -1,4 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
 var zlib = require('zlib');
 /**
 
@@ -68,6 +67,8 @@ All values are in the range 0x21-0x75 == 33-117 == '!'-'u' and 0x7A == 122 == 'z
 0x7E,0x3E == 126,62 == '~>' serves as the EOF marker
 
 While decoding, all whitespace should be ignored. Any other invalid characters should produce an error.
+
+http://en.wikipedia.org/wiki/Ascii85 is helpful, as well as PDF32000_2008.pdf:7.4.3
 
 TODO:
 throw when encountering a 'z' inside a group (or any other out-of-range character)
