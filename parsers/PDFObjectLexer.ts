@@ -110,7 +110,6 @@ state_rules['STREAM'] = [
   [/^/, function(match) {
     // other side of the dirty lexer<->parser hack
     var buffer = this.reader.readBuffer(this.stream_length);
-    console.log('lexer.stream_length', this.stream_length);
     this.stream_length = null;
     return ['STREAM_BUFFER', buffer];
   }],
