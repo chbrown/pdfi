@@ -9,10 +9,6 @@
   ],
   "homepage": "https://github.com/chbrown/pdf",
   "repository": "git://github.com/chbrown/pdf.git",
-  "bugs": {
-    "email": "Christopher Brown <io@henrian.com>",
-    "url": "http://github.com/chbrown/pdf/issues"
-  },
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
@@ -36,6 +32,6 @@
     "pdf-dump": "bin/pdf-dump"
   },
   "scripts": {
-    "test": "mocha --recursive test/"
+    "test": "make test"
   }
 }
