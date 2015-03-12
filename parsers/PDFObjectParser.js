@@ -1,5 +1,5 @@
 var jison = require('jison');
-var PDFObjectLexer = require('./PDFObjectLexer');
+var PDFTokenizer = require('./PDFTokenizer');
 var JisonLexerWrapper = require('./JisonLexerWrapper');
 var bnf = {
     "INDIRECT_OBJECT": [
@@ -97,10 +97,11 @@ new jison.Parser({bnf: {"ARRAY": [["[ objects ]", "$$ = $2"], ["[ ]", "$$ = []"]
 */
 var PDFObjectParser = (function () {
     function PDFObjectParser(pdf, start) {
+        this.tokenizer = new PDFTokenizer();
         this.jison_parser = new jison.Parser({ start: start, bnf: bnf });
         // jison.Parser instances expect a {lex: () => string} interface attached
         // as Parser#lexer
-        this.jison_parser.lexer = new JisonLexerWrapper(new PDFObjectLexer());
+        this.jison_parser.lexer = new JisonLexerWrapper(this.tokenizer);
         // the stream parser rules need access to the original PDF, so we use the
         // `yy` JisonSharedState object for that.
         this.jison_parser.yy.pdf = pdf;

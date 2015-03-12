@@ -139,10 +139,10 @@ state_rules['INPARENS'] = [
   [/^./, match => Token('CHAR', match[0]) ],
 ];
 
-class PDFObjectLexer extends lexing.Tokenizer<any> {
+class PDFTokenizer extends lexing.Tokenizer<any> {
   constructor() {
     super(default_rules, state_rules);
   }
 }
 
-export = PDFObjectLexer;
+export = PDFTokenizer;

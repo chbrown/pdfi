@@ -114,11 +114,11 @@ state_rules['INPARENS'] = [
     [/^\\(\r\n|\n|\r)/, function (match) { return null; }],
     [/^./, function (match) { return Token('CHAR', match[0]); }],
 ];
-var PDFObjectLexer = (function (_super) {
-    __extends(PDFObjectLexer, _super);
-    function PDFObjectLexer() {
+var PDFTokenizer = (function (_super) {
+    __extends(PDFTokenizer, _super);
+    function PDFTokenizer() {
         _super.call(this, default_rules, state_rules);
     }
-    return PDFObjectLexer;
+    return PDFTokenizer;
 })(lexing.Tokenizer);
-module.exports = PDFObjectLexer;
+module.exports = PDFTokenizer;
