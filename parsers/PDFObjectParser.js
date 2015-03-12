@@ -39,7 +39,7 @@ var bnf = {
     "STREAM_HEADER": [
         [
             "DICTIONARY START_STREAM",
-            "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance*/ yy.lexer.lexer.stream_length = yy.pdf.resolveObject($1.Length);"
+            "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance*/ yy.stream_length = yy.pdf.resolveObject($1.Length);"
         ]
     ],
     "STREAM": [
@@ -90,15 +90,23 @@ var bnf = {
         ["XREF_REFERENCES XREF_REFERENCE", "$$ = $1; $1.push($2)"]
     ]
 };
+/**
+Simple Parser instance for REPL inspection:
+
+new jison.Parser({bnf: {"ARRAY": [["[ objects ]", "$$ = $2"], ["[ ]", "$$ = []"] ]}})
+*/
 var PDFObjectParser = (function () {
     function PDFObjectParser(pdf, start) {
-        var lexer = new PDFObjectLexer();
         this.jison_parser = new jison.Parser({ start: start, bnf: bnf });
-        this.jison_parser.lexer = new JisonLexerWrapper(lexer);
-        this.jison_parser.yy = { pdf: pdf };
+        // jison.Parser instances expect a {lex: () => string} interface attached
+        // as Parser#lexer
+        this.jison_parser.lexer = new JisonLexerWrapper(new PDFObjectLexer());
+        // the stream parser rules need access to the original PDF, so we use the
+        // `yy` JisonSharedState object for that.
+        this.jison_parser.yy.pdf = pdf;
     }
-    PDFObjectParser.prototype.parse = function (reader) {
-        return this.jison_parser.parse(reader);
+    PDFObjectParser.prototype.parse = function (iterable) {
+        return this.jison_parser.parse(iterable);
     };
     return PDFObjectParser;
 })();

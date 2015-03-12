@@ -211,7 +211,7 @@ class PDF {
   }
 
   parseObjectAt(position: number, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var reader = new lexing.BufferedFileReader(this.file.fd, position);
+    var reader = new lexing.FileIterator(this.file.fd, position);
     var parser = new PDFObjectParser(this, start);
 
     try {
@@ -226,7 +226,8 @@ class PDF {
   }
 
   parseString(input: string, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var reader = new lexing.BufferedStringReader(input);
+    var buffer = new Buffer(input);
+    var reader = new lexing.BufferIterator(buffer);
 
     var parser = new PDFObjectParser(this, start);
     return parser.parse(reader);

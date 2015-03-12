@@ -38,8 +38,9 @@ class JisonLexerWrapper {
   yyloc: JisonLocation;
   yylloc: JisonLocation; // same as yyloc, except describes the previous location
   options: JisonLexerOptions = {ranges: false};
+  token_iterable: lexing.TokenIterable<any>;
 
-  constructor(public lexer: lexing.BufferedLexer<[string, any]>) { }
+  constructor(public tokenizer: lexing.Tokenizer<any>) { }
 
   /** setInput(input: any, yy: JisonSharedState): void
 
@@ -47,12 +48,12 @@ class JisonLexerWrapper {
   parser.parse(...) with, which is sent directly to the Lexer and not otherwise
   used.
 
-  But for the purpose of wrapping BufferedLexer, we need to ensure it's a
-  BufferedReader.
+  But for the purpose of wrapping BufferIterableTokenizer, we need to ensure it's a
+  BufferIterable.
   */
-  setInput(input: lexing.BufferedReader, yy: JisonSharedState): void {
-    this.lexer.reader = input;
-    this.yy = yy;
+  setInput(iterable: lexing.BufferIterable, yy: JisonSharedState): void {
+    this.token_iterable = this.tokenizer.map(iterable);
+    this.yy = this.token_iterable['yy'] = yy;
 
     this.yytext = '';
     this.yyleng = 0;
@@ -69,13 +70,12 @@ class JisonLexerWrapper {
   This is how the parser hooks into the lexer.
   */
   lex(): string {
-    // next() runs read() until we get a non-null token
-    var token_value_pair = this.lexer.next()
-    var token = token_value_pair[0];
-    this.yytext = token_value_pair[1];
+    // next() always returns a non-null token
+    var token = this.token_iterable.next();
+    this.yytext = token.value;
     this.yyleng = this.yytext ? this.yytext.length : 0;
     // logger.debug(`lex[${token}] ->`, this.yytext);
-    return token;
+    return token.name;
   }
 }
 

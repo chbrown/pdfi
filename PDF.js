@@ -202,7 +202,7 @@ var PDF = (function () {
     };
     PDF.prototype.parseObjectAt = function (position, start) {
         if (start === void 0) { start = "OBJECT_HACK"; }
-        var reader = new lexing.BufferedFileReader(this.file.fd, position);
+        var reader = new lexing.FileIterator(this.file.fd, position);
         var parser = new PDFObjectParser(this, start);
         try {
             return parser.parse(reader);
@@ -215,7 +215,8 @@ var PDF = (function () {
     };
     PDF.prototype.parseString = function (input, start) {
         if (start === void 0) { start = "OBJECT_HACK"; }
-        var reader = new lexing.BufferedStringReader(input);
+        var buffer = new Buffer(input);
+        var reader = new lexing.BufferIterator(buffer);
         var parser = new PDFObjectParser(this, start);
         return parser.parse(reader);
     };
