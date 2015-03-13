@@ -22,12 +22,31 @@ enum RenderingMode {
 };
 
 /**
-These operators only apply between BT and ET markers.
+Table 51: "Operator categories" (PDF32000_2008.pdf:8.2)
+
+General graphics state: w, J, j, M, d, ri, i, gs
+Special graphics state: q, Q, cm
+Path construction: m, l, c, v, y, h, re
+Path painting: S, s, f, F, f*, B, B*, b, b*, n
+Clipping paths: W, W*
+Text objects: BT, ET
+Text state: Tc, Tw, Tz, TL, Tf, Tr, Ts
+Text positioning: Td, TD, Tm, T*
+Text showing: Tj, TJ, ', "
+Type 3 fonts: d0, d1
+Color: CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
+Shading patterns: sh
+Inline images: BI, ID, EI
+XObjects: Do
+Marked content: MP, DP, BMC, BDC, EMC
+Compatibility: BX, EX
+
+The "Text state", "Text positioning", and "Text showing" operators only apply between BT and ET markers.
 */
-// See PDF32000_2008.pdf:8.2, Table 51 "Operator categories"
-var text_operators = {
-  // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts)
-  // see PDF32000_2008.pdf:9.3.1
+var operations = {
+  // ---------------------------------------------------------------------------
+  //            Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts)
+  //                     see PDF32000_2008.pdf:9.3.1
   Tc: function setCharacterSpacing(charSpace: number) {
     logger.debug(`[noop] setCharacterSpacing: ${charSpace}`);
   },
@@ -52,7 +71,8 @@ var text_operators = {
   // Text positioning operators (Td, TD, Tm, T*)
   Td: function adjustCurrentPosition(x: number, y: number) {
     // Move to the start of the next line, offset from the start of the current line by (tx, ty). tx and ty shall denote numbers expressed in unscaled text space units.
-    logger.debug(`[noop] adjustCurrentPosition: ${x} ${y}`);
+    // logger.debug(`[noop] adjustCurrentPosition: ${x} ${y}`);
+    this.newline();
   },
   TD: function adjustCurrentPositionWithLeading(x: number, y: number) {
     logger.debug(`[noop] adjustCurrentPositionWithLeading: ${x} ${y}`);
@@ -66,12 +86,13 @@ var text_operators = {
     // where Tl denotes the current leading parameter in the text state. The
     // negative of Tl is used here because Tl is the text leading expressed as a
     // positive number. Going to the next line entails decreasing the y coordinate.
-    this.breakLine();
+    var current_Tl = 0; // TODO: ???
+    operations['Td'].call(this, 0, -current_Tl);
   },
   // Text showing operators (Tj, TJ, ', ")
   Tj: function showString(text: string) {
     // Show a text string.
-    this.addText(text);
+    this.pushText(text);
   },
   TJ: function showStrings(array: Array<string | number>) {
     /**
@@ -94,23 +115,21 @@ var text_operators = {
         throw new Error(`Unknown TJ argument type: ${item_type} (${item})`);
       }
     }).join('');
-    this.addText(text);
+    this.pushText(text);
   },
   "'": function(text: string) {
     // Move to the next line and show a text string. This operator shall have the same effect as the code `T* string Tj`
-    this['T*']();
-    this['Tj'](text);
+    operations['T*'].call(this);
+    operations['Tj'].call(this, text);
   },
   '"': function(wordSpace: number, charSpace: number, text: string) {
     // Move to the next line and show a text string, using aw as the word spacing and ac as the character spacing (setting the corresponding parameters in the text state). aw and ac shall be numbers expressed in unscaled text space units. This operator shall have the same effect as this code: `aw Tw ac Tc string '`
-    this['Tw'](wordSpace);
-    this['Tc'](charSpace);
-    this["'"](text);
+    operations['Tw'].call(this, wordSpace);
+    operations['Tc'].call(this, charSpace);
+    operations["'"].call(this, text);
   },
-};
-
-var color_operators = {
-  // Color operators:
+  // ---------------------------------------------------------------------------
+  //                           Color operators
   RG: function setStrokeColor(r: number, g: number, b: number) {
     logger.debug(`[noop] setStrokeColor: ${r} ${g} ${b}`);
   },
@@ -123,12 +142,14 @@ var color_operators = {
   g: function setFillGray(gray: number) {
     logger.debug(`[noop] setFillGray: ${gray}`);
   },
+  // others ...
+  Do: function drawObject(name: string) {
+    this.pushName(name);
+  },
 };
 
-var operators = _.extend({}, color_operators, text_operators);
-
-var text_operator_keys_escaped = Object.keys(text_operators).map(key => key.replace('*', '\\*'));
-var text_operator_regex = new RegExp(`^(${text_operator_keys_escaped.join('|')})`);
+var operators_escaped = 'w J j M d ri i gs q Q cm m l c v y h re S s f F f* B B* b b* n W W* BT ET Tc Tw Tz TL Tf Tr Ts Td TD Tm T* Tj TJ \' " d0 d1 CS cs SC SCN sc scn G g RG rg K k sh BI ID EI Do MP DP BMC BDC EMC BX EX'.split(' ').map(operator => operator.replace('*', '\\*'));
+var operator_regex = new RegExp(`^(${operators_escaped.join('|')})`);
 
 var default_rules: lexing.RegexRule<any>[] = [
   [/^$/, match => Token('EOF') ],
@@ -143,10 +164,9 @@ var default_rules: lexing.RegexRule<any>[] = [
     return Token('START', 'ARRAY');
   }],
   [/^(BT|ET)/, match => null ], // skip over BT and ET markers
-  // text operators
-  [text_operator_regex, match => Token('OPERATOR', match[0]) ],
-  // other operators
-  [/^(RG|rg|G|g)/, match => Token('OPERATOR', match[0]) ],
+  // all operators
+  [operator_regex, match => Token('OPERATOR', match[0]) ],
+  [/^\/(\w+)/, match => Token('OPERAND', match[1]) ],
   [/^-?[0-9]+\.[0-9]+/, match => Token('OPERAND', parseFloat(match[0])) ],
   [/^-?[0-9]+/, match => Token('OPERAND', parseInt(match[0], 10)) ],
   [/^\S+/, match => Token('OPERAND', match[0]) ],
@@ -175,32 +195,63 @@ state_rules['ARRAY'] = [
   [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],
 ];
 
-interface Point {
+export interface Point {
   x: number;
   y: number;
 }
-interface Span {
+export interface TextSpan {
   text: string;
   position?: Point;
 }
+export interface Reference {
+  name: string;
+}
+export type DocumentElement = TextSpan | Reference;
 
 /**
 The text operators above will be called with an instance of DocumentBuilder
 bound as `this`.
 */
-class SpanBuilder {
-  spans: Span[] = [];
+export class DocumentBuilder {
+  elements: Array<DocumentElement> = [];
 
-  get current_span(): Span {
-    if (this.spans.length === 0) {
-      this.spans.push({text: ''});
+  /**
+  Add a new element, but return the element instead of the new length.
+
+  The `pushElement<T extends DocumentElement>` version doesn't work.
+  */
+  // pushElement<T extends DocumentElement>(element: T): T {
+  //   this.elements.push(element);
+  //   return element;
+  // }
+  pushSpan(span: TextSpan): TextSpan {
+    this.elements.push(span);
+    return span;
+  }
+  pushName(name: string): void {
+    this.elements.push({name: name});
+  }
+
+  get spans(): TextSpan[] {
+    return <TextSpan[]>this.elements.filter(span => span['text']);
+  }
+
+  get current_span(): TextSpan {
+    if (this.elements.length === 0) {
+      return this.pushSpan({text: ''});
     }
-    return this.spans[this.spans.length - 1];
+
+    var last_element = this.elements[this.elements.length - 1];
+    if (last_element['text'] !== undefined) {
+      return <TextSpan>last_element;
+    }
+
+    return this.pushSpan({text: ''});
   }
-  breakLine(): void {
-    this.spans.push({text: ''});
+  newline(): void {
+    this.elements.push({text: ''});
   }
-  addText(text: string): void {
+  pushText(text: string): void {
     this.current_span.text += text;
   }
   toString(): string {
@@ -208,8 +259,7 @@ class SpanBuilder {
   }
 }
 
-
-class TextParser {
+export class TextParser {
   tokenizer = new lexing.Tokenizer(default_rules, state_rules);
   // lexing.CombinerRule<any, any>[]
   combiner = new lexing.Combiner<any>([
@@ -217,32 +267,33 @@ class TextParser {
     ['ARRAY', tokens => Token('OPERAND', tokens.map(token => token.value)) ],
   ]);
 
-  parse(iterable: lexing.BufferIterable): Span[] {
+  parse(iterable: lexing.BufferIterable): DocumentBuilder {
     var token_iterator = this.tokenizer.map(iterable);
     var combined_iterator = this.combiner.map(token_iterator);
 
     var stack = [];
-    var builder = new SpanBuilder();
+    var builder = new DocumentBuilder();
 
     while (1) {
       var token = combined_iterator.next();
       // console.log('%s: %j', chalk.green(token.name), token.value);
 
       if (token.name == 'OPERATOR') {
-        var operator = operators[token.value];
-        if (operator) {
-          var expected_arguments = operator.length;
+        var operation = operations[token.value];
+        if (operation) {
+          var expected_arguments = operation.length;
           var stack_arguments = stack.length;
           if (expected_arguments != stack_arguments) {
             logger.error(`Operator "${token.value}" expects ${expected_arguments} arguments, but received ${stack_arguments}: [${stack.join(', ')}]`);
           }
-          operator.apply(builder, stack);
-          // we've consumed everything on the stack; truncate it
-          stack.length = 0;
+          operation.apply(builder, stack);
         }
         else {
-          throw new Error(`Unsupported operator: ${token.value}`);
+          logger.error(`Unsupported operator: ${token.name}:${token.value}`);
+          // throw new Error(`Unsupported operator: ${token.value}`);
         }
+        // we've consumed everything on the stack; truncate it
+        stack.length = 0;
       }
       else if (token.name == 'OPERAND') {
         stack.push(token.value);
@@ -255,13 +306,10 @@ class TextParser {
       }
     }
 
-    // logger.info(builder.toString());
-    return builder.spans;
+    return builder;
   }
 
-  parseString(str: string): Span[] {
+  parseString(str: string): DocumentBuilder {
     return this.parse(lexing.BufferIterator.fromString(str));
   }
 }
-
-export = TextParser;

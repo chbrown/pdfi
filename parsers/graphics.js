@@ -1,5 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
-var _ = require('lodash');
 var logger = require('loge');
 var lexing = require('lexing');
 var Token = lexing.Token;
@@ -17,12 +15,31 @@ var RenderingMode;
 })(RenderingMode || (RenderingMode = {}));
 ;
 /**
-These operators only apply between BT and ET markers.
+Table 51: "Operator categories" (PDF32000_2008.pdf:8.2)
+
+General graphics state: w, J, j, M, d, ri, i, gs
+Special graphics state: q, Q, cm
+Path construction: m, l, c, v, y, h, re
+Path painting: S, s, f, F, f*, B, B*, b, b*, n
+Clipping paths: W, W*
+Text objects: BT, ET
+Text state: Tc, Tw, Tz, TL, Tf, Tr, Ts
+Text positioning: Td, TD, Tm, T*
+Text showing: Tj, TJ, ', "
+Type 3 fonts: d0, d1
+Color: CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
+Shading patterns: sh
+Inline images: BI, ID, EI
+XObjects: Do
+Marked content: MP, DP, BMC, BDC, EMC
+Compatibility: BX, EX
+
+The "Text state", "Text positioning", and "Text showing" operators only apply between BT and ET markers.
 */
-// See PDF32000_2008.pdf:8.2, Table 51 "Operator categories"
-var text_operators = {
-    // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts)
-    // see PDF32000_2008.pdf:9.3.1
+var operations = {
+    // ---------------------------------------------------------------------------
+    //            Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts)
+    //                     see PDF32000_2008.pdf:9.3.1
     Tc: function setCharacterSpacing(charSpace) {
         logger.debug("[noop] setCharacterSpacing: " + charSpace);
     },
@@ -47,7 +64,8 @@ var text_operators = {
     // Text positioning operators (Td, TD, Tm, T*)
     Td: function adjustCurrentPosition(x, y) {
         // Move to the start of the next line, offset from the start of the current line by (tx, ty). tx and ty shall denote numbers expressed in unscaled text space units.
-        logger.debug("[noop] adjustCurrentPosition: " + x + " " + y);
+        // logger.debug(`[noop] adjustCurrentPosition: ${x} ${y}`);
+        this.newline();
     },
     TD: function adjustCurrentPositionWithLeading(x, y) {
         logger.debug("[noop] adjustCurrentPositionWithLeading: " + x + " " + y);
@@ -61,12 +79,13 @@ var text_operators = {
         // where Tl denotes the current leading parameter in the text state. The
         // negative of Tl is used here because Tl is the text leading expressed as a
         // positive number. Going to the next line entails decreasing the y coordinate.
-        this.breakLine();
+        var current_Tl = 0; // TODO: ???
+        operations['Td'].call(this, 0, -current_Tl);
     },
     // Text showing operators (Tj, TJ, ', ")
     Tj: function showString(text) {
         // Show a text string.
-        this.addText(text);
+        this.pushText(text);
     },
     TJ: function showStrings(array) {
         /**
@@ -89,22 +108,21 @@ var text_operators = {
                 throw new Error("Unknown TJ argument type: " + item_type + " (" + item + ")");
             }
         }).join('');
-        this.addText(text);
+        this.pushText(text);
     },
     "'": function (text) {
         // Move to the next line and show a text string. This operator shall have the same effect as the code `T* string Tj`
-        this['T*']();
-        this['Tj'](text);
+        operations['T*'].call(this);
+        operations['Tj'].call(this, text);
     },
     '"': function (wordSpace, charSpace, text) {
         // Move to the next line and show a text string, using aw as the word spacing and ac as the character spacing (setting the corresponding parameters in the text state). aw and ac shall be numbers expressed in unscaled text space units. This operator shall have the same effect as this code: `aw Tw ac Tc string '`
-        this['Tw'](wordSpace);
-        this['Tc'](charSpace);
-        this["'"](text);
+        operations['Tw'].call(this, wordSpace);
+        operations['Tc'].call(this, charSpace);
+        operations["'"].call(this, text);
     },
-};
-var color_operators = {
-    // Color operators:
+    // ---------------------------------------------------------------------------
+    //                           Color operators
     RG: function setStrokeColor(r, g, b) {
         logger.debug("[noop] setStrokeColor: " + r + " " + g + " " + b);
     },
@@ -117,10 +135,13 @@ var color_operators = {
     g: function setFillGray(gray) {
         logger.debug("[noop] setFillGray: " + gray);
     },
+    // others ...
+    Do: function drawObject(name) {
+        this.pushName(name);
+    },
 };
-var operators = _.extend({}, color_operators, text_operators);
-var text_operator_keys_escaped = Object.keys(text_operators).map(function (key) { return key.replace('*', '\\*'); });
-var text_operator_regex = new RegExp("^(" + text_operator_keys_escaped.join('|') + ")");
+var operators_escaped = 'w J j M d ri i gs q Q cm m l c v y h re S s f F f* B B* b b* n W W* BT ET Tc Tw Tz TL Tf Tr Ts Td TD Tm T* Tj TJ \' " d0 d1 CS cs SC SCN sc scn G g RG rg K k sh BI ID EI Do MP DP BMC BDC EMC BX EX'.split(' ').map(function (operator) { return operator.replace('*', '\\*'); });
+var operator_regex = new RegExp("^(" + operators_escaped.join('|') + ")");
 var default_rules = [
     [/^$/, function (match) { return Token('EOF'); }],
     [/^\s+/, function (match) { return null; }],
@@ -133,8 +154,8 @@ var default_rules = [
         return Token('START', 'ARRAY');
     }],
     [/^(BT|ET)/, function (match) { return null; }],
-    [text_operator_regex, function (match) { return Token('OPERATOR', match[0]); }],
-    [/^(RG|rg|G|g)/, function (match) { return Token('OPERATOR', match[0]); }],
+    [operator_regex, function (match) { return Token('OPERATOR', match[0]); }],
+    [/^\/(\w+)/, function (match) { return Token('OPERAND', match[1]); }],
     [/^-?[0-9]+\.[0-9]+/, function (match) { return Token('OPERAND', parseFloat(match[0])); }],
     [/^-?[0-9]+/, function (match) { return Token('OPERAND', parseInt(match[0], 10)); }],
     [/^\S+/, function (match) { return Token('OPERAND', match[0]); }],
@@ -165,31 +186,59 @@ state_rules['ARRAY'] = [
 The text operators above will be called with an instance of DocumentBuilder
 bound as `this`.
 */
-var SpanBuilder = (function () {
-    function SpanBuilder() {
-        this.spans = [];
+var DocumentBuilder = (function () {
+    function DocumentBuilder() {
+        this.elements = [];
     }
-    Object.defineProperty(SpanBuilder.prototype, "current_span", {
+    /**
+    Add a new element, but return the element instead of the new length.
+  
+    The `pushElement<T extends DocumentElement>` version doesn't work.
+    */
+    // pushElement<T extends DocumentElement>(element: T): T {
+    //   this.elements.push(element);
+    //   return element;
+    // }
+    DocumentBuilder.prototype.pushSpan = function (span) {
+        this.elements.push(span);
+        return span;
+    };
+    DocumentBuilder.prototype.pushName = function (name) {
+        this.elements.push({ name: name });
+    };
+    Object.defineProperty(DocumentBuilder.prototype, "spans", {
         get: function () {
-            if (this.spans.length === 0) {
-                this.spans.push({ text: '' });
-            }
-            return this.spans[this.spans.length - 1];
+            return this.elements.filter(function (span) { return span['text']; });
         },
         enumerable: true,
         configurable: true
     });
-    SpanBuilder.prototype.breakLine = function () {
-        this.spans.push({ text: '' });
+    Object.defineProperty(DocumentBuilder.prototype, "current_span", {
+        get: function () {
+            if (this.elements.length === 0) {
+                return this.pushSpan({ text: '' });
+            }
+            var last_element = this.elements[this.elements.length - 1];
+            if (last_element['text'] !== undefined) {
+                return last_element;
+            }
+            return this.pushSpan({ text: '' });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    DocumentBuilder.prototype.newline = function () {
+        this.elements.push({ text: '' });
     };
-    SpanBuilder.prototype.addText = function (text) {
+    DocumentBuilder.prototype.pushText = function (text) {
         this.current_span.text += text;
     };
-    SpanBuilder.prototype.toString = function () {
+    DocumentBuilder.prototype.toString = function () {
         return this.spans.map(function (span) { return span.text; }).join('\n');
     };
-    return SpanBuilder;
+    return DocumentBuilder;
 })();
+exports.DocumentBuilder = DocumentBuilder;
 var TextParser = (function () {
     function TextParser() {
         this.tokenizer = new lexing.Tokenizer(default_rules, state_rules);
@@ -203,25 +252,25 @@ var TextParser = (function () {
         var token_iterator = this.tokenizer.map(iterable);
         var combined_iterator = this.combiner.map(token_iterator);
         var stack = [];
-        var builder = new SpanBuilder();
+        var builder = new DocumentBuilder();
         while (1) {
             var token = combined_iterator.next();
             // console.log('%s: %j', chalk.green(token.name), token.value);
             if (token.name == 'OPERATOR') {
-                var operator = operators[token.value];
-                if (operator) {
-                    var expected_arguments = operator.length;
+                var operation = operations[token.value];
+                if (operation) {
+                    var expected_arguments = operation.length;
                     var stack_arguments = stack.length;
                     if (expected_arguments != stack_arguments) {
                         logger.error("Operator \"" + token.value + "\" expects " + expected_arguments + " arguments, but received " + stack_arguments + ": [" + stack.join(', ') + "]");
                     }
-                    operator.apply(builder, stack);
-                    // we've consumed everything on the stack; truncate it
-                    stack.length = 0;
+                    operation.apply(builder, stack);
                 }
                 else {
-                    throw new Error("Unsupported operator: " + token.value);
+                    logger.error("Unsupported operator: " + token.name + ":" + token.value);
                 }
+                // we've consumed everything on the stack; truncate it
+                stack.length = 0;
             }
             else if (token.name == 'OPERAND') {
                 stack.push(token.value);
@@ -233,12 +282,11 @@ var TextParser = (function () {
                 logger.warn("Unrecognized token: " + token.name + ":" + token.value);
             }
         }
-        // logger.info(builder.toString());
-        return builder.spans;
+        return builder;
     };
     TextParser.prototype.parseString = function (str) {
         return this.parse(lexing.BufferIterator.fromString(str));
     };
     return TextParser;
 })();
-module.exports = TextParser;
+exports.TextParser = TextParser;
