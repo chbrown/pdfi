@@ -1,7 +1,7 @@
-/// <reference path="../../type_declarations/index.d.ts" />
+/// <reference path="../type_declarations/index.d.ts" />
 import assert = require('assert');
 
-var PDF = require('../../PDF');
+var PDF = require('../PDF');
 
 function check(input: string, expected_output: any, start?: string) {
   var pdf = new PDF();
