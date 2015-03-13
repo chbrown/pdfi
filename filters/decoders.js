@@ -1,3 +1,4 @@
+/// <reference path="../type_declarations/index.d.ts" />
 var zlib = require('zlib');
 /**
 
@@ -135,4 +136,3 @@ function FlateDecode(buffer) {
     return zlib.inflateSync(buffer);
 }
 exports.FlateDecode = FlateDecode;
-// exports.apply = function(stream, dictionary, callback) { };

@@ -1,8 +1,5 @@
-/// <reference path="type_declarations/index.d.ts" />
-import term = require('./dev/term');
-
+/// <reference path="../type_declarations/index.d.ts" />
 var zlib = require('zlib');
-
 
 /**
 
@@ -20,7 +17,6 @@ Crypt           [yes]   (PDF 1.5) Decrypts data encrypted by a security handler,
 
 callback: Function(Error, String)
 */
-
 
 /**
 This returns a function that can be called multiple times.
@@ -152,5 +148,3 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
 export function FlateDecode(buffer: Buffer): Buffer {
   return zlib.inflateSync(buffer);
 }
-
-// exports.apply = function(stream, dictionary, callback) { };
