@@ -91,10 +91,25 @@ export interface Pages extends DictionaryObject {
 }
 
 export interface Page extends DictionaryObject {
+  // required:
   Type: string; // 'Page'
-  Annots?: IndirectReference;
   Parent: IndirectReference;
   Resources: IndirectReference;
-  Contents: IndirectReference | IndirectReference[];
   MediaBox: Rectangle;
+  //
+  LastModified?: string; // actually Date
+  Annots?: IndirectReference;
+  CropBox?: Rectangle;
+  BleedBox?: Rectangle;
+  TrimBox?: Rectangle;
+  ArtBox?: Rectangle;
+  BoxColorInfo?: DictionaryObject;
+  /**
+  Contents: stream or array. The value shall be either a single stream or an array of streams. If the value is an array, the effect shall be as if all of the streams in the array were concatenated, in order, to form a single stream. Conforming writers can create image objects and other resources as they occur, even though they interrupt the content stream. The division between streams may occur only at the boundaries between lexical tokens (see 7.2, "Lexical Conventions") but shall be unrelated to the page’s logical content or organization. Applications that consume or produce PDF files need not preserve the existing structure of the Contents array. Conforming writers shall not create a Contents array containing no elements.
+  */
+  Contents?: IndirectReference | IndirectReference[];
+  Rotate?: number;
+  Group?: DictionaryObject;
+  Thumb?: Stream;
+  // ...
 }
