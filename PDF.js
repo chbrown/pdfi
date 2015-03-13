@@ -3,14 +3,13 @@ var logger = require('loge');
 var lexing = require('lexing');
 var term = require('./dev/term');
 var File = require('./File');
-var filters = require('./filters');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
 var util = require('util-enhanced');
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
-        this._trailer = {};
         this._cross_references = [];
+        this._pages = [];
     }
     PDF.open = function (filepath) {
         return new PDF(File.open(filepath));
@@ -60,7 +59,7 @@ var PDF = (function () {
         immediately follows the trailer?)
         */
         get: function () {
-            if (this._trailer['Root'] === undefined) {
+            if (this._trailer === undefined) {
                 this.readTrailers();
             }
             return this._trailer;
@@ -119,20 +118,9 @@ var PDF = (function () {
             throw new Error("PDF cross references are incorrect; the offset\n        " + cross_reference.offset + " does not lead to an object numbered\n        " + cross_reference.object_number + "; instead, the object at that offset is\n        " + indirect_object.object_number);
         }
         var object = indirect_object.value;
-        if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
-            var stream = object;
-            var filter_names = [].concat(stream.dictionary['Filter']);
-            filter_names.forEach(function (filter_name) {
-                var filter = filters[filter_name];
-                if (filter) {
-                    stream.buffer = filters[filter_name](stream.buffer);
-                }
-                else {
-                    logger.error("Could not find filter \"" + filter_name + "\" to decode stream");
-                }
-            });
-            return stream;
-        }
+        // if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
+        //   object = new PDFStream(object['dictionary'], object['buffer']);
+        // }
         return object;
     };
     /**
@@ -169,22 +157,32 @@ var PDF = (function () {
                 return [Kid];
             }
             else {
-                throw new Error('Unknown Kid type: ' + Kid['Type']);
+                throw new Error("Unknown Kid type: " + Kid['Type']);
             }
         });
+        // flatten pdfdom.Page[][] into pdfdom.Page[]
         return Array.prototype.concat.apply([], PageGroups);
     };
     Object.defineProperty(PDF.prototype, "catalog", {
         get: function () {
-            return this.resolveObject(this.trailer['Root']);
+            if (this._catalog === undefined) {
+                this._catalog = this.resolveObject(this.trailer['Root']);
+            }
+            return this._catalog;
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(PDF.prototype, "pages", {
+        /**
+        This returns basic pdfdom.PDFObjects -- not the enhanced PDFPage instance.
+        */
         get: function () {
-            var Pages = this.resolveObject(this.catalog.Pages);
-            return this.flattenPages(Pages);
+            if (this._pages.length == 0) {
+                var Pages = this.resolveObject(this.catalog.Pages);
+                this._pages = this.flattenPages(Pages);
+            }
+            return this._pages;
         },
         enumerable: true,
         configurable: true

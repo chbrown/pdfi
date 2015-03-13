@@ -7,7 +7,7 @@ import term = require('./dev/term');
 
 import File = require('./File');
 
-import filters = require('./filters');
+import decoders = require('./filters/decoders');
 import pdfdom = require('./pdfdom');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
@@ -15,8 +15,10 @@ import PDFObjectParser = require('./parsers/PDFObjectParser');
 var util = require('util-enhanced');
 
 class PDF {
-  _trailer: pdfdom.DictionaryObject = {};
+  _trailer: pdfdom.DictionaryObject;
   _cross_references: pdfdom.CrossReference[] = [];
+  _catalog: pdfdom.Catalog;
+  _pages: pdfdom.Page[] = [];
 
   constructor(public file: File) { }
 
@@ -67,7 +69,7 @@ class PDF {
   immediately follows the trailer?)
   */
   get trailer(): pdfdom.DictionaryObject {
-    if (this._trailer['Root'] === undefined) {
+    if (this._trailer === undefined) {
       this.readTrailers();
     }
     return this._trailer;
@@ -130,20 +132,9 @@ class PDF {
 
     var object = indirect_object.value;
 
-    if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
-      var stream = <pdfdom.Stream>object;
-      var filter_names = [].concat(stream.dictionary['Filter']);
-      filter_names.forEach(filter_name => {
-        var filter = filters[filter_name];
-        if (filter) {
-          stream.buffer = filters[filter_name](stream.buffer);
-        }
-        else {
-          logger.error(`Could not find filter "${filter_name}" to decode stream`);
-        }
-      });
-      return stream;
-    }
+    // if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
+    //   object = new PDFStream(object['dictionary'], object['buffer']);
+    // }
 
     return object;
   }
@@ -184,19 +175,29 @@ class PDF {
         return [<pdfdom.Page>Kid];
       }
       else {
-        throw new Error('Unknown Kid type: ' + Kid['Type']);
+        throw new Error(`Unknown Kid type: ${Kid['Type']}`);
       }
     });
+    // flatten pdfdom.Page[][] into pdfdom.Page[]
     return Array.prototype.concat.apply([], PageGroups);
   }
 
   get catalog(): pdfdom.Catalog {
-    return <pdfdom.Catalog>this.resolveObject(this.trailer['Root']);
+    if (this._catalog === undefined) {
+      this._catalog = <pdfdom.Catalog>this.resolveObject(this.trailer['Root']);
+    }
+    return this._catalog;
   }
 
+  /**
+  This returns basic pdfdom.PDFObjects -- not the enhanced PDFPage instance.
+  */
   get pages(): pdfdom.Page[] {
-    var Pages = <pdfdom.Pages>this.resolveObject(this.catalog.Pages);
-    return this.flattenPages(Pages);
+    if (this._pages.length == 0) {
+      var Pages = <pdfdom.Pages>this.resolveObject(this.catalog.Pages);
+      this._pages = this.flattenPages(Pages);
+    }
+    return this._pages;
   }
 
   printContext(start_position: number, error_position: number, margin: number = 256): void {
