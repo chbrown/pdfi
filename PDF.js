@@ -3,7 +3,9 @@ var logger = require('loge');
 var lexing = require('lexing');
 var term = require('./dev/term');
 var File = require('./File');
+var decoders = require('./filters/decoders');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
+var graphics = require('./parsers/graphics');
 var util = require('util-enhanced');
 var PDF = (function () {
     function PDF(file) {
@@ -118,9 +120,10 @@ var PDF = (function () {
             throw new Error("PDF cross references are incorrect; the offset\n        " + cross_reference.offset + " does not lead to an object numbered\n        " + cross_reference.object_number + "; instead, the object at that offset is\n        " + indirect_object.object_number);
         }
         var object = indirect_object.value;
-        // if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
-        //   object = new PDFStream(object['dictionary'], object['buffer']);
-        // }
+        // if it looks like a stream, decode it
+        if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
+            object = decodeStream(object);
+        }
         return object;
     };
     /**
@@ -187,6 +190,10 @@ var PDF = (function () {
         enumerable: true,
         configurable: true
     });
+    PDF.prototype.getPage = function (index) {
+        var page = this.pages[index];
+        return new PDFPage(this, page);
+    };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
         logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
@@ -219,5 +226,73 @@ var PDF = (function () {
         return parser.parse(reader);
     };
     return PDF;
+})();
+function decodeStream(stream) {
+    var buffer = stream.buffer;
+    var filters = [].concat(stream.dictionary['Filter']);
+    filters.forEach(function (filter) {
+        var decoder = decoders[filter];
+        if (decoder) {
+            try {
+                buffer = decoder(buffer);
+            }
+            catch (exc) {
+                var dictionary_string = term.inspect(stream.dictionary);
+                throw new Error("Could not decode stream " + dictionary_string + " (" + stream.buffer.length + " bytes): " + exc.stack);
+            }
+        }
+        else {
+            throw new Error("Could not find decoder named \"" + filter + "\" to decode stream");
+        }
+    });
+    // TODO: delete the dictionary['Filter'] field?
+    return { dictionary: this.dictionary, buffer: buffer };
+}
+/** PDFPage is a wrapper around a single page in a PDF that provides aggregates
+that page's content from its various Contents or Resources fields.
+*/
+var PDFPage = (function () {
+    function PDFPage(pdf, page) {
+        var _this = this;
+        // ignore Parent and the given Type
+        this.Type = 'Page';
+        this.MediaBox = page['MediaBox'];
+        // this.CropBox = page['CropBox'];
+        // a page's 'Contents' field may be a single stream or multiple streams.
+        // we need to iterate through all of them and concatenate them into a si/ngle Buffer
+        var Contents_Buffers = [].concat(page['Contents']).map(function (reference) {
+            var stream = pdf.findObject(reference);
+            return stream.buffer;
+        });
+        this.Contents = Buffer.concat(Contents_Buffers);
+        // The other contents are the `Resources` field. The Resources field is
+        // always a single object, as far as I can tell.
+        var Resources = pdf.findObject(page['Resources']);
+        // `Resources` has a field, `XObject`, which is a mapping from names to
+        // references (to streams). I'm pretty sure they're always streams.
+        // XObject usually has only one field, but could have several.
+        var text_parser = new graphics.TextParser();
+        this.XObject = {};
+        for (var name in Resources['XObject']) {
+            var stream = pdf.findObject(Resources['XObject'][name]);
+            this.XObject[name] = stream;
+        }
+        var Contents_iterable = new lexing.BufferIterator(this.Contents);
+        var objects = text_parser.parse(Contents_iterable);
+        // replace references:
+        var object_groups = objects.map(function (object) {
+            if (object instanceof graphics.ReferenceObject) {
+                // TODO: incorporate object.position
+                var stream = _this.XObject[object.name];
+                var stream_iterable = new lexing.BufferIterator(stream.buffer);
+                var xobject_objects = text_parser.parse(stream_iterable);
+                return xobject_objects;
+            }
+            return [object];
+        });
+        // flatten
+        this.objects = Array.prototype.concat.apply([], object_groups);
+    }
+    return PDFPage;
 })();
 module.exports = PDF;
