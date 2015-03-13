@@ -6,10 +6,6 @@ export interface BooleanObject extends PDFObject, Boolean {}
 
 export interface NumberObject extends PDFObject, Number {}
 
-export class NameObject implements PDFObject {
-  constructor(public value: string) { }
-}
-
 export interface StringObject extends PDFObject, String {}
 
 export interface ArrayObject extends PDFObject, Array<PDFObject> {
@@ -78,10 +74,15 @@ export interface Stream extends PDFObject {
   buffer: Buffer;
 }
 
+/**
+The PDF points to its catalog object with its trailer's `Root` reference.
+*/
 export interface Catalog extends DictionaryObject {
   Type: string; // "Catalog"
-  Pages: IndirectReference; // -> Pages
-  // Names: IndirectReference;
+  Pages: IndirectReference; // reference to a pdfdom.Pages object
+  Names?: IndirectReference;
+  PageMode?: string;
+  OpenAction?: IndirectReference;
 }
 
 export interface Pages extends DictionaryObject {
@@ -96,10 +97,4 @@ export interface Page extends DictionaryObject {
   Resources: IndirectReference;
   Contents: IndirectReference | IndirectReference[];
   MediaBox: Rectangle;
-}
-
-export interface PDF {
-  cross_references: CrossReference[];
-  trailer: DictionaryObject;
-  // some optional properties...
 }
