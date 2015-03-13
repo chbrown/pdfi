@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 var logger = require('loge');
 var term = require('../dev/term');
-var PDF = require('../PDF');
+var PDF = require('../').PDF;
 
 var yargs = require('yargs')
   .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
