@@ -132,6 +132,60 @@ function ASCII85Decode(ascii) {
     return new Buffer(bytes);
 }
 exports.ASCII85Decode = ASCII85Decode;
+/**
+This returns a function that can be called multiple times.
+
+When that function is called, it will return one of the following types:
+- An array of 2 ASCII characters (possibly with a final padding byte of 0).
+- null, when the EOF has been reached.
+*/
+function ASCIIHexLexer(input) {
+    var index = 0;
+    return function () {
+        var stack = [];
+        while (1) {
+            var next = input[index++];
+            if (next === undefined || next == 62) {
+                if (stack.length > 0) {
+                    if (stack.length == 1) {
+                        stack.push(0);
+                    }
+                    return stack;
+                }
+                return null;
+            }
+            else if (next === 0 || next === 9 || next === 10 || next === 12 || next === 13 || next === 32) {
+            }
+            else {
+                // TODO: check that next is in the range 0-9, A-F, or a-f
+                var stack_size = stack.push(next);
+                if (stack_size === 2) {
+                    return stack;
+                }
+            }
+        }
+    };
+}
+/**
+> The ASCIIHexDecode filter shall produce one byte of binary data for each pair of ASCII hexadecimal digits (0–9 and A–F or a–f). All white-space characters (see 7.2, "Lexical Conventions") shall be ignored. A GREATER-THAN SIGN (3Eh) indicates EOD. Any other characters shall cause an error. If the filter encounters the EOD marker after reading an odd number of hexadecimal digits, it shall behave as if a 0 (zero) followed the last digit.
+*/
+function ASCIIHexDecode(ascii) {
+    var lex = ASCIIHexLexer(ascii);
+    var bytes = [];
+    while (1) {
+        var token = lex();
+        if (token === null) {
+            break;
+        }
+        else {
+            var pair = new Buffer(token).toString('ascii');
+            var byte = parseInt(pair, 16);
+            bytes.push(byte);
+        }
+    }
+    return new Buffer(bytes);
+}
+exports.ASCIIHexDecode = ASCIIHexDecode;
 function FlateDecode(buffer) {
     return zlib.inflateSync(buffer);
 }

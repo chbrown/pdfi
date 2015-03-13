@@ -145,6 +145,62 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
   return new Buffer(bytes);
 }
 
+/**
+This returns a function that can be called multiple times.
+
+When that function is called, it will return one of the following types:
+- An array of 2 ASCII characters (possibly with a final padding byte of 0).
+- null, when the EOF has been reached.
+*/
+function ASCIIHexLexer(input: Buffer): () => any {
+  var index = 0;
+  return function(): any {
+    var stack = [];
+    while (1) {
+      var next = input[index++];
+      if (next === undefined || next == 62) { // 0x3E == 62 == '>' (EOF)
+        if (stack.length > 0) {
+          if (stack.length == 1) {
+            stack.push(0);
+          }
+          return stack;
+        }
+        return null;
+      }
+      else if (next === 0 || next === 9 || next === 10 || next === 12 || next === 13 || next === 32) {
+        // ignore whitespace: NULL, TAB, LF, FF, CR, SP (0 9 10 12 13 32)
+      }
+      else {
+        // TODO: check that next is in the range 0-9, A-F, or a-f
+        var stack_size = stack.push(next);
+        if (stack_size === 2) {
+          return stack;
+        }
+      }
+    }
+  }
+}
+
+/**
+> The ASCIIHexDecode filter shall produce one byte of binary data for each pair of ASCII hexadecimal digits (0–9 and A–F or a–f). All white-space characters (see 7.2, "Lexical Conventions") shall be ignored. A GREATER-THAN SIGN (3Eh) indicates EOD. Any other characters shall cause an error. If the filter encounters the EOD marker after reading an odd number of hexadecimal digits, it shall behave as if a 0 (zero) followed the last digit.
+*/
+export function ASCIIHexDecode(ascii: Buffer): Buffer {
+  var lex = ASCIIHexLexer(ascii);
+  var bytes: number[] = [];
+  while (1) {
+    var token = lex();
+    if (token === null) {
+      break;
+    }
+    else {
+      var pair = new Buffer(token).toString('ascii');
+      var byte = parseInt(pair, 16);
+      bytes.push(byte);
+    }
+  }
+  return new Buffer(bytes);
+}
+
 export function FlateDecode(buffer: Buffer): Buffer {
   return zlib.inflateSync(buffer);
 }
