@@ -69,8 +69,13 @@ export interface CrossReference {
   in_use: boolean;
 }
 
+export interface StreamDictionary extends DictionaryObject {
+  Length: number;
+  Filter?: string | string[];
+}
+
 export interface Stream extends PDFObject {
-  dictionary: DictionaryObject;
+  dictionary: StreamDictionary;
   buffer: Buffer;
 }
 
@@ -112,4 +117,20 @@ export interface Page extends DictionaryObject {
   Group?: DictionaryObject;
   Thumb?: Stream;
   // ...
+}
+
+export interface XObject {
+  [index: string]: Stream;
+}
+
+// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
+export enum RenderingMode {
+  Fill = 0,
+  Stroke = 1,
+  FillThenStroke = 2,
+  None = 3,
+  FillClipping = 4,
+  StrokeClipping = 5,
+  FillThenStrokeClipping = 6,
+  NoneClipping = 7,
 }
