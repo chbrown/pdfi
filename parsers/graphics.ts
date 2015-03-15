@@ -2,332 +2,67 @@
 import logger = require('loge');
 import chalk = require('chalk');
 import lexing = require('lexing');
-var Token = lexing.Token;
+import StackOperationParser = require('./StackOperationParser');
+import pdfdom = require('../pdfdom');
 
-// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
-enum RenderingMode {
-  Fill = 0,
-  Stroke = 1,
-  FillThenStroke = 2,
-  None = 3,
-  FillClipping = 4,
-  StrokeClipping = 5,
-  FillThenStrokeClipping = 6,
-  NoneClipping = 7,
+var operator_aliases = {
+  'Tc': 'setCharSpacing',
+  'Tw': 'setWordSpacing',
+  'Tz': 'setHorizontalScale',
+  'TL': 'setLeading',
+  'Tf': 'setFont',
+  'Tr': 'setRenderingMode',
+  'Ts': 'setRise',
+  'Td': 'adjustCurrentPosition',
+  'TD': 'adjustCurrentPositionWithLeading',
+  'Tm': 'setTextMatrix',
+  'T*': 'newLine',
+  'Tj': 'showString',
+  'TJ': 'showStrings',
+  "'": 'newLineAndShowString',
+  '"': 'newLineAndShowStringWithSpacing',
+  'BT': 'startTextBlock',
+  'ET': 'endTextBlock',
+  'q': 'pushGraphicsState',
+  'Q': 'popGraphicsState',
+  'cm': 'setCTM',
+  'Do': 'drawObject',
+  'w': 'setLineWidth',
+  'J': 'setLineCap',
+  'j': 'setLineJoin',
+  'M': 'setMiterLimit',
+  'd': 'setDashPattern',
+  'ri': 'setRenderingIntent',
+  'i': 'setFlatnessTolerance',
+  'gs': 'setGraphicsStateParameters',
+  'RG': 'setStrokeColor',
+  'rg': 'setFillColor',
+  'G': 'setStrokeGray',
+  'g': 'setFillGray',
 };
 
-// longer operators must come first
-var operators_escaped = 'BMC BDC EMC BT ET BI ID EI Do MP DP BX EX RG d0 d1 CS cs SC SCN sc scn rg sh re ri gs cm w J j M d i q Q m l c v y h S s f* f F B* B b* b n W* W Tc Tw Tz TL Tf Tr Ts Td TD Tm T* Tj TJ \' " G g K k'.split(' ').map(operator => operator.replace('*', '\\*'));
-var operator_regex = new RegExp(`^(${operators_escaped.join('|')})`);
-
-var default_rules: lexing.RegexRule<any>[] = [
-  [/^$/, match => Token('EOF') ],
-  // skip over whitespace
-  [/^\s+/, match => null ],
-  [/^\(/, function(match) {
-    this.states.push('STRING');
-    return Token('START', 'STRING');
-  }],
-  [/^\[/, function(match) {
-    this.states.push('ARRAY');
-    return Token('START', 'ARRAY');
-  }],
-  [operator_regex, match => Token('OPERATOR', match[0]) ],
-  [/^\/(\w+)/, match => Token('OPERAND', match[1]) ], // "/Im3" -> "Im3"
-  [/^-?[0-9]+\.[0-9]+/, match => Token('OPERAND', parseFloat(match[0])) ],
-  [/^-?[0-9]+/, match => Token('OPERAND', parseInt(match[0], 10)) ],
-  [/^\S+/, match => Token('OPERAND', match[0]) ],
-];
-
-var state_rules: {[index: string]: lexing.RegexRule<any>[]} = {};
-state_rules['STRING'] = [
-  [/^\)/, function(match) {
-    this.states.pop();
-    return Token('END', 'STRING');
-  }],
-  [/^\\(.)/, match => Token('CHAR', match[1]) ], // escaped character
-  [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],
-];
-state_rules['ARRAY'] = [
-  [/^\]/, function(match) {
-    this.states.pop();
-    return Token('END', 'ARRAY');
-  }],
-  [/^\(/, function(match) {
-    this.states.push('STRING');
-    return Token('START', 'STRING');
-  }],
-  [/^-?\d+\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ],
-  [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ],
-  [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],
-];
-
-function noop(original_arguments) {
-  var arglist = Array.prototype.slice.apply(original_arguments);
-  logger.debug(`[noop] ${original_arguments.callee['name']}(${arglist.join(', ')})`);
+export class Color {
+  clone(): Color { return new Color(); }
+  toString(): string {
+    return 'none';
+  }
 }
 
-/**
-Table 51: "Operator categories" (PDF32000_2008.pdf:8.2)
+export class RGBColor extends Color {
+  constructor(public r: number, public g: number, public b: number) { super() }
+  clone(): RGBColor { return new RGBColor(this.r, this.g, this.b); }
+  toString(): string {
+    return `rgb(${this.r}, ${this.g}, ${this.b})`;
+  }
+}
 
-General graphics state: w, J, j, M, d, ri, i, gs
-Special graphics state: q, Q, cm
-Path construction: m, l, c, v, y, h, re
-Path painting: S, s, f, F, f*, B, B*, b, b*, n
-Clipping paths: W, W*
-Text objects: BT, ET
-Text state: Tc, Tw, Tz, TL, Tf, Tr, Ts
-Text positioning: Td, TD, Tm, T*
-Text showing: Tj, TJ, ', "
-Type 3 fonts: d0, d1
-Color: CS, cs, SC, SCN, sc, scn, G, g, RG, rg, K, k
-Shading patterns: sh
-Inline images: BI, ID, EI
-XObjects: Do
-Marked content: MP, DP, BMC, BDC, EMC
-Compatibility: BX, EX
-
-The "Text state", "Text positioning", and "Text showing" operators only apply between BT and ET markers.
-*/
-var operations = {
-  // ---------------------------------------------------------------------------
-  // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
-  Tc: function setCharSpacing(charSpace: number) {
-    // > Set the character spacing, Tc, to charSpace, which shall be a number expressed in unscaled text space units. Character spacing shall be used by the Tj, TJ, and ' operators. Initial value: 0.
-    this.textState.charSpacing = charSpace;
-  },
-  Tw: function setWordSpacing(wordSpace: number) {
-    // > Set the word spacing, Tw, to wordSpace, which shall be a number expressed in unscaled text space units. Word spacing shall be used by the Tj, TJ, and ' operators. Initial value: 0.
-    this.textState.wordSpacing = wordSpace;
-  },
-  Tz: function setHorizontalScale(scale: number) { // a percentage
-    // > Set the horizontal scaling, Th, to (scale ÷ 100). scale shall be a number specifying the percentage of the normal width. Initial value: 100 (normal width).
-    this.textState.horizontalScaling = scale;
-  },
-  TL: function setLeading(leading: number) {
-    // > Set the text leading, Tl, to leading, which shall be a number expressed in unscaled text space units. Text leading shall be used only by the T*, ', and " operators. Initial value: 0.
-    this.textState.leading = leading;
-  },
-  Tf: function setFont(font: string, size: number) {
-    // > Set the text font, Tf, to font and the text font size, Tfs, to size. font shall be the name of a font resource in the Font subdictionary of the current resource dictionary; size shall be a number representing a scale factor. There is no initial value for either font or size; they shall be specified explicitly by using Tf before any text is shown.
-    this.textState.fontName = font;
-    this.textState.fontSize = size;
-  },
-  Tr: function setRenderingMode(render: RenderingMode) { // render is a number
-    // > Set the text rendering mode, Tmode, to render, which shall be an integer. Initial value: 0.
-    this.textState.renderingMode = render;
-  },
-  Ts: function setRise(rise: number) {
-    // > Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
-    this.textState.rise = rise;
-  },
-  // ---------------------------------------------------------------------------
-  // Text positioning operators (Td, TD, Tm, T*)
-  Td: function adjustCurrentPosition(x: number, y: number) {
-    // > Move to the start of the next line, offset from the start of the current line by (tx, ty). tx and ty shall denote numbers expressed in unscaled text space units. More precisely, this operator shall perform these assignments: Tm = Tlm = [ [1 0 0], [0 1 0], [x y 1] ] x Tlm
-    //
-    // y is usually 0, and never positive in normal text.
-    var base = new Matrix3([[1, 0, 0], [0, 1, 0], [x, y, 1]]);
-    this.textState.textMatrix = this.textState.textLineMatrix = base.multiply(this.textState.textLineMatrix);
-  },
-  /**
-  > Move to the start of the next line, offset from the start of the current
-  > line by (x, y). As a side effect, this operator shall set the leading
-  > parameter in the text state. This operator shall have the same effect as
-  > this code: `-ty TL tx ty Td`
-
-  COMPLETE (ALIAS)
-  */
-  TD: function adjustCurrentPositionWithLeading(x: number, y: number) {
-    operations['TL'].call(this, -y);
-    operations['Td'].call(this, x, y);
-  },
-  Tm: function setMatrix(a: number, b: number, c: number, d: number, e: number, f: number) {
-    // > Set the text matrix, Tm, and the text line matrix, Tlm: Tm = Tlm = [ [a b 0], [c d 0], [e f 1] ]
-    // > The operands shall all be numbers, and the initial value for Tm and Tlm shall be the identity matrix, [1 0 0 1 0 0]. Although the operands specify a matrix, they shall be passed to Tm as six separate numbers, not as an array.
-    // > The matrix specified by the operands shall not be concatenated onto the current text matrix, but shall replace it.
-
-    // calling setMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
-    // e and f mark the x and y coordinates of the current position
-    logger.debug(`setting textState.textMatrix ${a} ${b} ${c} ${d} ${e} ${f}`);
-    var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
-    this.textState.textMatrix = this.textState.textLineMatrix = base;
-  },
-  /**
-  > Move to the start of the next line. This operator has the same effect as
-  > the code `0 -Tl Td` where Tl denotes the current leading parameter in the
-  > text state. The negative of Tl is used here because Tl is the text leading
-  > expressed as a positive number. Going to the next line entails decreasing
-  > the y coordinate.
-
-  COMPLETE (ALIAS)
-  */
-  'T*': function moveToStartOfNextLine() {
-    operations['Td'].call(this, 0, -this.textState.leading);
-  },
-  // Text showing operators (Tj, TJ, ', ")
-  Tj: function showString(text: string) {
-    // Show a text string.
-    this.drawText(text);
-  },
-  TJ: function showStrings(array: Array<string | number>) {
-    /**
-    > Show one or more text strings, allowing individual glyph positioning. Each element of array shall be either a string or a number. If the element is a string, this operator shall show the string. If it is a number, the operator shall adjust the text position by that amount; that is, it shall translate the text matrix, Tm. The number shall be expressed in thousandths of a unit of text space (see 9.4.4, "Text Space Details"). This amount shall be subtracted from the current horizontal or vertical coordinate, depending on the writing mode. In the default coordinate system, a positive adjustment has the effect of moving the next glyph painted either to the left or down by the given amount. Figure 46 shows an example of the effect of passing offsets to TJ.
-
-    In other words:
-    - large negative numbers equate to spaces
-    - small positive amounts equate to kerning hacks
-
-    */
-    var text = array.map(item => {
-      var item_type = typeof item;
-      if (item_type === 'string') {
-        return item;
-      }
-      else if (item_type === 'number') {
-        return (item < -100) ? ' ' : '';
-      }
-      else {
-        throw new Error(`Unknown TJ argument type: ${item_type} (${item})`);
-      }
-    }).join('');
-    this.drawText(text);
-  },
-  /**
-  > Move to the next line and show a text string. This operator shall have
-  > the same effect as the code `T* string Tj`
-
-  COMPLETE (ALIAS)
-  */
-  "'": function(text: string) {
-    operations['T*'].call(this);
-    operations['Tj'].call(this, text);
-  },
-  /**
-  > Move to the next line and show a text string, using `wordSpace` as the
-  > word spacing and `charSpace` as the character spacing (setting the
-  > corresponding parameters in the text state). `wordSpace` and `charSpace`
-  > shall be numbers expressed in unscaled text space units. This operator
-  > shall have the same effect as this code: `wordSpace Tw charSpace Tc text '`
-
-  COMPLETE (ALIAS)
-  */
-  '"': function(wordSpace: number, charSpace: number, text: string) {
-    operations['Tw'].call(this, wordSpace);
-    operations['Tc'].call(this, charSpace);
-    operations["'"].call(this, text);
-  },
-  // ---------------------------------------------------------------------------
-  // Text objects (BT, ET)
-  BT: function startTextBlock() {
-    logger.debug(`BT: starting new TextBlock`);
-    this.startTextBlock();
-  },
-  ET: function endTextBlock() {
-    logger.debug(`ET: ending current TextBlock`);
-    this.endTextBlock();
-  },
-  // ---------------------------------------------------------------------------
-  //                           Color operators
-  RG: function setStrokeColor(r: number, g: number, b: number) {
-    logger.debug(`[noop] setStrokeColor: ${r} ${g} ${b}`);
-  },
-  rg: function setFillColor(r: number, g: number, b: number) {
-    logger.debug(`[noop] setFillColor: ${r} ${g} ${b}`);
-  },
-  G: function setStrokeGray(gray: number) {
-    logger.debug(`[noop] setStrokeGray: ${gray}`);
-  },
-  g: function setFillGray(gray: number) {
-    logger.debug(`[noop] setFillGray: ${gray}`);
-  },
-  // ---------------------------------------------------------------------------
-  // Special graphics states (q, Q, cm)
-  /**
-  > Save the current graphics state on the graphics state stack (see 8.4.2).
-  */
-  q: function pushGraphicsState() {
-    logger.debug(`[noop] pushGraphicsState`);
-    this.pushGraphicsState();
-  },
-  /**
-  > Restore the graphics state by removing the most recently saved state from
-  > the stack and making it the current state (see 8.4.2).
-  */
-  Q: function popGraphicsState() {
-    logger.debug(`popGraphicsState`);
-    this.popGraphicsState();
-  },
-  /**
-  > Modify the current transformation matrix (CTM) by concatenating the
-  > specified matrix. Although the operands specify a matrix, they shall be
-  > written as six separate numbers, not as an array.
-  */
-  cm: function setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
-    // TODO: should we multiple by the current one instead?
-    logger.debug(`setting graphicsState.ctMatrix ${a} ${b} ${c} ${d} ${e} ${f}`);
-    this.graphicsState.ctMatrix = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
-  },
-  // ---------------------------------------------------------------------------
-  // XObjects (Do)
-  /**
-  > Paint the specified XObject. The operand name shall appear as a key in the XObject subdictionary of the current resource dictionary (see 7.8.3, "Resource Dictionaries"). The associated value shall be a stream whose Type entry, if present, is XObject. The effect of Do depends on the value of the XObject’s Subtype entry, which may be Image (see 8.9.5, "Image Dictionaries"), Form (see 8.10, "Form XObjects"), or PS (see 8.8.2, "PostScript XObjects").
-  */
-  Do: function drawObject(name: string) {
-    this.drawObject(name);
-  },
-  // ---------------------------------------------------------------------------
-  // General graphics state (w, J, j, M, d, ri, i, gs)
-  /**
-  > Set the line width in the graphics state (see 8.4.3.2, "Line Width").
-  */
-  w: function setLineWidth(lineWidth: number) {
-    noop(arguments);
-  },
-  /**
-  > Set the line cap style in the graphics state (see 8.4.3.3, "Line Cap Style").
-  */
-  J: function setLineCap(lineCap) {
-    noop(arguments);
-  },
-  /**
-  > Set the line join style in the graphics state (see 8.4.3.4, "Line Join Style").
-  */
-  j: function setLineJoin(lineJoin) {
-    noop(arguments);
-  },
-  /**
-  > Set the miter limit in the graphics state (see 8.4.3.5, "Miter Limit").
-  */
-  M: function setMiterLimit(miterLimit: number) {
-    noop(arguments);
-  },
-  /**
-  > Set the line dash pattern in the graphics state (see 8.4.3.6, "Line Dash Pattern").
-  */
-  d: function setDashPattern(dashArray, dashPhase) {
-    noop(arguments);
-  },
-  /**
-  > (PDF 1.1) Set the colour rendering intent in the graphics state (see 8.6.5.8, "Rendering Intents").
-  */
-  ri: function setRenderingIntent(intent) {
-    noop(arguments);
-  },
-  /**
-  > Set the flatness tolerance in the graphics state (see 10.6.2, "Flatness Tolerance").
-  > flatness is a number in the range 0 to 100; a value of 0 shall specify the output device’s default flatness tolerance.
-  */
-  i: function setFlatnessTolerance(flatness: number) {
-    noop(arguments);
-  },
-  /**
-  > (PDF 1.2) Set the specified parameters in the graphics state. dictName shall be the name of a graphics state parameter dictionary in the ExtGState subdictionary of the current resource dictionary (see the next sub-clause).
-  */
-  gs: function setGraphicsStateParameters(dictName: string) {
-    noop(arguments);
-  },
-};
+export class GrayColor extends Color {
+  constructor(public alpha: number) { super() }
+  clone(): GrayColor { return new GrayColor(this.alpha); }
+  toString(): string {
+    return `rgb(${this.alpha}, ${this.alpha}, ${this.alpha})`;
+  }
+}
 
 export class Point {
   constructor(public x: number, public y: number) { }
@@ -355,9 +90,8 @@ function dot(a: number[], b: number[]) {
   return sum;
 }
 
-export class Matrix3 {
+class Matrix3 {
   constructor(public rows: number[][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) { }
-
   clone(): Matrix3 {
     return new Matrix3(this.rows.map(row => row.slice()));
   }
@@ -385,162 +119,429 @@ export class Matrix3 {
   }
 }
 
-export class GraphicsState {
-  constructor(public ctMatrix: Matrix3 = new Matrix3()) { }
+/**
+We need to be able to clone it since we need a copy when we process a
+`pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
+were in the constructor, but there are a lot of variables!
+*/
+class GraphicsState {
+  public ctMatrix: Matrix3 = new Matrix3(); // defaults to the identity matrix
+  public strokeColor: Color = new Color();
+  public fillColor: Color = new Color();
+  public lineWidth: number;
+  public lineCap: pdfdom.LineCapStyle;
+  public lineJoin: pdfdom.LineJoinStyle;
+  public miterLimit: number;
+  public dashArray: number[];
+  public dashPhase: number;
+  public renderingIntent: string; // not sure if it's actually this type?
+  public flatnessTolerance: number;
 
   clone(): GraphicsState {
-    return new GraphicsState(this.ctMatrix.clone());
+    var copy = new GraphicsState();
+    for (var key in this) {
+      if (this.hasOwnProperty(key)) {
+        copy[key] = this[key].clone ? this[key].clone() : this[key];
+      }
+    }
+    return copy;
   }
+
+  // getPosition(): Point {
+  //   var x = this.ctMatrix.rows[2][0];
+  //   var y = this.ctMatrix.rows[2][1];
+  //   return new Point(x, y);
+  // }
 }
 
-/**
-> Text object (Figure 9: Graphics Objects - 8.2)
-> Allowed operators:
-> • General graphics state
-> • Color
-> • Text state
-> • Text-showing
-> • Text-positioning
-> • Marked-content
-*/
-export class TextState {
+class TextState {
   charSpacing: number = 0;
   wordSpacing: number = 0;
   horizontalScaling: number = 100;
   leading: number = 0;
   fontName: string;
   fontSize: number;
-  renderingMode: RenderingMode = 0;
+  renderingMode: pdfdom.RenderingMode = 0;
   rise: number = 0;
 
   textMatrix: Matrix3 = new Matrix3();
   textLineMatrix: Matrix3 = new Matrix3();
 
-  getPosition(ctMatrix: Matrix3): Point {
+  constructor(public graphicsState: GraphicsState) { }
+
+  getPosition(): Point {
     var fs = this.fontSize;
     var fsh = fs * (this.horizontalScaling / 100.0);
     var rise = this.rise;
     var base = new Matrix3([[fsh, 0, 0], [0, fs, 0], [0, rise, 1]]);
 
-    var textRenderingMatrix = base.multiply(this.textMatrix);//.multiply(ctMatrix);
+    // var textRenderingMatrix = base.multiply(this.textMatrix);
+    var textRenderingMatrix = base.multiply(this.textMatrix).multiply(this.graphicsState.ctMatrix);
     var x = textRenderingMatrix.rows[2][0];
     var y = textRenderingMatrix.rows[2][1];
     return new Point(x, y);
   }
-
 }
 
 export class TextSpan {
   constructor(public position: Point, public text: string, public size: number) { }
 }
-export class TextObject {
-  constructor(public spans: TextSpan[] = []) { }
-}
 
-export class ReferenceObject {
-  constructor(public position: Point, public name: string) { }
-}
+export class Canvas {
+  // Eventually, this will render out other elements, too
+  spans: TextSpan[] = [];
 
-export type VisibleObject = TextObject | ReferenceObject;
-
-/**
-The operators above will be called with an instance of Canvas
-bound as `this`.
-*/
-class Builder {
-  graphicsStates: GraphicsState[] = [];
+  stateStack: GraphicsState[] = [];
   graphicsState: GraphicsState = new GraphicsState();
-
   textState: TextState = null;
-  currentTextObject: TextObject = null;
 
-  objects: VisibleObject[] = [];
+  constructor(public XObject: pdfdom.XObject = {}) { }
 
-  getPosition(): Point {
-    var x = this.graphicsState.ctMatrix.rows[2][0];
-    var y = this.graphicsState.ctMatrix.rows[2][1];
-    return new Point(x, y);
-  }
-
-  drawText(text: string): void {
-    var position = this.textState.getPosition(this.graphicsState.ctMatrix);
-    var span = new TextSpan(position, text, this.textState.fontSize);
-    this.currentTextObject.spans.push(span);
-  }
-  drawObject(name: string): void {
-    this.objects.push(new ReferenceObject(this.getPosition(), name));
-  }
-
-  startTextBlock(): void {
-    // reset state
-    this.textState = new TextState();
-    this.currentTextObject = new TextObject();
-  }
-  endTextBlock(): void {
-    this.objects.push(this.currentTextObject);
-    // set state and buffer to null.
-    this.textState = null;
-    this.currentTextObject = null;
-  }
-
-  pushGraphicsState(): void {
-    this.graphicsStates.push(this.graphicsState.clone());
-  }
-  popGraphicsState(): void {
-    this.graphicsState = this.graphicsStates.pop();
-  }
-}
-
-export class TextParser {
-  tokenizer = new lexing.Tokenizer(default_rules, state_rules);
-  // lexing.CombinerRule<any, any>[]
-  combiner = new lexing.Combiner<any>([
-    ['STRING', tokens => Token('OPERAND', tokens.map(token => token.value).join('')) ],
-    ['ARRAY', tokens => Token('OPERAND', tokens.map(token => token.value)) ],
-  ]);
-
-  parse(iterable: lexing.BufferIterable): VisibleObject[] {
-    var token_iterator = this.tokenizer.map(iterable);
-    var combined_iterator = this.combiner.map(token_iterator);
-
-    var stack = [];
-    var builder = new Builder();
-
+  renderStringIterable(string_iterable: lexing.StringIterable): void {
+    var stack_operation_iterator = new StackOperationParser().map(string_iterable);
     while (1) {
-      var token = combined_iterator.next();
-      // console.log('%s: %j', chalk.green(token.name), token.value);
-
-      if (token.name == 'OPERATOR') {
-        var operation = operations[token.value];
-        if (operation) {
-          var expected_arguments = operation.length;
-          var stack_arguments = stack.length;
-          if (expected_arguments != stack_arguments) {
-            logger.error(`Operator "${token.value}" expects ${expected_arguments} arguments, but received ${stack_arguments}: [${stack.join(', ')}]`);
-          }
-          operation.apply(builder, stack);
-        }
-        else {
-          logger.error(`Ignoring unimplemented operator "${token.value}" [${stack.join(', ')}]`);
-        }
-        // we've consumed everything on the stack; truncate it
-        stack.length = 0;
-      }
-      else if (token.name == 'OPERAND') {
-        stack.push(token.value);
-      }
-      else if (token.name == 'EOF') {
+      var token = stack_operation_iterator.next();
+      // token.name: operator name; token.value: Array of operands
+      if (token.name === 'EOF') {
         break;
       }
+
+      var operator_alias = operator_aliases[token.name];
+      var operation = this[operator_alias];
+      if (operation) {
+        operation.apply(this, token.value);
+      }
       else {
-        logger.warn(`Unrecognized token: ${token.name}:${token.value}`);
+        logger.warn(`Ignoring unimplemented operator "${token.name}" [${token.value.join(', ')}]`);
       }
     }
-
-    return builder.objects;
+  }
+  renderString(str: string): void {
+    var string_iterable = new lexing.StringIterator(str);
+    this.renderStringIterable(string_iterable);
+  }
+  renderStream(stream: pdfdom.Stream): void {
+    var stream_string = stream.buffer.toString('ascii');
+    this.renderString(stream_string);
   }
 
-  parseString(str: string): VisibleObject[] {
-    return this.parse(lexing.BufferIterator.fromString(str));
+  private _drawText(text: string) {
+    var position = this.textState.getPosition();
+    var span = new TextSpan(position, text, this.textState.fontSize);
+    this.spans.push(span);
+  }
+
+  private _drawObject(name: string) {
+    var XObject = this.XObject[name];
+    if (XObject === undefined) {
+      throw new Error(`Cannot draw undefined XObject: ${name}`);
+    }
+    this.renderStream(XObject);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Special graphics states (q, Q, cm)
+  /**
+  > `q`: Save the current graphics state on the graphics state stack (see 8.4.2).
+  */
+  pushGraphicsState() {
+    this.stateStack.push(this.graphicsState.clone());
+  }
+  /**
+  > `Q`: Restore the graphics state by removing the most recently saved state
+  > from the stack and making it the current state (see 8.4.2).
+  */
+  popGraphicsState() {
+    this.graphicsState = this.stateStack.pop();
+  }
+  /**
+  > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
+  > concatenating the specified matrix. Although the operands specify a matrix,
+  > they shall be written as six separate numbers, not as an array.
+
+  Should we multiply by the current one instead? Yes. That's what they mean by
+  concatenating, apparently. Weird stuff happens if you replace.
+  */
+  setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
+    var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
+    this.graphicsState.ctMatrix = base.multiply(this.graphicsState.ctMatrix);
+  }
+  // ---------------------------------------------------------------------------
+  // XObjects (Do)
+  /**
+  > `name Do`: Paint the specified XObject. The operand name shall appear as a
+  > key in the XObject subdictionary of the current resource dictionary. The
+  > associated value shall be a stream whose Type entry, if present, is XObject.
+  > The effect of Do depends on the value of the XObject's Subtype entry, which
+  > may be Image, Form, or PS.
+  */
+  drawObject(name: string) {
+    this._drawObject(name);
+  }
+  // ---------------------------------------------------------------------------
+  // General graphics state (w, J, j, M, d, ri, i, gs)
+  /**
+  > `lineWidth w`: Set the line width in the graphics state.
+  */
+  setLineWidth(lineWidth: number) {
+    this.graphicsState.lineWidth = lineWidth;
+  }
+  /**
+  > `lineCap J`: Set the line cap style in the graphics state.
+  */
+  setLineCap(lineCap: pdfdom.LineCapStyle) {
+    this.graphicsState.lineCap = lineCap;
+  }
+  /**
+  > `lineJoin j`: Set the line join style in the graphics state.
+  */
+  setLineJoin(lineJoin: pdfdom.LineJoinStyle) {
+    this.graphicsState.lineJoin = lineJoin;
+  }
+  /**
+  > `miterLimit M`: Set the miter limit in the graphics state.
+  */
+  setMiterLimit(miterLimit: number) {
+    this.graphicsState.miterLimit = miterLimit;
+  }
+  /**
+  > `dashArray dashPhase d`: Set the line dash pattern in the graphics state.
+  */
+  setDashPattern(dashArray: number[], dashPhase: number) {
+    this.graphicsState.dashArray = dashArray;
+    this.graphicsState.dashPhase = dashPhase;
+  }
+  /**
+  > `intent ri`: Set the colour rendering intent in the graphics state.
+  > (PDF 1.1)
+  */
+  setRenderingIntent(intent: string) {
+    this.graphicsState.renderingIntent = intent;
+  }
+  /**
+  > `flatness i`: Set the flatness tolerance in the graphics state. flatness is
+  > a number in the range 0 to 100; a value of 0 shall specify the output
+  > device's default flatness tolerance.
+  */
+  setFlatnessTolerance(flatness: number) {
+    this.graphicsState.flatnessTolerance = flatness;
+  }
+  /**
+  > `dictName gs`: Set the specified parameters in the graphics state.
+  > `dictName` shall be the name of a graphics state parameter dictionary in
+  > the ExtGState subdictionary of the current resource dictionary (see the
+  > next sub-clause). (PDF 1.2)
+  */
+  setGraphicsStateParameters(dictName: string) {
+    logger.warn(`Ignoring setGraphicsStateParameters(${dictName}) operation`);
+  }
+  // ---------------------------------------------------------------------------
+  //                           Color operators
+  /**
+  `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
+  */
+  setStrokeColor(r: number, g: number, b: number) {
+    this.graphicsState.strokeColor = new RGBColor(r, g, b);
+  }
+  /**
+  `r g b rg`: Same as RG but used for nonstroking operations.
+  */
+  setFillColor(r: number, g: number, b: number) {
+    this.graphicsState.fillColor = new RGBColor(r, g, b);
+  }
+  /**
+  `gray G`: Set the stroking colour space to DeviceGray and set the gray level
+  to use for stroking operations. `gray` shall be a number between 0.0 (black)
+  and 1.0 (white).
+  */
+  setStrokeGray(gray: number) {
+    this.graphicsState.strokeColor = new GrayColor(gray);
+  }
+  /**
+  `gray g`: Same as G but used for nonstroking operations.
+  */
+  setFillGray(gray: number) {
+    this.graphicsState.fillColor = new GrayColor(gray);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text objects (BT, ET)
+  /** `BT` */
+  startTextBlock() {
+    // intialize state
+    this.textState = new TextState(this.graphicsState);
+  }
+  /** `ET` */
+  endTextBlock() {
+    // remove textState, so that any operations that require it will fail
+    this.textState = null;
+  }
+  // ---------------------------------------------------------------------------
+  // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
+  /**
+  > `charSpace Tc`: Set the character spacing, Tc, to charSpace, which shall
+  > be a number expressed in unscaled text space units. Character spacing shall
+  > be used by the Tj, TJ, and ' operators. Initial value: 0.
+  */
+  setCharSpacing(charSpace: number) {
+    this.textState.charSpacing = charSpace;
+  }
+  /**
+  > `wordSpace Tw`: Set the word spacing, Tw, to wordSpace, which shall be a
+  > number expressed in unscaled text space units. Word spacing shall be used
+  > by the Tj, TJ, and ' operators. Initial value: 0.
+  */
+  setWordSpacing(wordSpace: number) {
+    this.textState.wordSpacing = wordSpace;
+  }
+  /**
+  > `scale Tz`: Set the horizontal scaling, Th, to (scale ÷ 100). scale shall
+  > be a number specifying the percentage of the normal width. Initial value:
+  > 100 (normal width).
+  */
+  setHorizontalScale(scale: number) { // a percentage
+    this.textState.horizontalScaling = scale;
+  }
+  /**
+  > `leading TL`: Set the text leading, Tl, to leading, which shall be a number
+  > expressed in unscaled text space units. Text leading shall be used only by
+  > the T*, ', and " operators. Initial value: 0.
+  */
+  setLeading(leading: number) {
+    this.textState.leading = leading;
+  }
+  /**
+  > `font size Tf`: Set the text font, Tf, to font and the text font size,
+  > Tfs, to size. font shall be the name of a font resource in the Font
+  > subdictionary of the current resource dictionary; size shall be a number
+  > representing a scale factor. There is no initial value for either font or
+  > size; they shall be specified explicitly by using Tf before any text is
+  > shown.
+  */
+  setFont(font: string, size: number) {
+    this.textState.fontName = font;
+    this.textState.fontSize = size;
+  }
+  /**
+  > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
+  > be an integer. Initial value: 0.
+  */
+  setRenderingMode(render: pdfdom.RenderingMode) {
+    this.textState.renderingMode = render;
+  }
+  /**
+  > `rise Ts`: Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
+  */
+  setRise(rise: number) {
+    this.textState.rise = rise;
+  }
+  // ---------------------------------------------------------------------------
+  // Text positioning operators (Td, TD, Tm, T*)
+  /**
+  > `x y Td`: Move to the start of the next line, offset from the start of the
+  > current line by (tx, ty). tx and ty shall denote numbers expressed in
+  > unscaled text space units. More precisely, this operator shall perform
+  > these assignments: Tm = Tlm = [ [1 0 0], [0 1 0], [x y 1] ] x Tlm
+  */
+  adjustCurrentPosition(x: number, y: number) {
+    // y is usually 0, and never positive in normal text.
+    var base = new Matrix3([[1, 0, 0], [0, 1, 0], [x, y, 1]]);
+    this.textState.textMatrix = this.textState.textLineMatrix = base.multiply(this.textState.textLineMatrix);
+  }
+  /** COMPLETE (ALIAS)
+  > `x y TD`: Move to the start of the next line, offset from the start of the
+  > current line by (x, y). As a side effect, this operator shall set the
+  > leading parameter in the text state. This operator shall have the same
+  > effect as this code: `-ty TL tx ty Td`
+  */
+  adjustCurrentPositionWithLeading(x: number, y: number) {
+    this.setLeading(-y); // TL
+    this.adjustCurrentPosition(x, y); // Td
+  }
+  /**
+  > `a b c d e f Tm`: Set the text matrix, Tm, and the text line matrix, Tlm:
+  > Tm = Tlm = [ [a b 0], [c d 0], [e f 1] ]
+  > The operands shall all be numbers, and the initial value for Tm and Tlm
+  > shall be the identity matrix, [1 0 0 1 0 0]. Although the operands specify
+  > a matrix, they shall be passed to Tm as six separate numbers, not as an
+  > array. The matrix specified by the operands shall not be concatenated onto
+  > the current text matrix, but shall replace it.
+  */
+  setTextMatrix(a: number, b: number, c: number, d: number, e: number, f: number) {
+    // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
+    // e and f mark the x and y coordinates of the current position
+    var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
+    this.textState.textMatrix = this.textState.textLineMatrix = base;
+  }
+  /** COMPLETE (ALIAS)
+  > `T*`: Move to the start of the next line. This operator has the same effect
+  > as the code `0 -Tl Td` where Tl denotes the current leading parameter in the
+  > text state. The negative of Tl is used here because Tl is the text leading
+  > expressed as a positive number. Going to the next line entails decreasing
+  > the y coordinate.
+  */
+  newLine() {
+    this.adjustCurrentPosition(0, -this.textState.leading);
+  }
+  // ---------------------------------------------------------------------------
+  // Text showing operators (Tj, TJ, ', ")
+  /**
+  > `string Tj`: Show a text string.
+  */
+  showString(text: string) {
+    this._drawText(text);
+  }
+  /**
+  > `array TJ`: Show one or more text strings, allowing individual glyph
+  > positioning. Each element of array shall be either a string or a number.
+  > If the element is a string, this operator shall show the string. If it is
+  > a number, the operator shall adjust the text position by that amount; that
+  > is, it shall translate the text matrix, Tm. The number shall be expressed
+  > in thousandths of a unit of text space (see 9.4.4, "Text Space Details").
+  > This amount shall be subtracted from the current horizontal or vertical
+  > coordinate, depending on the writing mode. In the default coordinate system,
+  > a positive adjustment has the effect of moving the next glyph painted either
+  > to the left or down by the given amount. Figure 46 shows an example of the
+  > effect of passing offsets to TJ.
+
+  In other words:
+  - large negative numbers equate to spaces
+  - small positive amounts equate to kerning hacks
+  */
+  showStrings(array: Array<string | number>) {
+    var text = array.map(item => {
+      var item_type = typeof item;
+      if (item_type === 'string') {
+        return item;
+      }
+      else if (item_type === 'number') {
+        return (item < -100) ? ' ' : '';
+      }
+      else {
+        throw new Error(`Unknown TJ argument type: ${item_type} (${item})`);
+      }
+    }).join('');
+    this._drawText(text);
+  }
+  /** COMPLETE (ALIAS)
+  > `string '` Move to the next line and show a text string. This operator shall have
+  > the same effect as the code `T* string Tj`
+  */
+  newLineAndShowString(text: string) {
+    this.newLine(); // T*
+    this.showString(text); // Tj
+  }
+  /** COMPLETE (ALIAS)
+  > `wordSpace charSpace text "` Move to the next line and show a text string,
+  > using `wordSpace` as the word spacing and `charSpace` as the character
+  > spacing (setting the corresponding parameters in the text state).
+  > `wordSpace` and `charSpace` shall be numbers expressed in unscaled text
+  > space units. This operator shall have the same effect as this code:
+  > `wordSpace Tw charSpace Tc text '`
+  */
+  newLineAndShowStringWithSpacing(wordSpace: number, charSpace: number, text: string) {
+    this.setWordSpacing(wordSpace); // Tw
+    this.setCharSpacing(charSpace); // Tc
+    this.newLineAndShowString(text); // '
   }
 }

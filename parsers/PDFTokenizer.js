@@ -101,7 +101,7 @@ state_rules['STREAM'] = [
         else {
             // hack to accommodate the string-based tests, where the iterable is not a
             // FileStringIterator, but a stubbed StringIterator.
-            buffer = new Buffer(this.iterable.next(this['yy'].stream_length), 'utf8');
+            buffer = new Buffer(this.iterable.next(this['yy'].stream_length), 'ascii');
         }
         this['yy'].stream_length = null;
         return Token('STREAM_BUFFER', buffer);
