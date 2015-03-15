@@ -3,7 +3,6 @@ import fs = require('fs');
 import chalk = require('chalk');
 import logger = require('loge');
 import lexing = require('lexing');
-import term = require('./dev/term');
 
 import File = require('./File');
 
@@ -133,7 +132,7 @@ class PDF {
 
     var object = indirect_object.value;
 
-    // if it looks like a stream, decode it
+    // if it looks like a stream, and it has a Filter field, decode it
     if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
       object = decodeStream(<pdfdom.Stream>object);
     }
@@ -219,39 +218,50 @@ class PDF {
   }
 
   parseObjectAt(position: number, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var reader = new lexing.FileIterator(this.file.fd, position);
+    var iterable = new lexing.FileStringIterator(this.file.fd, 'ascii', position);
     var parser = new PDFObjectParser(this, start);
 
     try {
-      return parser.parse(reader);
+      return parser.parse(iterable);
     }
     catch (exc) {
-      term.print('%s', chalk.red(exc.message));
-      this.printContext(position, reader.position);
+      console.log(chalk.red(exc.message));
+      this.printContext(position, iterable.position);
 
       throw exc;
     }
   }
 
   parseString(input: string, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var buffer = new Buffer(input);
-    var reader = new lexing.BufferIterator(buffer);
-
+    var iterable = new lexing.StringIterator(input);
     var parser = new PDFObjectParser(this, start);
-    return parser.parse(reader);
+    return parser.parse(iterable);
   }
+}
+
+function mergeStreams(streams: pdfdom.Stream[]): pdfdom.Stream {
+  var buffers = streams.map(stream => stream.buffer);
+  var dictionary = streams.map(stream => stream.dictionary).reduce(
+    (dictionary1, dictionary2) => {
+    return util.extend({}, dictionary1, dictionary2,
+      {Length: dictionary1.Length + dictionary2.Length})
+  });
+  return {
+    dictionary: dictionary,
+    buffer: Buffer.concat(buffers),
+  };
 }
 
 function decodeStream(stream: pdfdom.Stream): pdfdom.Stream {
   var buffer = stream.buffer;
-  var filters = [].concat(stream.dictionary['Filter']);
+  var filters = [].concat(stream.dictionary.Filter);
   filters.forEach(filter => {
     var decoder = decoders[filter];
     if (decoder) {
       try {
         buffer = decoder(buffer);
       } catch (exc) {
-        var dictionary_string = term.inspect(stream.dictionary);
+        var dictionary_string = util.inspect(stream.dictionary);
         throw new Error(`Could not decode stream ${dictionary_string} (${stream.buffer.length} bytes): ${exc.stack}`);
       }
     }
@@ -260,11 +270,7 @@ function decodeStream(stream: pdfdom.Stream): pdfdom.Stream {
     }
   });
   // TODO: delete the dictionary['Filter'] field?
-  return {dictionary: this.dictionary, buffer: buffer};
-}
-
-interface XObject {
-  [index: string]: pdfdom.Stream;
+  return {dictionary: stream.dictionary, buffer: buffer};
 }
 
 /** PDFPage is a wrapper around a single page in a PDF that provides aggregates
@@ -276,21 +282,19 @@ class PDFPage {
   MediaBox: pdfdom.Rectangle;
 
   // parsed things
-  Contents: Buffer;
-  XObject: XObject;
-  objects: graphics.VisibleObject[];
+  Contents: pdfdom.Stream;
+  XObject: pdfdom.XObject;
+  spans: graphics.TextSpan[];
 
   constructor(pdf: PDF, page: pdfdom.PDFObject) {
     this.MediaBox = page['MediaBox'];
-    // this.CropBox = page['CropBox'];
 
     // a page's 'Contents' field may be a single stream or multiple streams.
-    // we need to iterate through all of them and concatenate them into a si/ngle Buffer
-    var Contents_Buffers: Buffer[] = [].concat(page['Contents']).map(reference => {
-      var stream = <pdfdom.Stream>pdf.findObject(reference);
-      return stream.buffer;
+    // we need to iterate through all of them and concatenate them into a single streams
+    var ContentsStreams = [].concat(page['Contents']).map(reference => {
+      return <pdfdom.Stream>pdf.findObject(reference);
     });
-    this.Contents = Buffer.concat(Contents_Buffers);
+    this.Contents = mergeStreams(ContentsStreams);
 
     // The other contents are the `Resources` field. The Resources field is
     // always a single object, as far as I can tell.
@@ -299,30 +303,15 @@ class PDFPage {
     // references (to streams). I'm pretty sure they're always streams.
 
     // XObject usually has only one field, but could have several.
-    var text_parser = new graphics.TextParser();
-
     this.XObject = {};
     for (var name in Resources['XObject']) {
       var stream = <pdfdom.Stream>pdf.findObject(Resources['XObject'][name]);
       this.XObject[name] = stream;
     }
 
-    var Contents_iterable = new lexing.BufferIterator(this.Contents);
-    var objects = text_parser.parse(Contents_iterable);
-
-    // replace references:
-    var object_groups = objects.map(object => {
-      if (object instanceof graphics.ReferenceObject) {
-        // TODO: incorporate object.position
-        var stream = this.XObject[object.name];
-        var stream_iterable = new lexing.BufferIterator(stream.buffer);
-        var xobject_objects = text_parser.parse(stream_iterable);
-        return xobject_objects;
-      }
-      return [object];
-    });
-    // flatten
-    this.objects = Array.prototype.concat.apply([], object_groups);
+    var canvas = new graphics.Canvas(this.XObject);
+    canvas.renderStream(this.Contents);
+    this.spans = canvas.spans;
   }
 }
 
