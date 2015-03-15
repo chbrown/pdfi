@@ -133,6 +133,8 @@ var Matrix3 = (function () {
     };
     /**
     returns a new Matrix3
+  
+    See 8.3.4 for a shortcut for avoiding full matrix multiplications.
     */
     Matrix3.prototype.multiply = function (right) {
         // matrices are stored as matrix[row_index][col_index]
@@ -269,6 +271,13 @@ var Canvas = (function () {
     > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
     > concatenating the specified matrix. Although the operands specify a matrix,
     > they shall be written as six separate numbers, not as an array.
+  
+    > Translations shall be specified as [1 0 0 1 tx ty], where tx and ty shall be the distances to translate the origin of the coordinate system in the horizontal and vertical dimensions, respectively.
+    > * Scaling shall be obtained by [sx 0 0 sy 0 0]. This scales the coordinates so that 1 unit in the horizontal and vertical dimensions of the new coordinate system is the same size as sx and sy units, respectively, in the previous coordinate system.
+    > * Rotations shall be produced by [cos q sin q -sin q cos q 0 0], which has the effect of rotating the coordinate system axes by an angle q counter clockwise.
+    > * Skew shall be specified by [1 tan a tan b 1 0 0], which skews the xaxis by an angle a and the y axis by an angle b.
+  
+    Also see http://en.wikipedia.org/wiki/Linear_map#Examples_of_linear_transformation_matrices
   
     Should we multiply by the current one instead? Yes. That's what they mean by
     concatenating, apparently. Weird stuff happens if you replace.
