@@ -1,23 +1,25 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import assert = require('assert');
 
-var TextParser = require('../parsers/TextParser');
+var graphics = require('../parsers/graphics');
 
-describe('TextParser', function() {
+describe('graphics text parsing', function() {
 
   it('should parse a simple text show operation', function() {
-    var parser = new TextParser();
+    var canvas = new graphics.Canvas({});
+    canvas.renderString('BT (Adjustments must ) Tj ET');
 
-    var actual = parser.parseString('(Adjustments must ) Tj');
-    var expected = [{text: 'Adjustments must '}];
+    var actual = canvas.spans.map(span => span.text);
+    var expected = ['Adjustments must '];
     assert.deepEqual(actual, expected);
   });
 
   it('should parse a nested string', function() {
-    var parser = new TextParser();
+    var canvas = new graphics.Canvas({});
+    canvas.renderString('BT (In case of \\(dire\\) emergency) Tj ET');
 
-    var actual = parser.parseString('(In case of \\(dire\\) emergency) Tj');
-    var expected = [{text: 'In case of (dire) emergency'}];
+    var actual = canvas.spans.map(span => span.text);
+    var expected = ['In case of (dire) emergency'];
     assert.deepEqual(actual, expected);
   });
 
