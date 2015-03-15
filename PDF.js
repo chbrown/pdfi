@@ -177,7 +177,8 @@ var PDF = (function () {
     });
     Object.defineProperty(PDF.prototype, "pages", {
         /**
-        This returns basic pdfdom.PDFObjects -- not the enhanced PDFPage instance.
+        This returns an array of basic pdfdom.Page objects, which are just sub-types
+        of the basic DictionaryObject interface. No subfields are parsed or resolved.
         */
         get: function () {
             if (this._pages.length == 0) {
@@ -189,9 +190,39 @@ var PDF = (function () {
         enumerable: true,
         configurable: true
     });
+    /**
+    Return a representation of a single page in a PDF that renders that page's
+    content from its various Contents or Resources fields.
+  
+    `index` is 0-based
+    */
     PDF.prototype.getPage = function (index) {
+        var _this = this;
         var page = this.pages[index];
-        return new PDFPage(this, page);
+        // a page's 'Contents' field may be a single stream or multiple streams.
+        // we need to iterate through all of them and concatenate them into a single streams
+        var ContentsStreams = [].concat(page['Contents']).map(function (reference) {
+            return _this.findObject(reference);
+        });
+        var Contents = mergeStreams(ContentsStreams);
+        // The other contents are the `Resources` field. The Resources field is
+        // always a single object, as far as I can tell.
+        var Resources = this.findObject(page['Resources']);
+        // `Resources` has a field, `XObject`, which is a mapping from names to
+        // references (to streams). I'm pretty sure they're always streams.
+        // XObject usually has only one field, but could have several.
+        var XObject = {};
+        for (var name in Resources['XObject']) {
+            var stream = this.findObject(Resources['XObject'][name]);
+            XObject[name] = stream;
+        }
+        var canvas = new graphics.Canvas(XObject);
+        canvas.renderStream(Contents);
+        return util.extend(page, {
+            Contents: Contents,
+            XObject: XObject,
+            spans: canvas.spans,
+        });
     };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
@@ -256,35 +287,4 @@ function decodeStream(stream) {
     // TODO: delete the dictionary['Filter'] field?
     return { dictionary: stream.dictionary, buffer: buffer };
 }
-/** PDFPage is a wrapper around a single page in a PDF that provides aggregates
-that page's content from its various Contents or Resources fields.
-*/
-var PDFPage = (function () {
-    function PDFPage(pdf, page) {
-        // ignore Parent and the given Type
-        this.Type = 'Page';
-        this.MediaBox = page['MediaBox'];
-        // a page's 'Contents' field may be a single stream or multiple streams.
-        // we need to iterate through all of them and concatenate them into a single streams
-        var ContentsStreams = [].concat(page['Contents']).map(function (reference) {
-            return pdf.findObject(reference);
-        });
-        this.Contents = mergeStreams(ContentsStreams);
-        // The other contents are the `Resources` field. The Resources field is
-        // always a single object, as far as I can tell.
-        var Resources = pdf.findObject(page['Resources']);
-        // `Resources` has a field, `XObject`, which is a mapping from names to
-        // references (to streams). I'm pretty sure they're always streams.
-        // XObject usually has only one field, but could have several.
-        this.XObject = {};
-        for (var name in Resources['XObject']) {
-            var stream = pdf.findObject(Resources['XObject'][name]);
-            this.XObject[name] = stream;
-        }
-        var canvas = new graphics.Canvas(this.XObject);
-        canvas.renderStream(this.Contents);
-        this.spans = canvas.spans;
-    }
-    return PDFPage;
-})();
 module.exports = PDF;
