@@ -18,11 +18,11 @@ var JisonLexerWrapper = (function () {
     /** setInput(input: any, yy: JisonSharedState): void
   
     The first argument is actually called with whatever you called
-    parser.parse(...) with, which is sent directly to the Lexer and not otherwise
-    used.
+    `parser.parse(input)` with as `input`, and it's sent directly to the Lexer
+    instance (this) via `parser.lexer.setInput(...)`, and not otherwise used.
   
-    But for the purpose of wrapping BufferIterableTokenizer, we need to ensure it's a
-    BufferIterable.
+    But for the purpose of wrapping lexing.Tokenizer, we need to ensure it's a
+    StringIterable.
     */
     JisonLexerWrapper.prototype.setInput = function (iterable, yy) {
         this.token_iterable = this.tokenizer.map(iterable);

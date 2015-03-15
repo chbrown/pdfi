@@ -110,7 +110,17 @@ state_rules['STREAM'] = [
   */
   [/^/, function(match) {
     // other side of the dirty lexer<->parser hack
-    var buffer = this.iterable.next(this['yy'].stream_length);
+    var buffer;
+    if (this.iterable.nextBytes) {
+      // this is what will usually be called, when this.iterable is a
+      // FileStringIterator.
+      buffer = this.iterable.nextBytes(this['yy'].stream_length);
+    }
+    else {
+      // hack to accommodate the string-based tests, where the iterable is not a
+      // FileStringIterator, but a stubbed StringIterator.
+      buffer = new Buffer(this.iterable.next(this['yy'].stream_length), 'utf8');
+    }
     this['yy'].stream_length = null;
     return Token('STREAM_BUFFER', buffer);
   }],

@@ -118,7 +118,7 @@ class PDFObjectParser {
     this.jison_parser.yy.pdf = pdf;
   }
 
-  parse(iterable: lexing.BufferIterable): pdfdom.PDFObject {
+  parse(iterable: lexing.StringIterable): pdfdom.PDFObject {
     return this.jison_parser.parse(iterable);
   }
 
