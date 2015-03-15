@@ -134,3 +134,17 @@ export enum RenderingMode {
   FillThenStrokeClipping = 6,
   NoneClipping = 7,
 }
+
+// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
+export enum LineCapStyle {
+  Butt = 0,
+  Round = 1,
+  ProjectingSquare = 2,
+}
+
+// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
+export enum LineJoinStyle {
+  Miter = 0,
+  Round = 1,
+  Bevel = 2,
+}
