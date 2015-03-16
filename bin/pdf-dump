@@ -40,7 +40,7 @@ function main() {
       // page.Contents is a list of IndirectReference instances, or maybe just one
       var contents = [].concat(page.Contents);
       for (var j = 0, content; (content = contents[j]); j++) {
-        var content_object = pdf.resolveObject(content);
+        var content_object = pdf.findObject(content);
         console.log('Contents[%d]: %j', j, content_object);
       }
     });
