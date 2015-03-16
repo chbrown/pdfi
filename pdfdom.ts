@@ -148,3 +148,9 @@ export enum LineJoinStyle {
   Round = 1,
   Bevel = 2,
 }
+
+export interface Encoding extends PDFObject {
+  Type: string; // 'Encoding'
+  BaseEncoding: string;
+  Differences: Array<number | string>;
+}
