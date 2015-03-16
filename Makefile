@@ -25,6 +25,9 @@ external: $(EXTERNAL:%=type_declarations/DefinitelyTyped/%)
 test: all
 	node_modules/.bin/mocha --recursive test/
 
-encoding/glyphlist.json:
+encoding/glyphlist.txt:
 	# glyphlist.txt is pure ASCII
-	curl http://partners.adobe.com/public/developer/en/opentype/glyphlist.txt | node dev/read_glyphlist.js > $@
+	curl http://partners.adobe.com/public/developer/en/opentype/glyphlist.txt >$@
+
+encoding/glyphlist.json: encoding/glyphlist.txt
+	node dev/read_glyphlist.js <$< >$@
