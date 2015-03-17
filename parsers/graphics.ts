@@ -2,8 +2,42 @@
 import logger = require('loge');
 import chalk = require('chalk');
 import lexing = require('lexing');
+
 import StackOperationParser = require('./StackOperationParser');
-import pdfdom = require('../pdfdom');
+import models = require('../models');
+
+/**
+glyphlist is a mapping from PDF glyph names to unicode strings
+*/
+var glyphlist: {[index: string]: string} = require('../encoding/glyphlist');
+
+// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
+export enum RenderingMode {
+  Fill = 0,
+  Stroke = 1,
+  FillThenStroke = 2,
+  None = 3,
+  FillClipping = 4,
+  StrokeClipping = 5,
+  FillThenStrokeClipping = 6,
+  NoneClipping = 7,
+}
+
+// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
+export enum LineCapStyle {
+  Butt = 0,
+  Round = 1,
+  ProjectingSquare = 2,
+}
+
+// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
+export enum LineJoinStyle {
+  Miter = 0,
+  Round = 1,
+  Bevel = 2,
+}
+
+export type Rectangle = [number, number, number, number]
 
 var operator_aliases = {
   'Tc': 'setCharSpacing',
@@ -131,8 +165,8 @@ class GraphicsState {
   public strokeColor: Color = new Color();
   public fillColor: Color = new Color();
   public lineWidth: number;
-  public lineCap: pdfdom.LineCapStyle;
-  public lineJoin: pdfdom.LineJoinStyle;
+  public lineCap: LineCapStyle;
+  public lineJoin: LineJoinStyle;
   public miterLimit: number;
   public dashArray: number[];
   public dashPhase: number;
@@ -148,12 +182,6 @@ class GraphicsState {
     }
     return copy;
   }
-
-  // getPosition(): Point {
-  //   var x = this.ctMatrix.rows[2][0];
-  //   var y = this.ctMatrix.rows[2][1];
-  //   return new Point(x, y);
-  // }
 }
 
 class TextState {
@@ -163,7 +191,7 @@ class TextState {
   leading: number = 0;
   fontName: string;
   fontSize: number;
-  renderingMode: pdfdom.RenderingMode = 0;
+  renderingMode: RenderingMode = 0;
   rise: number = 0;
 
   textMatrix: Matrix3 = new Matrix3();
@@ -186,20 +214,39 @@ class TextState {
 }
 
 export class TextSpan {
-  constructor(public position: Point, public text: string, public size: number) { }
+  constructor(public position: Point,
+              public text: string,
+              public fontName: string,
+              public fontSize: number) { }
 }
 
 export class Canvas {
   // Eventually, this will render out other elements, too
   spans: TextSpan[] = [];
 
+  /**
+  When we render a page, we specify a ContentStream as well as a Resources
+  dictionary. That Resources dictionary may contain XObject streams that are
+  embedded as `Do` operations in the main contents, as well as sub-Resources
+  in those XObjects.
+  */
+  render(stream_string: string, Resources: models.Resources): void {
+    var context = new DrawingContext(Resources);
+    context.renderString(stream_string, this);
+  }
+}
+
+export class DrawingContext {
+  canvas: Canvas;
   stateStack: GraphicsState[] = [];
-  graphicsState: GraphicsState = new GraphicsState();
-  textState: TextState = null;
 
-  constructor(public XObject: pdfdom.XObject = {}) { }
+  constructor(public Resources: models.Resources,
+              public graphicsState: GraphicsState = new GraphicsState(),
+              public textState: TextState = null) { }
 
-  renderStringIterable(string_iterable: lexing.StringIterable): void {
+  renderString(str: string, canvas: Canvas): void {
+    this.canvas = canvas;
+    var string_iterable = new lexing.StringIterator(str);
     var stack_operation_iterator = new StackOperationParser().map(string_iterable);
     while (1) {
       var token = stack_operation_iterator.next();
@@ -218,27 +265,70 @@ export class Canvas {
       }
     }
   }
-  renderString(str: string): void {
-    var string_iterable = new lexing.StringIterator(str);
-    this.renderStringIterable(string_iterable);
-  }
-  renderStream(stream: pdfdom.Stream): void {
-    var stream_string = stream.buffer.toString('ascii');
-    this.renderString(stream_string);
+
+  private _decodeString(charCodes: number[]): string {
+    // the Font instance handles most of the character code resolution
+    var Font = this.Resources.getFont(this.textState.fontName);
+    if (Font === null) {
+      throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
+    }
+    return charCodes.map(charCode => {
+      var glyphname = Font.getGlyphname(charCode);
+      if (glyphname === undefined) {
+        logger.error(`Font "${this.textState.fontName}" could not decode character code: "${charCode}"`)
+        return '\\' + charCode;
+      }
+      return glyphlist[glyphname];
+
+    }).join('');
   }
 
-  private _drawText(text: string) {
+  private _renderTextString(string: number[]) {
+    var text = this._decodeString(string);
     var position = this.textState.getPosition();
-    var span = new TextSpan(position, text, this.textState.fontSize);
-    this.spans.push(span);
+    var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
+    this.canvas.spans.push(span);
+  }
+
+  private _renderTextArray(array: Array<number[] | number>) {
+    var text = array.map(item => {
+      // each item is either a string (character code array) or a number
+      if (Array.isArray(item)) {
+        // if it's a character array, convert it to a unicode string and return it
+        return this._decodeString(<number[]>item);
+      }
+      else if (typeof item === 'number') {
+        // if it's a very negative number, insert a space. otherwise, it only
+        // signifies some minute spacing.
+        return (item < -100) ? ' ' : '';
+      }
+      else {
+        throw new Error(`Unknown TJ argument type: ${item}`);
+      }
+    }).join('');
+
+    var position = this.textState.getPosition();
+    var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
+    this.canvas.spans.push(span);
   }
 
   private _drawObject(name: string) {
-    var XObject = this.XObject[name];
-    if (XObject === undefined) {
+    // create a nested drawing context and use that
+    var XObjectStream = this.Resources.getXObject(name);
+    if (XObjectStream === undefined) {
       throw new Error(`Cannot draw undefined XObject: ${name}`);
     }
-    this.renderStream(XObject);
+
+    var Resources = XObjectStream.Resources;
+    if (XObjectStream.Subtype == 'Form') {
+      var context = new DrawingContext(Resources, this.graphicsState);
+
+      var stream_string = XObjectStream.buffer.toString('ascii');
+      context.renderString(stream_string, this.canvas);
+    }
+    else {
+      logger.warn(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -298,13 +388,13 @@ export class Canvas {
   /**
   > `lineCap J`: Set the line cap style in the graphics state.
   */
-  setLineCap(lineCap: pdfdom.LineCapStyle) {
+  setLineCap(lineCap: LineCapStyle) {
     this.graphicsState.lineCap = lineCap;
   }
   /**
   > `lineJoin j`: Set the line join style in the graphics state.
   */
-  setLineJoin(lineJoin: pdfdom.LineJoinStyle) {
+  setLineJoin(lineJoin: LineJoinStyle) {
     this.graphicsState.lineJoin = lineJoin;
   }
   /**
@@ -435,7 +525,7 @@ export class Canvas {
   > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
   > be an integer. Initial value: 0.
   */
-  setRenderingMode(render: pdfdom.RenderingMode) {
+  setRenderingMode(render: RenderingMode) {
     this.textState.renderingMode = render;
   }
   /**
@@ -496,9 +586,11 @@ export class Canvas {
   // Text showing operators (Tj, TJ, ', ")
   /**
   > `string Tj`: Show a text string.
+
+  string is a list of character codes, potentially larger than 256
   */
-  showString(text: string) {
-    this._drawText(text);
+  showString(string: number[]) {
+    this._renderTextString(string);
   }
   /**
   > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -517,28 +609,16 @@ export class Canvas {
   - large negative numbers equate to spaces
   - small positive amounts equate to kerning hacks
   */
-  showStrings(array: Array<string | number>) {
-    var text = array.map(item => {
-      var item_type = typeof item;
-      if (item_type === 'string') {
-        return item;
-      }
-      else if (item_type === 'number') {
-        return (item < -100) ? ' ' : '';
-      }
-      else {
-        throw new Error(`Unknown TJ argument type: ${item_type} (${item})`);
-      }
-    }).join('');
-    this._drawText(text);
+  showStrings(array: Array<number[] | number>) {
+    this._renderTextArray(array);
   }
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
   > the same effect as the code `T* string Tj`
   */
-  newLineAndShowString(text: string) {
+  newLineAndShowString(string: number[]) {
     this.newLine(); // T*
-    this.showString(text); // Tj
+    this.showString(string); // Tj
   }
   /** COMPLETE (ALIAS)
   > `wordSpace charSpace text "` Move to the next line and show a text string,
@@ -548,9 +628,9 @@ export class Canvas {
   > space units. This operator shall have the same effect as this code:
   > `wordSpace Tw charSpace Tc text '`
   */
-  newLineAndShowStringWithSpacing(wordSpace: number, charSpace: number, text: string) {
+  newLineAndShowStringWithSpacing(wordSpace: number, charSpace: number, string: number[]) {
     this.setWordSpacing(wordSpace); // Tw
     this.setCharSpacing(charSpace); // Tc
-    this.newLineAndShowString(text); // '
+    this.newLineAndShowString(string); // '
   }
 }

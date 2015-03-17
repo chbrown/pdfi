@@ -2,15 +2,63 @@ var chalk = require('chalk');
 var logger = require('loge');
 var lexing = require('lexing');
 var File = require('./File');
-var decoders = require('./filters/decoders');
+var models = require('./models');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
-var graphics = require('./parsers/graphics');
 var util = require('util-enhanced');
+/**
+The Trailer is not a typical models.Model, because it is not backed by a single
+PDFObject, but by a collection of them.
+*/
+var Trailer = (function () {
+    function Trailer(_pdf, _object) {
+        if (_object === void 0) { _object = {}; }
+        this._pdf = _pdf;
+        this._object = _object;
+    }
+    /**
+    The PDF's trailers are read from newer to older. The newer trailers' values
+    should be preferred, so we merge the older trailers under the newer ones.
+    */
+    Trailer.prototype.merge = function (object) {
+        this._object = util.extend(object, this._object);
+    };
+    Object.defineProperty(Trailer.prototype, "Size", {
+        get: function () {
+            return this._object['Size'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Trailer.prototype, "Root", {
+        get: function () {
+            return new models.Catalog(this._pdf, this._object['Root']);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Trailer.prototype, "Info", {
+        get: function () {
+            return this._object['Info'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Trailer.prototype.toJSON = function () {
+        return {
+            Size: this.Size,
+            Root: this.Root,
+            Info: this.Info,
+        };
+    };
+    return Trailer;
+})();
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
         this._cross_references = [];
-        this._pages = [];
+        // _objects is a cache of PDF objects indexed by
+        // "${object_number}:${generation_number}" identifiers
+        this._objects = {};
     }
     PDF.open = function (filepath) {
         return new PDF(File.open(filepath));
@@ -22,7 +70,7 @@ var PDF = (function () {
         enumerable: true,
         configurable: true
     });
-    /** Since the trailers and crossreferences overlap so much,
+    /** Since the trailers and cross references overlap so much,
     we might as well read them all at once.
     */
     PDF.prototype.readTrailers = function () {
@@ -32,6 +80,7 @@ var PDF = (function () {
             throw new Error('Could not find "startxref" marker in file');
         }
         var next_xref_position = this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
+        this._trailer = new Trailer(this);
         while (next_xref_position) {
             // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
             var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
@@ -40,8 +89,7 @@ var PDF = (function () {
             // merge the cross references
             var cross_references = xref_trailer['cross_references'];
             Array.prototype.push.apply(this._cross_references, cross_references);
-            // merge the trailer (but the later trailer's values should be preferred)
-            this._trailer = util.extend(xref_trailer['trailer'], this._trailer);
+            this._trailer.merge(xref_trailer['trailer']);
         }
     };
     Object.defineProperty(PDF.prototype, "trailer", {
@@ -89,13 +137,20 @@ var PDF = (function () {
   
     Throws an Error if no match is found.
     */
-    PDF.prototype.findCrossReference = function (reference) {
+    PDF.prototype.findCrossReference = function (object_number, generation_number) {
         for (var i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
-            if (cross_reference.in_use && cross_reference.object_number === reference.object_number && cross_reference.generation_number === reference.generation_number) {
+            if (cross_reference.in_use && cross_reference.object_number === object_number && cross_reference.generation_number === generation_number) {
                 return cross_reference;
             }
         }
-        throw new Error("Could not find a cross reference for " + reference.object_number + ":" + reference.generation_number);
+        throw new Error("Could not find a cross reference for " + object_number + ":" + generation_number);
+    };
+    PDF.prototype.getObject = function (object_number, generation_number) {
+        var object_id = "" + object_number + ":" + generation_number;
+        if (!(object_id in this._objects)) {
+            this._objects[object_id] = this._readObject(object_number, generation_number);
+        }
+        return this._objects[object_id];
     };
     /**
     Resolves a object reference to the original object from the PDF, parsing the
@@ -107,10 +162,9 @@ var PDF = (function () {
     Also throws an Error if the matched CrossReference points to an IndirectObject
     that doesn't match the originally requested IndirectReference.
     */
-    PDF.prototype.findObject = function (reference) {
-        var cross_reference = this.findCrossReference(reference);
-        // logger.info(chalk.green(`findObject(${reference.object_number}:${reference.generation_number}): offset=${cross_reference.offset}`));
-        var indirect_object = this.parseObjectAt(cross_reference.offset, "INDIRECT_OBJECT");
+    PDF.prototype._readObject = function (object_number, generation_number) {
+        var cross_reference = this.findCrossReference(object_number, generation_number);
+        var indirect_object = this.parseIndirectObjectAt(cross_reference.offset);
         // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
         // and generation number; that's how we found it. We only want the value of
         // the object. But we might as well double check that what we got is what
@@ -118,111 +172,34 @@ var PDF = (function () {
         if (indirect_object.object_number != cross_reference.object_number) {
             throw new Error("PDF cross references are incorrect; the offset\n        " + cross_reference.offset + " does not lead to an object numbered\n        " + cross_reference.object_number + "; instead, the object at that offset is\n        " + indirect_object.object_number);
         }
-        var object = indirect_object.value;
-        // if it looks like a stream, and it has a Filter field, decode it
-        if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
-            object = decodeStream(object);
-        }
-        return object;
+        return indirect_object.value;
     };
+    Object.defineProperty(PDF.prototype, "pages", {
+        /**
+        This resolves the Root Catalog's Pages tree into an Array of all its leaves.
+        */
+        get: function () {
+            return this.trailer.Root.Pages.getLeaves();
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
     Resolves a potential IndirectReference to the target object.
   
-    1. If input is an IndirectReference, uses findObject to resolve it to the
+    1. If input is an IndirectReference, uses getObject to resolve it to the
        actual object.
     2. Otherwise, returns the input object.
+  
+    This is useful in the PDFObjectParser stream hack, but shouldn't be used elsewhere.
     */
-    PDF.prototype.resolveObject = function (input) {
-        // logger.info('PDFReader#resolveObject(%j)', input);
+    PDF.prototype._resolveObject = function (object) {
         // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
-        if (input !== undefined && input['object_number'] !== undefined && input['generation_number'] !== undefined) {
-            var resolution = this.findObject(input);
-            // logger.info('PDFReader#resolveObject => %j', resolution);
-            return resolution;
+        if (models.IndirectReference.isIndirectReference(object)) {
+            var reference = object;
+            return this.getObject(reference.object_number, reference.generation_number);
         }
-        return input;
-    };
-    /**
-    "Pages"-type objects have a field, Kids: IndirectReference[].
-    Each indirect reference will resolve to a Page or Pages object.
-  
-    This function will flatten the page list breadth-first, returning
-    */
-    PDF.prototype.flattenPages = function (Pages) {
-        var _this = this;
-        var PageGroups = Pages.Kids.map(function (KidReference) {
-            var Kid = _this.resolveObject(KidReference);
-            if (Kid['Type'] == 'Pages') {
-                return _this.flattenPages(Kid);
-            }
-            else if (Kid['Type'] == 'Page') {
-                return [Kid];
-            }
-            else {
-                throw new Error("Unknown Kid type: " + Kid['Type']);
-            }
-        });
-        // flatten pdfdom.Page[][] into pdfdom.Page[]
-        return Array.prototype.concat.apply([], PageGroups);
-    };
-    Object.defineProperty(PDF.prototype, "catalog", {
-        get: function () {
-            if (this._catalog === undefined) {
-                this._catalog = this.resolveObject(this.trailer['Root']);
-            }
-            return this._catalog;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(PDF.prototype, "pages", {
-        /**
-        This returns an array of basic pdfdom.Page objects, which are just sub-types
-        of the basic DictionaryObject interface. No subfields are parsed or resolved.
-        */
-        get: function () {
-            if (this._pages.length == 0) {
-                var Pages = this.resolveObject(this.catalog.Pages);
-                this._pages = this.flattenPages(Pages);
-            }
-            return this._pages;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-    Return a representation of a single page in a PDF that renders that page's
-    content from its various Contents or Resources fields.
-  
-    `index` is 0-based
-    */
-    PDF.prototype.getPage = function (index) {
-        var _this = this;
-        var page = this.pages[index];
-        // a page's 'Contents' field may be a single stream or multiple streams.
-        // we need to iterate through all of them and concatenate them into a single streams
-        var ContentsStreams = [].concat(page['Contents']).map(function (reference) {
-            return _this.findObject(reference);
-        });
-        var Contents = mergeStreams(ContentsStreams);
-        // The other contents are the `Resources` field. The Resources field is
-        // always a single object, as far as I can tell.
-        var Resources = this.findObject(page['Resources']);
-        // `Resources` has a field, `XObject`, which is a mapping from names to
-        // references (to streams). I'm pretty sure they're always streams.
-        // XObject usually has only one field, but could have several.
-        var XObject = {};
-        for (var name in Resources['XObject']) {
-            var stream = this.findObject(Resources['XObject'][name]);
-            XObject[name] = stream;
-        }
-        var canvas = new graphics.Canvas(XObject);
-        canvas.renderStream(Contents);
-        return util.extend(page, {
-            Contents: Contents,
-            XObject: XObject,
-            spans: canvas.spans,
-        });
+        return object;
     };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
@@ -248,6 +225,9 @@ var PDF = (function () {
             throw exc;
         }
     };
+    PDF.prototype.parseIndirectObjectAt = function (position) {
+        return this.parseObjectAt(position, "INDIRECT_OBJECT");
+    };
     PDF.prototype.parseString = function (input, start) {
         if (start === void 0) { start = "OBJECT_HACK"; }
         var iterable = new lexing.StringIterator(input);
@@ -256,35 +236,4 @@ var PDF = (function () {
     };
     return PDF;
 })();
-function mergeStreams(streams) {
-    var buffers = streams.map(function (stream) { return stream.buffer; });
-    var dictionary = streams.map(function (stream) { return stream.dictionary; }).reduce(function (dictionary1, dictionary2) {
-        return util.extend({}, dictionary1, dictionary2, { Length: dictionary1.Length + dictionary2.Length });
-    });
-    return {
-        dictionary: dictionary,
-        buffer: Buffer.concat(buffers),
-    };
-}
-function decodeStream(stream) {
-    var buffer = stream.buffer;
-    var filters = [].concat(stream.dictionary.Filter);
-    filters.forEach(function (filter) {
-        var decoder = decoders[filter];
-        if (decoder) {
-            try {
-                buffer = decoder(buffer);
-            }
-            catch (exc) {
-                var dictionary_string = util.inspect(stream.dictionary);
-                throw new Error("Could not decode stream " + dictionary_string + " (" + stream.buffer.length + " bytes): " + exc.stack);
-            }
-        }
-        else {
-            throw new Error("Could not find decoder named \"" + filter + "\" to decode stream");
-        }
-    });
-    // TODO: delete the dictionary['Filter'] field?
-    return { dictionary: stream.dictionary, buffer: buffer };
-}
 module.exports = PDF;

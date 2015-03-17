@@ -6,19 +6,56 @@ import lexing = require('lexing');
 
 import File = require('./File');
 
-import decoders = require('./filters/decoders');
 import pdfdom = require('./pdfdom');
+import models = require('./models');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
 import graphics = require('./parsers/graphics');
 
 var util = require('util-enhanced');
 
+/**
+The Trailer is not a typical models.Model, because it is not backed by a single
+PDFObject, but by a collection of them.
+*/
+class Trailer {
+  constructor(private _pdf: PDF, private _object: any = {}) { }
+
+  /**
+  The PDF's trailers are read from newer to older. The newer trailers' values
+  should be preferred, so we merge the older trailers under the newer ones.
+  */
+  merge(object: any): void {
+    this._object = util.extend(object, this._object);
+  }
+
+  get Size(): number {
+    return this._object['Size'];
+  }
+
+  get Root(): models.Catalog {
+    return new models.Catalog(this._pdf, this._object['Root']);
+  }
+
+  get Info(): any {
+    return this._object['Info'];
+  }
+
+  toJSON() {
+    return {
+      Size: this.Size,
+      Root: this.Root,
+      Info: this.Info,
+    };
+  }
+}
+
 class PDF {
-  _trailer: pdfdom.DictionaryObject;
-  _cross_references: pdfdom.CrossReference[] = [];
-  _catalog: pdfdom.Catalog;
-  _pages: pdfdom.Page[] = [];
+  private _trailer: Trailer;
+  private _cross_references: pdfdom.CrossReference[] = [];
+  // _objects is a cache of PDF objects indexed by
+  // "${object_number}:${generation_number}" identifiers
+  private _objects: {[index: string]: pdfdom.PDFObject} = {};
 
   constructor(public file: File) { }
 
@@ -30,7 +67,7 @@ class PDF {
     return this.file.size;
   }
 
-  /** Since the trailers and crossreferences overlap so much,
+  /** Since the trailers and cross references overlap so much,
   we might as well read them all at once.
   */
   readTrailers(): void {
@@ -41,6 +78,7 @@ class PDF {
     }
     var next_xref_position = <number>this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
 
+    this._trailer = new Trailer(this)
     while (next_xref_position) { // !== null
       // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
       var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
@@ -49,8 +87,8 @@ class PDF {
       // merge the cross references
       var cross_references = <pdfdom.CrossReference[]>xref_trailer['cross_references'];
       Array.prototype.push.apply(this._cross_references, cross_references);
-      // merge the trailer (but the later trailer's values should be preferred)
-      this._trailer = util.extend(xref_trailer['trailer'], this._trailer);
+
+      this._trailer.merge(xref_trailer['trailer']);
     }
   }
 
@@ -68,7 +106,7 @@ class PDF {
   the document (or maybe just those in the cross references section that
   immediately follows the trailer?)
   */
-  get trailer(): pdfdom.DictionaryObject {
+  get trailer(): Trailer {
     if (this._trailer === undefined) {
       this.readTrailers();
     }
@@ -93,16 +131,23 @@ class PDF {
 
   Throws an Error if no match is found.
   */
-  findCrossReference(reference: pdfdom.IndirectReference): pdfdom.CrossReference {
-    // for (var cross_reference in cross_references) {
+  private findCrossReference(object_number: number, generation_number: number): pdfdom.CrossReference {
     for (var i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
       if (cross_reference.in_use &&
-          cross_reference.object_number === reference.object_number &&
-          cross_reference.generation_number === reference.generation_number) {
+          cross_reference.object_number === object_number &&
+          cross_reference.generation_number === generation_number) {
         return cross_reference;
       }
     }
-    throw new Error(`Could not find a cross reference for ${reference.object_number}:${reference.generation_number}`);
+    throw new Error(`Could not find a cross reference for ${object_number}:${generation_number}`);
+  }
+
+  getObject(object_number: number, generation_number: number): pdfdom.PDFObject {
+    var object_id = `${object_number}:${generation_number}`;
+    if (!(object_id in this._objects)) {
+      this._objects[object_id] = this._readObject(object_number, generation_number);
+    }
+    return this._objects[object_id];
   }
 
   /**
@@ -115,10 +160,9 @@ class PDF {
   Also throws an Error if the matched CrossReference points to an IndirectObject
   that doesn't match the originally requested IndirectReference.
   */
-  findObject(reference: pdfdom.IndirectReference): pdfdom.PDFObject {
-    var cross_reference = this.findCrossReference(reference);
-    // logger.info(chalk.green(`findObject(${reference.object_number}:${reference.generation_number}): offset=${cross_reference.offset}`));
-    var indirect_object = <pdfdom.IndirectObject>this.parseObjectAt(cross_reference.offset, "INDIRECT_OBJECT");
+  private _readObject(object_number: number, generation_number: number): pdfdom.PDFObject {
+    var cross_reference = this.findCrossReference(object_number, generation_number);
+    var indirect_object = this.parseIndirectObjectAt(cross_reference.offset);
     // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
     // and generation number; that's how we found it. We only want the value of
     // the object. But we might as well double check that what we got is what
@@ -129,116 +173,32 @@ class PDF {
         ${cross_reference.object_number}; instead, the object at that offset is
         ${indirect_object.object_number}`);
     }
+    return indirect_object.value;
+  }
 
-    var object = indirect_object.value;
-
-    // if it looks like a stream, and it has a Filter field, decode it
-    if (object['dictionary'] && object['dictionary']['Filter'] && object['buffer']) {
-      object = decodeStream(<pdfdom.Stream>object);
-    }
-
-    return object;
+  /**
+  This resolves the Root Catalog's Pages tree into an Array of all its leaves.
+  */
+  get pages(): models.Page[] {
+    return this.trailer.Root.Pages.getLeaves();
   }
 
   /**
   Resolves a potential IndirectReference to the target object.
 
-  1. If input is an IndirectReference, uses findObject to resolve it to the
+  1. If input is an IndirectReference, uses getObject to resolve it to the
      actual object.
   2. Otherwise, returns the input object.
+
+  This is useful in the PDFObjectParser stream hack, but shouldn't be used elsewhere.
   */
-  resolveObject(input: pdfdom.PDFObject): pdfdom.PDFObject {
-    // logger.info('PDFReader#resolveObject(%j)', input);
+  private _resolveObject(object: pdfdom.PDFObject): pdfdom.PDFObject {
     // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
-    if (input !== undefined &&
-        input['object_number'] !== undefined &&
-        input['generation_number'] !== undefined) {
-      var resolution = this.findObject(<pdfdom.IndirectReference>input);
-      // logger.info('PDFReader#resolveObject => %j', resolution);
-      return resolution;
+    if (models.IndirectReference.isIndirectReference(object)) {
+      var reference = <pdfdom.IndirectReference>object;
+      return this.getObject(reference.object_number, reference.generation_number);
     }
-    return input;
-  }
-
-  /**
-  "Pages"-type objects have a field, Kids: IndirectReference[].
-  Each indirect reference will resolve to a Page or Pages object.
-
-  This function will flatten the page list breadth-first, returning
-  */
-  flattenPages(Pages: pdfdom.Pages): pdfdom.Page[] {
-    var PageGroups: pdfdom.Page[][] = Pages.Kids.map(KidReference => {
-      var Kid = this.resolveObject(KidReference);
-      if (Kid['Type'] == 'Pages') {
-        return this.flattenPages(<pdfdom.Pages>Kid);
-      }
-      else if (Kid['Type'] == 'Page') {
-        return [<pdfdom.Page>Kid];
-      }
-      else {
-        throw new Error(`Unknown Kid type: ${Kid['Type']}`);
-      }
-    });
-    // flatten pdfdom.Page[][] into pdfdom.Page[]
-    return Array.prototype.concat.apply([], PageGroups);
-  }
-
-  get catalog(): pdfdom.Catalog {
-    if (this._catalog === undefined) {
-      this._catalog = <pdfdom.Catalog>this.resolveObject(this.trailer['Root']);
-    }
-    return this._catalog;
-  }
-
-  /**
-  This returns an array of basic pdfdom.Page objects, which are just sub-types
-  of the basic DictionaryObject interface. No subfields are parsed or resolved.
-  */
-  get pages(): pdfdom.Page[] {
-    if (this._pages.length == 0) {
-      var Pages = <pdfdom.Pages>this.resolveObject(this.catalog.Pages);
-      this._pages = this.flattenPages(Pages);
-    }
-    return this._pages;
-  }
-
-  /**
-  Return a representation of a single page in a PDF that renders that page's
-  content from its various Contents or Resources fields.
-
-  `index` is 0-based
-  */
-  getPage(index: number) {
-    var page = this.pages[index];
-
-    // a page's 'Contents' field may be a single stream or multiple streams.
-    // we need to iterate through all of them and concatenate them into a single streams
-    var ContentsStreams = [].concat(page['Contents']).map(reference => {
-      return <pdfdom.Stream>this.findObject(reference);
-    });
-    var Contents = mergeStreams(ContentsStreams);
-
-    // The other contents are the `Resources` field. The Resources field is
-    // always a single object, as far as I can tell.
-    var Resources = this.findObject(page['Resources']);
-    // `Resources` has a field, `XObject`, which is a mapping from names to
-    // references (to streams). I'm pretty sure they're always streams.
-
-    // XObject usually has only one field, but could have several.
-    var XObject: pdfdom.XObject = {};
-    for (var name in Resources['XObject']) {
-      var stream = <pdfdom.Stream>this.findObject(Resources['XObject'][name]);
-      XObject[name] = stream;
-    }
-
-    var canvas = new graphics.Canvas(XObject);
-    canvas.renderStream(Contents);
-
-    return util.extend(page, {
-      Contents: Contents,
-      XObject: XObject,
-      spans: canvas.spans,
-    });
+    return object;
   }
 
   printContext(start_position: number, error_position: number, margin: number = 256): void {
@@ -267,45 +227,15 @@ class PDF {
     }
   }
 
+  parseIndirectObjectAt(position: number): pdfdom.IndirectObject {
+    return <pdfdom.IndirectObject>this.parseObjectAt(position, "INDIRECT_OBJECT");
+  }
+
   parseString(input: string, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
     var iterable = new lexing.StringIterator(input);
     var parser = new PDFObjectParser(this, start);
     return parser.parse(iterable);
   }
-}
-
-function mergeStreams(streams: pdfdom.Stream[]): pdfdom.Stream {
-  var buffers = streams.map(stream => stream.buffer);
-  var dictionary = streams.map(stream => stream.dictionary).reduce(
-    (dictionary1, dictionary2) => {
-    return util.extend({}, dictionary1, dictionary2,
-      {Length: dictionary1.Length + dictionary2.Length})
-  });
-  return {
-    dictionary: dictionary,
-    buffer: Buffer.concat(buffers),
-  };
-}
-
-function decodeStream(stream: pdfdom.Stream): pdfdom.Stream {
-  var buffer = stream.buffer;
-  var filters = [].concat(stream.dictionary.Filter);
-  filters.forEach(filter => {
-    var decoder = decoders[filter];
-    if (decoder) {
-      try {
-        buffer = decoder(buffer);
-      } catch (exc) {
-        var dictionary_string = util.inspect(stream.dictionary);
-        throw new Error(`Could not decode stream ${dictionary_string} (${stream.buffer.length} bytes): ${exc.stack}`);
-      }
-    }
-    else {
-      throw new Error(`Could not find decoder named "${filter}" to decode stream`);
-    }
-  });
-  // TODO: delete the dictionary['Filter'] field?
-  return {dictionary: stream.dictionary, buffer: buffer};
 }
 
 export = PDF;

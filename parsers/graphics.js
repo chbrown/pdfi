@@ -8,6 +8,36 @@ var __extends = this.__extends || function (d, b) {
 var logger = require('loge');
 var lexing = require('lexing');
 var StackOperationParser = require('./StackOperationParser');
+/**
+glyphlist is a mapping from PDF glyph names to unicode strings
+*/
+var glyphlist = require('../encoding/glyphlist');
+// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
+(function (RenderingMode) {
+    RenderingMode[RenderingMode["Fill"] = 0] = "Fill";
+    RenderingMode[RenderingMode["Stroke"] = 1] = "Stroke";
+    RenderingMode[RenderingMode["FillThenStroke"] = 2] = "FillThenStroke";
+    RenderingMode[RenderingMode["None"] = 3] = "None";
+    RenderingMode[RenderingMode["FillClipping"] = 4] = "FillClipping";
+    RenderingMode[RenderingMode["StrokeClipping"] = 5] = "StrokeClipping";
+    RenderingMode[RenderingMode["FillThenStrokeClipping"] = 6] = "FillThenStrokeClipping";
+    RenderingMode[RenderingMode["NoneClipping"] = 7] = "NoneClipping";
+})(exports.RenderingMode || (exports.RenderingMode = {}));
+var RenderingMode = exports.RenderingMode;
+// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
+(function (LineCapStyle) {
+    LineCapStyle[LineCapStyle["Butt"] = 0] = "Butt";
+    LineCapStyle[LineCapStyle["Round"] = 1] = "Round";
+    LineCapStyle[LineCapStyle["ProjectingSquare"] = 2] = "ProjectingSquare";
+})(exports.LineCapStyle || (exports.LineCapStyle = {}));
+var LineCapStyle = exports.LineCapStyle;
+// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
+(function (LineJoinStyle) {
+    LineJoinStyle[LineJoinStyle["Miter"] = 0] = "Miter";
+    LineJoinStyle[LineJoinStyle["Round"] = 1] = "Round";
+    LineJoinStyle[LineJoinStyle["Bevel"] = 2] = "Bevel";
+})(exports.LineJoinStyle || (exports.LineJoinStyle = {}));
+var LineJoinStyle = exports.LineJoinStyle;
 var operator_aliases = {
     'Tc': 'setCharSpacing',
     'Tw': 'setWordSpacing',
@@ -196,25 +226,45 @@ var TextState = (function () {
     return TextState;
 })();
 var TextSpan = (function () {
-    function TextSpan(position, text, size) {
+    function TextSpan(position, text, fontName, fontSize) {
         this.position = position;
         this.text = text;
-        this.size = size;
+        this.fontName = fontName;
+        this.fontSize = fontSize;
     }
     return TextSpan;
 })();
 exports.TextSpan = TextSpan;
 var Canvas = (function () {
-    function Canvas(XObject) {
-        if (XObject === void 0) { XObject = {}; }
-        this.XObject = XObject;
+    function Canvas() {
         // Eventually, this will render out other elements, too
         this.spans = [];
-        this.stateStack = [];
-        this.graphicsState = new GraphicsState();
-        this.textState = null;
     }
-    Canvas.prototype.renderStringIterable = function (string_iterable) {
+    /**
+    When we render a page, we specify a ContentStream as well as a Resources
+    dictionary. That Resources dictionary may contain XObject streams that are
+    embedded as `Do` operations in the main contents, as well as sub-Resources
+    in those XObjects.
+    */
+    Canvas.prototype.render = function (stream_string, Resources) {
+        var context = new DrawingContext(Resources);
+        context.renderString(stream_string, this);
+    };
+    return Canvas;
+})();
+exports.Canvas = Canvas;
+var DrawingContext = (function () {
+    function DrawingContext(Resources, graphicsState, textState) {
+        if (graphicsState === void 0) { graphicsState = new GraphicsState(); }
+        if (textState === void 0) { textState = null; }
+        this.Resources = Resources;
+        this.graphicsState = graphicsState;
+        this.textState = textState;
+        this.stateStack = [];
+    }
+    DrawingContext.prototype.renderString = function (str, canvas) {
+        this.canvas = canvas;
+        var string_iterable = new lexing.StringIterator(str);
         var stack_operation_iterator = new StackOperationParser().map(string_iterable);
         while (1) {
             var token = stack_operation_iterator.next();
@@ -232,39 +282,78 @@ var Canvas = (function () {
             }
         }
     };
-    Canvas.prototype.renderString = function (str) {
-        var string_iterable = new lexing.StringIterator(str);
-        this.renderStringIterable(string_iterable);
+    DrawingContext.prototype._decodeString = function (charCodes) {
+        var _this = this;
+        // the Font instance handles most of the character code resolution
+        var Font = this.Resources.getFont(this.textState.fontName);
+        if (Font === null) {
+            throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
+        }
+        return charCodes.map(function (charCode) {
+            var glyphname = Font.getGlyphname(charCode);
+            if (glyphname === undefined) {
+                logger.error("Font \"" + _this.textState.fontName + "\" could not decode character code: \"" + charCode + "\"");
+                return '\\' + charCode;
+            }
+            return glyphlist[glyphname];
+        }).join('');
     };
-    Canvas.prototype.renderStream = function (stream) {
-        var stream_string = stream.buffer.toString('ascii');
-        this.renderString(stream_string);
-    };
-    Canvas.prototype._drawText = function (text) {
+    DrawingContext.prototype._renderTextString = function (string) {
+        var text = this._decodeString(string);
         var position = this.textState.getPosition();
-        var span = new TextSpan(position, text, this.textState.fontSize);
-        this.spans.push(span);
+        var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
+        this.canvas.spans.push(span);
     };
-    Canvas.prototype._drawObject = function (name) {
-        var XObject = this.XObject[name];
-        if (XObject === undefined) {
+    DrawingContext.prototype._renderTextArray = function (array) {
+        var _this = this;
+        var text = array.map(function (item) {
+            // each item is either a string (character code array) or a number
+            if (Array.isArray(item)) {
+                // if it's a character array, convert it to a unicode string and return it
+                return _this._decodeString(item);
+            }
+            else if (typeof item === 'number') {
+                // if it's a very negative number, insert a space. otherwise, it only
+                // signifies some minute spacing.
+                return (item < -100) ? ' ' : '';
+            }
+            else {
+                throw new Error("Unknown TJ argument type: " + item);
+            }
+        }).join('');
+        var position = this.textState.getPosition();
+        var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
+        this.canvas.spans.push(span);
+    };
+    DrawingContext.prototype._drawObject = function (name) {
+        // create a nested drawing context and use that
+        var XObjectStream = this.Resources.getXObject(name);
+        if (XObjectStream === undefined) {
             throw new Error("Cannot draw undefined XObject: " + name);
         }
-        this.renderStream(XObject);
+        var Resources = XObjectStream.Resources;
+        if (XObjectStream.Subtype == 'Form') {
+            var context = new DrawingContext(Resources, this.graphicsState);
+            var stream_string = XObjectStream.buffer.toString('ascii');
+            context.renderString(stream_string, this.canvas);
+        }
+        else {
+            logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject has Subtype \"" + XObjectStream.Subtype + "\")");
+        }
     };
     // ---------------------------------------------------------------------------
     // Special graphics states (q, Q, cm)
     /**
     > `q`: Save the current graphics state on the graphics state stack (see 8.4.2).
     */
-    Canvas.prototype.pushGraphicsState = function () {
+    DrawingContext.prototype.pushGraphicsState = function () {
         this.stateStack.push(this.graphicsState.clone());
     };
     /**
     > `Q`: Restore the graphics state by removing the most recently saved state
     > from the stack and making it the current state (see 8.4.2).
     */
-    Canvas.prototype.popGraphicsState = function () {
+    DrawingContext.prototype.popGraphicsState = function () {
         this.graphicsState = this.stateStack.pop();
     };
     /**
@@ -282,7 +371,7 @@ var Canvas = (function () {
     Should we multiply by the current one instead? Yes. That's what they mean by
     concatenating, apparently. Weird stuff happens if you replace.
     */
-    Canvas.prototype.setCTM = function (a, b, c, d, e, f) {
+    DrawingContext.prototype.setCTM = function (a, b, c, d, e, f) {
         var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
         this.graphicsState.ctMatrix = base.multiply(this.graphicsState.ctMatrix);
     };
@@ -295,7 +384,7 @@ var Canvas = (function () {
     > The effect of Do depends on the value of the XObject's Subtype entry, which
     > may be Image, Form, or PS.
     */
-    Canvas.prototype.drawObject = function (name) {
+    DrawingContext.prototype.drawObject = function (name) {
         this._drawObject(name);
     };
     // ---------------------------------------------------------------------------
@@ -303,31 +392,31 @@ var Canvas = (function () {
     /**
     > `lineWidth w`: Set the line width in the graphics state.
     */
-    Canvas.prototype.setLineWidth = function (lineWidth) {
+    DrawingContext.prototype.setLineWidth = function (lineWidth) {
         this.graphicsState.lineWidth = lineWidth;
     };
     /**
     > `lineCap J`: Set the line cap style in the graphics state.
     */
-    Canvas.prototype.setLineCap = function (lineCap) {
+    DrawingContext.prototype.setLineCap = function (lineCap) {
         this.graphicsState.lineCap = lineCap;
     };
     /**
     > `lineJoin j`: Set the line join style in the graphics state.
     */
-    Canvas.prototype.setLineJoin = function (lineJoin) {
+    DrawingContext.prototype.setLineJoin = function (lineJoin) {
         this.graphicsState.lineJoin = lineJoin;
     };
     /**
     > `miterLimit M`: Set the miter limit in the graphics state.
     */
-    Canvas.prototype.setMiterLimit = function (miterLimit) {
+    DrawingContext.prototype.setMiterLimit = function (miterLimit) {
         this.graphicsState.miterLimit = miterLimit;
     };
     /**
     > `dashArray dashPhase d`: Set the line dash pattern in the graphics state.
     */
-    Canvas.prototype.setDashPattern = function (dashArray, dashPhase) {
+    DrawingContext.prototype.setDashPattern = function (dashArray, dashPhase) {
         this.graphicsState.dashArray = dashArray;
         this.graphicsState.dashPhase = dashPhase;
     };
@@ -335,7 +424,7 @@ var Canvas = (function () {
     > `intent ri`: Set the colour rendering intent in the graphics state.
     > (PDF 1.1)
     */
-    Canvas.prototype.setRenderingIntent = function (intent) {
+    DrawingContext.prototype.setRenderingIntent = function (intent) {
         this.graphicsState.renderingIntent = intent;
     };
     /**
@@ -343,7 +432,7 @@ var Canvas = (function () {
     > a number in the range 0 to 100; a value of 0 shall specify the output
     > device's default flatness tolerance.
     */
-    Canvas.prototype.setFlatnessTolerance = function (flatness) {
+    DrawingContext.prototype.setFlatnessTolerance = function (flatness) {
         this.graphicsState.flatnessTolerance = flatness;
     };
     /**
@@ -352,7 +441,7 @@ var Canvas = (function () {
     > the ExtGState subdictionary of the current resource dictionary (see the
     > next sub-clause). (PDF 1.2)
     */
-    Canvas.prototype.setGraphicsStateParameters = function (dictName) {
+    DrawingContext.prototype.setGraphicsStateParameters = function (dictName) {
         logger.warn("Ignoring setGraphicsStateParameters(" + dictName + ") operation");
     };
     // ---------------------------------------------------------------------------
@@ -360,13 +449,13 @@ var Canvas = (function () {
     /**
     `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
     */
-    Canvas.prototype.setStrokeColor = function (r, g, b) {
+    DrawingContext.prototype.setStrokeColor = function (r, g, b) {
         this.graphicsState.strokeColor = new RGBColor(r, g, b);
     };
     /**
     `r g b rg`: Same as RG but used for nonstroking operations.
     */
-    Canvas.prototype.setFillColor = function (r, g, b) {
+    DrawingContext.prototype.setFillColor = function (r, g, b) {
         this.graphicsState.fillColor = new RGBColor(r, g, b);
     };
     /**
@@ -374,24 +463,24 @@ var Canvas = (function () {
     to use for stroking operations. `gray` shall be a number between 0.0 (black)
     and 1.0 (white).
     */
-    Canvas.prototype.setStrokeGray = function (gray) {
+    DrawingContext.prototype.setStrokeGray = function (gray) {
         this.graphicsState.strokeColor = new GrayColor(gray);
     };
     /**
     `gray g`: Same as G but used for nonstroking operations.
     */
-    Canvas.prototype.setFillGray = function (gray) {
+    DrawingContext.prototype.setFillGray = function (gray) {
         this.graphicsState.fillColor = new GrayColor(gray);
     };
     // ---------------------------------------------------------------------------
     // Text objects (BT, ET)
     /** `BT` */
-    Canvas.prototype.startTextBlock = function () {
+    DrawingContext.prototype.startTextBlock = function () {
         // intialize state
         this.textState = new TextState(this.graphicsState);
     };
     /** `ET` */
-    Canvas.prototype.endTextBlock = function () {
+    DrawingContext.prototype.endTextBlock = function () {
         // remove textState, so that any operations that require it will fail
         this.textState = null;
     };
@@ -402,7 +491,7 @@ var Canvas = (function () {
     > be a number expressed in unscaled text space units. Character spacing shall
     > be used by the Tj, TJ, and ' operators. Initial value: 0.
     */
-    Canvas.prototype.setCharSpacing = function (charSpace) {
+    DrawingContext.prototype.setCharSpacing = function (charSpace) {
         this.textState.charSpacing = charSpace;
     };
     /**
@@ -410,7 +499,7 @@ var Canvas = (function () {
     > number expressed in unscaled text space units. Word spacing shall be used
     > by the Tj, TJ, and ' operators. Initial value: 0.
     */
-    Canvas.prototype.setWordSpacing = function (wordSpace) {
+    DrawingContext.prototype.setWordSpacing = function (wordSpace) {
         this.textState.wordSpacing = wordSpace;
     };
     /**
@@ -418,7 +507,7 @@ var Canvas = (function () {
     > be a number specifying the percentage of the normal width. Initial value:
     > 100 (normal width).
     */
-    Canvas.prototype.setHorizontalScale = function (scale) {
+    DrawingContext.prototype.setHorizontalScale = function (scale) {
         this.textState.horizontalScaling = scale;
     };
     /**
@@ -426,7 +515,7 @@ var Canvas = (function () {
     > expressed in unscaled text space units. Text leading shall be used only by
     > the T*, ', and " operators. Initial value: 0.
     */
-    Canvas.prototype.setLeading = function (leading) {
+    DrawingContext.prototype.setLeading = function (leading) {
         this.textState.leading = leading;
     };
     /**
@@ -437,7 +526,7 @@ var Canvas = (function () {
     > size; they shall be specified explicitly by using Tf before any text is
     > shown.
     */
-    Canvas.prototype.setFont = function (font, size) {
+    DrawingContext.prototype.setFont = function (font, size) {
         this.textState.fontName = font;
         this.textState.fontSize = size;
     };
@@ -445,13 +534,13 @@ var Canvas = (function () {
     > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
     > be an integer. Initial value: 0.
     */
-    Canvas.prototype.setRenderingMode = function (render) {
+    DrawingContext.prototype.setRenderingMode = function (render) {
         this.textState.renderingMode = render;
     };
     /**
     > `rise Ts`: Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
     */
-    Canvas.prototype.setRise = function (rise) {
+    DrawingContext.prototype.setRise = function (rise) {
         this.textState.rise = rise;
     };
     // ---------------------------------------------------------------------------
@@ -462,7 +551,7 @@ var Canvas = (function () {
     > unscaled text space units. More precisely, this operator shall perform
     > these assignments: Tm = Tlm = [ [1 0 0], [0 1 0], [x y 1] ] x Tlm
     */
-    Canvas.prototype.adjustCurrentPosition = function (x, y) {
+    DrawingContext.prototype.adjustCurrentPosition = function (x, y) {
         // y is usually 0, and never positive in normal text.
         var base = new Matrix3([[1, 0, 0], [0, 1, 0], [x, y, 1]]);
         this.textState.textMatrix = this.textState.textLineMatrix = base.multiply(this.textState.textLineMatrix);
@@ -473,7 +562,7 @@ var Canvas = (function () {
     > leading parameter in the text state. This operator shall have the same
     > effect as this code: `-ty TL tx ty Td`
     */
-    Canvas.prototype.adjustCurrentPositionWithLeading = function (x, y) {
+    DrawingContext.prototype.adjustCurrentPositionWithLeading = function (x, y) {
         this.setLeading(-y); // TL
         this.adjustCurrentPosition(x, y); // Td
     };
@@ -486,7 +575,7 @@ var Canvas = (function () {
     > array. The matrix specified by the operands shall not be concatenated onto
     > the current text matrix, but shall replace it.
     */
-    Canvas.prototype.setTextMatrix = function (a, b, c, d, e, f) {
+    DrawingContext.prototype.setTextMatrix = function (a, b, c, d, e, f) {
         // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
         // e and f mark the x and y coordinates of the current position
         var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
@@ -499,16 +588,18 @@ var Canvas = (function () {
     > expressed as a positive number. Going to the next line entails decreasing
     > the y coordinate.
     */
-    Canvas.prototype.newLine = function () {
+    DrawingContext.prototype.newLine = function () {
         this.adjustCurrentPosition(0, -this.textState.leading);
     };
     // ---------------------------------------------------------------------------
     // Text showing operators (Tj, TJ, ', ")
     /**
     > `string Tj`: Show a text string.
+  
+    string is a list of character codes, potentially larger than 256
     */
-    Canvas.prototype.showString = function (text) {
-        this._drawText(text);
+    DrawingContext.prototype.showString = function (string) {
+        this._renderTextString(string);
     };
     /**
     > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -527,28 +618,16 @@ var Canvas = (function () {
     - large negative numbers equate to spaces
     - small positive amounts equate to kerning hacks
     */
-    Canvas.prototype.showStrings = function (array) {
-        var text = array.map(function (item) {
-            var item_type = typeof item;
-            if (item_type === 'string') {
-                return item;
-            }
-            else if (item_type === 'number') {
-                return (item < -100) ? ' ' : '';
-            }
-            else {
-                throw new Error("Unknown TJ argument type: " + item_type + " (" + item + ")");
-            }
-        }).join('');
-        this._drawText(text);
+    DrawingContext.prototype.showStrings = function (array) {
+        this._renderTextArray(array);
     };
     /** COMPLETE (ALIAS)
     > `string '` Move to the next line and show a text string. This operator shall have
     > the same effect as the code `T* string Tj`
     */
-    Canvas.prototype.newLineAndShowString = function (text) {
+    DrawingContext.prototype.newLineAndShowString = function (string) {
         this.newLine(); // T*
-        this.showString(text); // Tj
+        this.showString(string); // Tj
     };
     /** COMPLETE (ALIAS)
     > `wordSpace charSpace text "` Move to the next line and show a text string,
@@ -558,11 +637,11 @@ var Canvas = (function () {
     > space units. This operator shall have the same effect as this code:
     > `wordSpace Tw charSpace Tc text '`
     */
-    Canvas.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, text) {
+    DrawingContext.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, string) {
         this.setWordSpacing(wordSpace); // Tw
         this.setCharSpacing(charSpace); // Tc
-        this.newLineAndShowString(text); // '
+        this.newLineAndShowString(string); // '
     };
-    return Canvas;
+    return DrawingContext;
 })();
-exports.Canvas = Canvas;
+exports.DrawingContext = DrawingContext;

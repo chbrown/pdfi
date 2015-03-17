@@ -39,7 +39,7 @@ var bnf = {
     "STREAM_HEADER": [
         [
             "DICTIONARY START_STREAM",
-            "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance*/ yy.stream_length = yy.pdf.resolveObject($1.Length);"
+            "/* pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance*/ yy.stream_length = yy.pdf._resolveObject($1.Length);"
         ]
     ],
     "STREAM": [
