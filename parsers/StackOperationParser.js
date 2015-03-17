@@ -23,8 +23,9 @@ state_rules['STRING'] = [
         this.states.pop();
         return Token('END', 'STRING');
     }],
-    [/^\\(.)/, function (match) { return Token('CHAR', match[1]); }],
-    [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0]); }],
+    [/^\\(\(|\))/, function (match) { return Token('CHAR', match[1].charCodeAt(0)); }],
+    [/^\\([0-8]{3})/, function (match) { return Token('CODE', parseInt(match[1], 8)); }],
+    [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0].charCodeAt(0)); }],
 ];
 state_rules['ARRAY'] = [
     [/^\]/, function (match) {
@@ -48,7 +49,7 @@ var StackOperationParser = (function () {
     function StackOperationParser() {
         this.tokenizer = new lexing.Tokenizer(default_rules, state_rules);
         this.combiner = new lexing.Combiner([
-            ['STRING', function (tokens) { return Token('OPERAND', tokens.map(function (token) { return token.value; }).join('')); }],
+            ['STRING', function (tokens) { return Token('OPERAND', tokens.map(function (token) { return token.value; })); }],
             ['ARRAY', function (tokens) { return Token('OPERAND', tokens.map(function (token) { return token.value; })); }],
         ]);
     }

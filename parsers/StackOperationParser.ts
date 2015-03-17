@@ -25,8 +25,11 @@ state_rules['STRING'] = [
     this.states.pop();
     return Token('END', 'STRING');
   }],
-  [/^\\(.)/, match => Token('CHAR', match[1]) ], // escaped character
-  [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],
+  // escaped start and end parens (yes, this happens)
+  [/^\\(\(|\))/, match => Token('CHAR', match[1].charCodeAt(0)) ],
+  // 3-digit octal character code
+  [/^\\([0-8]{3})/, match => Token('CODE', parseInt(match[1], 8)) ],
+  [/^(.|\n|\r)/, match => Token('CHAR', match[0].charCodeAt(0)) ],
 ];
 state_rules['ARRAY'] = [
   [/^\]/, function(match) {
@@ -51,7 +54,7 @@ class StackOperationParser {
   tokenizer = new lexing.Tokenizer(default_rules, state_rules);
   combiner = new lexing.Combiner<any>([
     // lexing.CombinerRule<any, any>[]
-    ['STRING', tokens => Token('OPERAND', tokens.map(token => token.value).join('')) ],
+    ['STRING', tokens => Token('OPERAND', tokens.map(token => token.value)) ],
     ['ARRAY', tokens => Token('OPERAND', tokens.map(token => token.value)) ],
   ]);
 
