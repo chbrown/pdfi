@@ -26,7 +26,8 @@ state_rules['STRING'] = [
     return Token('END', 'STRING');
   }],
   // escaped start and end parens (yes, this happens)
-  [/^\\(\(|\))/, match => Token('CHAR', match[1].charCodeAt(0)) ],
+  // and escaped start and end braces (I guess to avoid array ambiguity?)
+  [/^\\(\(|\)|\[|\])/, match => Token('CHAR', match[1].charCodeAt(0)) ],
   // 3-digit octal character code
   [/^\\([0-8]{3})/, match => Token('CODE', parseInt(match[1], 8)) ],
   [/^(.|\n|\r)/, match => Token('CHAR', match[0].charCodeAt(0)) ],

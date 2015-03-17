@@ -23,7 +23,7 @@ state_rules['STRING'] = [
         this.states.pop();
         return Token('END', 'STRING');
     }],
-    [/^\\(\(|\))/, function (match) { return Token('CHAR', match[1].charCodeAt(0)); }],
+    [/^\\(\(|\)|\[|\])/, function (match) { return Token('CHAR', match[1].charCodeAt(0)); }],
     [/^\\([0-8]{3})/, function (match) { return Token('CODE', parseInt(match[1], 8)); }],
     [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0].charCodeAt(0)); }],
 ];
