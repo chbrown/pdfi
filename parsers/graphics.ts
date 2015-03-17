@@ -113,47 +113,34 @@ export class Point {
   }
 }
 
-function dot(a: number[], b: number[]) {
-  if (a.length !== b.length) {
-    throw new Error('Cannot compute dot product of vectors of inequal length');
-  }
-  var sum = 0;
-  for (var i = 0, l = a.length; i < l; i++) {
-    sum += a[i] * b[i];
-  }
-  return sum;
+/**
+> Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
+
+                 ⎡ a b 0 ⎤
+[a b c d e f] => ⎢ c d 0 ⎥
+                 ⎣ e f 1 ⎦
+
+*/
+
+/**
+returns a new 3x3 matrix representation
+
+See 8.3.4 for a shortcut for avoiding full matrix multiplications.
+*/
+function mat3mul(A: number[], B: number[]): number[] {
+  return [
+    (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]),
+    (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]),
+    (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]),
+    (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]),
+    (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]),
+    (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]),
+    (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]),
+    (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]),
+    (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
+  ];
 }
-
-class Matrix3 {
-  constructor(public rows: number[][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) { }
-  clone(): Matrix3 {
-    return new Matrix3(this.rows.map(row => row.slice()));
-  }
-
-  // accessors
-  row(index: number): number[] {
-    return this.rows[index];
-  }
-  col(index: number): number[] {
-    return this.rows.map(row => row[index]);
-  }
-
-  /**
-  returns a new Matrix3
-
-  See 8.3.4 for a shortcut for avoiding full matrix multiplications.
-  */
-  multiply(right: Matrix3): Matrix3 {
-    // matrices are stored as matrix[row_index][col_index]
-    var product = new Matrix3();
-    for (var i = 0; i < 3; i++) {
-      for (var j = 0; j < 3; j++) {
-        product.rows[i][j] = dot(this.row(i), right.col(j));
-      }
-    }
-    return product;
-  }
-}
+var mat3ident = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
 /**
 We need to be able to clone it since we need a copy when we process a
@@ -161,7 +148,7 @@ We need to be able to clone it since we need a copy when we process a
 were in the constructor, but there are a lot of variables!
 */
 class GraphicsState {
-  public ctMatrix: Matrix3 = new Matrix3(); // defaults to the identity matrix
+  public ctMatrix: number[] = mat3ident; // defaults to the identity matrix
   public strokeColor: Color = new Color();
   public fillColor: Color = new Color();
   public lineWidth: number;
@@ -177,7 +164,15 @@ class GraphicsState {
     var copy = new GraphicsState();
     for (var key in this) {
       if (this.hasOwnProperty(key)) {
-        copy[key] = this[key].clone ? this[key].clone() : this[key];
+        if (this[key].clone) {
+          copy[key] = this[key].clone();
+        }
+        else if (Array.isArray(this[key])) {
+          copy[key] = this[key].slice();
+        }
+        else {
+          copy[key] = this[key];
+        }
       }
     }
     return copy;
@@ -194,8 +189,8 @@ class TextState {
   renderingMode: RenderingMode = 0;
   rise: number = 0;
 
-  textMatrix: Matrix3 = new Matrix3();
-  textLineMatrix: Matrix3 = new Matrix3();
+  textMatrix: number[] = mat3ident;
+  textLineMatrix: number[] = mat3ident;
 
   constructor(public graphicsState: GraphicsState) { }
 
@@ -203,13 +198,14 @@ class TextState {
     var fs = this.fontSize;
     var fsh = fs * (this.horizontalScaling / 100.0);
     var rise = this.rise;
-    var base = new Matrix3([[fsh, 0, 0], [0, fs, 0], [0, rise, 1]]);
+    var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
 
-    // var textRenderingMatrix = base.multiply(this.textMatrix);
-    var textRenderingMatrix = base.multiply(this.textMatrix).multiply(this.graphicsState.ctMatrix);
-    var x = textRenderingMatrix.rows[2][0];
-    var y = textRenderingMatrix.rows[2][1];
-    return new Point(x, y);
+    var localTextMatrix = mat3mul(base, this.textMatrix);
+    // TODO: optimize this final matrix multiplication; we only need two of the
+    // entries, and we discard the rest, so we don't need to calculate them in
+    // the first place.
+    var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
+    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
   }
 }
 
@@ -363,8 +359,8 @@ export class DrawingContext {
   concatenating, apparently. Weird stuff happens if you replace.
   */
   setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
-    var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
-    this.graphicsState.ctMatrix = base.multiply(this.graphicsState.ctMatrix);
+    var newCTMatrix = mat3mul([a, b, 0, c, d, 0, e, f, 1], this.graphicsState.ctMatrix);
+    this.graphicsState.ctMatrix = newCTMatrix;
   }
   // ---------------------------------------------------------------------------
   // XObjects (Do)
@@ -545,8 +541,8 @@ export class DrawingContext {
   */
   adjustCurrentPosition(x: number, y: number) {
     // y is usually 0, and never positive in normal text.
-    var base = new Matrix3([[1, 0, 0], [0, 1, 0], [x, y, 1]]);
-    this.textState.textMatrix = this.textState.textLineMatrix = base.multiply(this.textState.textLineMatrix);
+    var newTextMatrix = mat3mul([1, 0, 0, 0, 1, 0, x, y, 1], this.textState.textLineMatrix);
+    this.textState.textMatrix = this.textState.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -570,8 +566,8 @@ export class DrawingContext {
   setTextMatrix(a: number, b: number, c: number, d: number, e: number, f: number) {
     // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
     // e and f mark the x and y coordinates of the current position
-    var base = new Matrix3([[a, b, 0], [c, d, 0], [e, f, 1]]);
-    this.textState.textMatrix = this.textState.textLineMatrix = base;
+    var newTextMatrix = [a, b, 0, c, d, 0, e, f, 1];
+    this.textState.textMatrix = this.textState.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `T*`: Move to the start of the next line. This operator has the same effect
