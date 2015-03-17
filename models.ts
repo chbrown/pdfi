@@ -107,7 +107,6 @@ export class Pages extends Model {
   }
 }
 
-
 /**
 Only `Type`, `Parent`, `Resources`, and `MediaBox` are required.
 
@@ -156,23 +155,27 @@ export class Page extends Model {
   From the spec:
 
   > If the value is an array, the effect shall be as if all of the streams in the array were concatenated, in order, to form a single stream. Conforming writers can create image objects and other resources as they occur, even though they interrupt the content stream. The division between streams may occur only at the boundaries between lexical tokens but shall be unrelated to the page’s logical content or organization. Applications that consume or produce PDF files need not preserve the existing structure of the Contents array. Conforming writers shall not create a Contents array containing no elements.
+
+  Merging the streams would be pretty simple, except that the separations
+  between them count as token separators, so we can't feed the result of
+  `Buffer.concat(...)` directly into the StackOperationParser (via Canvas).
+
+  TODO: don't combine the strings (more complex)
+        see MultiStringIterator in scratch.txt
   */
-  mergedContents(): ContentStream {
-    var streams = [].concat(this.Contents.object).map(stream => new ContentStream(this._pdf, stream));
-
-    // merge the streams:
-    var buffers = streams.map(stream => stream.buffer);
-    var Length = streams.map(stream => stream.Length).reduce((L1, L2) => L1 + L2);
-    var stream = {dictionary: {Length: Length}, buffer: Buffer.concat(buffers)};
-
-    return new ContentStream(this._pdf, stream);
+  joinContents(separator: string, encoding: string = 'ascii'): string {
+    var strings = [].concat(this.Contents.object).map(stream => {
+      return new ContentStream(this._pdf, stream).buffer.toString(encoding)
+    });
+    return strings.join(separator);
   }
 
   render(): graphics.TextSpan[] {
     var canvas = new graphics.Canvas();
 
-    var stream_string = this.mergedContents().buffer.toString('ascii');
-    canvas.render(stream_string, this.Resources);
+    var contents_string = this.joinContents('\n', 'ascii');
+    var contents_string_iterable = new lexing.StringIterator(contents_string);
+    canvas.render(contents_string_iterable, this.Resources);
 
     return canvas.spans;
   }
@@ -183,7 +186,7 @@ export class Page extends Model {
       // Parent: this.Parent, // try to avoid circularity
       MediaBox: this.MediaBox,
       Resources: this.Resources,
-      Contents: this.mergedContents(),
+      Contents: this.Contents,
     };
   }
 }

@@ -230,9 +230,9 @@ export class Canvas {
   embedded as `Do` operations in the main contents, as well as sub-Resources
   in those XObjects.
   */
-  render(stream_string: string, Resources: models.Resources): void {
+  render(string_iterable: lexing.StringIterable, Resources: models.Resources): void {
     var context = new DrawingContext(Resources);
-    context.renderString(stream_string, this);
+    context.render(string_iterable, this);
   }
 }
 
@@ -244,9 +244,8 @@ export class DrawingContext {
               public graphicsState: GraphicsState = new GraphicsState(),
               public textState: TextState = null) { }
 
-  renderString(str: string, canvas: Canvas): void {
+  render(string_iterable: lexing.StringIterable, canvas: Canvas): void {
     this.canvas = canvas;
-    var string_iterable = new lexing.StringIterator(str);
     var stack_operation_iterator = new StackOperationParser().map(string_iterable);
     while (1) {
       var token = stack_operation_iterator.next();
@@ -319,12 +318,14 @@ export class DrawingContext {
       throw new Error(`Cannot draw undefined XObject: ${name}`);
     }
 
-    var Resources = XObjectStream.Resources;
     if (XObjectStream.Subtype == 'Form') {
-      var context = new DrawingContext(Resources, this.graphicsState);
+      var Resources = XObjectStream.Resources;
 
       var stream_string = XObjectStream.buffer.toString('ascii');
-      context.renderString(stream_string, this.canvas);
+      var stream_string_iterable = new lexing.StringIterator(stream_string);
+
+      var context = new DrawingContext(Resources, this.graphicsState);
+      context.render(stream_string_iterable, this.canvas);
     }
     else {
       logger.warn(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);

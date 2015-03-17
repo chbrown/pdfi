@@ -246,9 +246,9 @@ var Canvas = (function () {
     embedded as `Do` operations in the main contents, as well as sub-Resources
     in those XObjects.
     */
-    Canvas.prototype.render = function (stream_string, Resources) {
+    Canvas.prototype.render = function (string_iterable, Resources) {
         var context = new DrawingContext(Resources);
-        context.renderString(stream_string, this);
+        context.render(string_iterable, this);
     };
     return Canvas;
 })();
@@ -262,9 +262,8 @@ var DrawingContext = (function () {
         this.textState = textState;
         this.stateStack = [];
     }
-    DrawingContext.prototype.renderString = function (str, canvas) {
+    DrawingContext.prototype.render = function (string_iterable, canvas) {
         this.canvas = canvas;
-        var string_iterable = new lexing.StringIterator(str);
         var stack_operation_iterator = new StackOperationParser().map(string_iterable);
         while (1) {
             var token = stack_operation_iterator.next();
@@ -331,11 +330,12 @@ var DrawingContext = (function () {
         if (XObjectStream === undefined) {
             throw new Error("Cannot draw undefined XObject: " + name);
         }
-        var Resources = XObjectStream.Resources;
         if (XObjectStream.Subtype == 'Form') {
-            var context = new DrawingContext(Resources, this.graphicsState);
+            var Resources = XObjectStream.Resources;
             var stream_string = XObjectStream.buffer.toString('ascii');
-            context.renderString(stream_string, this.canvas);
+            var stream_string_iterable = new lexing.StringIterator(stream_string);
+            var context = new DrawingContext(Resources, this.graphicsState);
+            context.render(stream_string_iterable, this.canvas);
         }
         else {
             logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject has Subtype \"" + XObjectStream.Subtype + "\")");

@@ -6,6 +6,7 @@ var __extends = this.__extends || function (d, b) {
 };
 /// <reference path="type_declarations/index.d.ts" />
 var logger = require('loge');
+var lexing = require('lexing');
 var graphics = require('./parsers/graphics');
 var decoders = require('./filters/decoders');
 var latin_charset = require('./encoding/latin_charset');
@@ -170,20 +171,27 @@ var Page = (function (_super) {
     From the spec:
   
     > If the value is an array, the effect shall be as if all of the streams in the array were concatenated, in order, to form a single stream. Conforming writers can create image objects and other resources as they occur, even though they interrupt the content stream. The division between streams may occur only at the boundaries between lexical tokens but shall be unrelated to the page’s logical content or organization. Applications that consume or produce PDF files need not preserve the existing structure of the Contents array. Conforming writers shall not create a Contents array containing no elements.
+  
+    Merging the streams would be pretty simple, except that the separations
+    between them count as token separators, so we can't feed the result of
+    `Buffer.concat(...)` directly into the StackOperationParser (via Canvas).
+  
+    TODO: don't combine the strings (more complex)
+          see MultiStringIterator in scratch.txt
     */
-    Page.prototype.mergedContents = function () {
+    Page.prototype.joinContents = function (separator, encoding) {
         var _this = this;
-        var streams = [].concat(this.Contents.object).map(function (stream) { return new ContentStream(_this._pdf, stream); });
-        // merge the streams:
-        var buffers = streams.map(function (stream) { return stream.buffer; });
-        var Length = streams.map(function (stream) { return stream.Length; }).reduce(function (L1, L2) { return L1 + L2; });
-        var stream = { dictionary: { Length: Length }, buffer: Buffer.concat(buffers) };
-        return new ContentStream(this._pdf, stream);
+        if (encoding === void 0) { encoding = 'ascii'; }
+        var strings = [].concat(this.Contents.object).map(function (stream) {
+            return new ContentStream(_this._pdf, stream).buffer.toString(encoding);
+        });
+        return strings.join(separator);
     };
     Page.prototype.render = function () {
         var canvas = new graphics.Canvas();
-        var stream_string = this.mergedContents().buffer.toString('ascii');
-        canvas.render(stream_string, this.Resources);
+        var contents_string = this.joinContents('\n', 'ascii');
+        var contents_string_iterable = new lexing.StringIterator(contents_string);
+        canvas.render(contents_string_iterable, this.Resources);
         return canvas.spans;
     };
     Page.prototype.toJSON = function () {
@@ -192,7 +200,7 @@ var Page = (function (_super) {
             // Parent: this.Parent, // try to avoid circularity
             MediaBox: this.MediaBox,
             Resources: this.Resources,
-            Contents: this.mergedContents(),
+            Contents: this.Contents,
         };
     };
     return Page;
