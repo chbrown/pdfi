@@ -13,7 +13,7 @@ var default_rules = [
         return Token('START', 'ARRAY');
     }],
     [/^\/(\w+)/, function (match) { return Token('OPERAND', match[1]); }],
-    [/^-?\d+\.\d+/, function (match) { return Token('OPERAND', parseFloat(match[0])); }],
+    [/^-?\d*\.\d+/, function (match) { return Token('OPERAND', parseFloat(match[0])); }],
     [/^-?\d+/, function (match) { return Token('OPERAND', parseInt(match[0], 10)); }],
     [/^[A-Za-z'"]+\*?/, function (match) { return Token('OPERATOR', match[0]); }],
 ];
@@ -36,7 +36,7 @@ state_rules['ARRAY'] = [
         this.states.push('STRING');
         return Token('START', 'STRING');
     }],
-    [/^-?\d+\.\d+/, function (match) { return Token('NUMBER', parseFloat(match[0])); }],
+    [/^-?\d*\.\d+/, function (match) { return Token('NUMBER', parseFloat(match[0])); }],
     [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }],
     [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0]); }],
 ];

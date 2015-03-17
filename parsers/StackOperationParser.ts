@@ -14,7 +14,7 @@ var default_rules: lexing.RegexRule<any>[] = [
     return Token('START', 'ARRAY');
   }],
   [/^\/(\w+)/, match => Token('OPERAND', match[1]) ], // "/Im3" -> "Im3"
-  [/^-?\d+\.\d+/, match => Token('OPERAND', parseFloat(match[0])) ],
+  [/^-?\d*\.\d+/, match => Token('OPERAND', parseFloat(match[0])) ],
   [/^-?\d+/, match => Token('OPERAND', parseInt(match[0], 10)) ],
   [/^[A-Za-z'"]+\*?/, match => Token('OPERATOR', match[0]) ],
 ];
@@ -41,7 +41,7 @@ state_rules['ARRAY'] = [
     this.states.push('STRING');
     return Token('START', 'STRING');
   }],
-  [/^-?\d+\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ],
+  [/^-?\d*\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ],
   [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ],
   [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],
 ];
