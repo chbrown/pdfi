@@ -44,6 +44,7 @@ state_rules['ARRAY'] = [
     this.states.push('STRING');
     return Token('START', 'STRING');
   }],
+  [/^\s+/, match => null ], // skip over whitespace
   [/^-?\d*\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ],
   [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ],
   [/^(.|\n|\r)/, match => Token('CHAR', match[0]) ],

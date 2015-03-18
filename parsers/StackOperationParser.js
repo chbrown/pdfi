@@ -38,6 +38,7 @@ state_rules['ARRAY'] = [
         this.states.push('STRING');
         return Token('START', 'STRING');
     }],
+    [/^\s+/, function (match) { return null; }],
     [/^-?\d*\.\d+/, function (match) { return Token('NUMBER', parseFloat(match[0])); }],
     [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }],
     [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0]); }],
