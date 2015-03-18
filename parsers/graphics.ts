@@ -68,6 +68,9 @@ var operator_aliases = {
   'rg': 'setFillColor',
   'G': 'setStrokeGray',
   'g': 'setFillGray',
+  'm': 'moveTo',
+  'l': 'lineTo',
+  'S': 'stroke',
 };
 
 export class Color {
@@ -280,6 +283,8 @@ export class DrawingContext {
   }
 
   private _renderTextArray(array: Array<number[] | number>) {
+    var position = this.textState.getPosition();
+
     var text = array.map(item => {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
@@ -292,11 +297,10 @@ export class DrawingContext {
         return (item < -100) ? ' ' : '';
       }
       else {
-        throw new Error(`Unknown TJ argument type: ${item}`);
+        throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
       }
     }).join('');
 
-    var position = this.textState.getPosition();
     var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
     this.canvas.spans.push(span);
   }
@@ -424,6 +428,22 @@ export class DrawingContext {
   */
   setGraphicsStateParameters(dictName: string) {
     logger.warn(`Ignoring setGraphicsStateParameters(${dictName}) operation`);
+  }
+  // path operators
+  /**
+  `x y m`
+  */
+  moveTo(x: number, y: number) {
+    logger.warn(`Ignoring moveTo(${x}, ${y}) operation`);
+  }
+  /**
+  `x y l`
+  */
+  lineTo(x: number, y: number) {
+    logger.warn(`Ignoring lineTo(${x}, ${y}) operation`);
+  }
+  stroke() {
+    logger.warn(`Ignoring stroke() operation`);
   }
   // ---------------------------------------------------------------------------
   //                           Color operators

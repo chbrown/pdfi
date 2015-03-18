@@ -68,6 +68,9 @@ var operator_aliases = {
     'rg': 'setFillColor',
     'G': 'setStrokeGray',
     'g': 'setFillGray',
+    'm': 'moveTo',
+    'l': 'lineTo',
+    'S': 'stroke',
 };
 var Color = (function () {
     function Color() {
@@ -295,6 +298,7 @@ var DrawingContext = (function () {
     };
     DrawingContext.prototype._renderTextArray = function (array) {
         var _this = this;
+        var position = this.textState.getPosition();
         var text = array.map(function (item) {
             // each item is either a string (character code array) or a number
             if (Array.isArray(item)) {
@@ -307,10 +311,9 @@ var DrawingContext = (function () {
                 return (item < -100) ? ' ' : '';
             }
             else {
-                throw new Error("Unknown TJ argument type: " + item);
+                throw new Error("Unknown TJ argument type: \"" + item + "\" (array: " + JSON.stringify(array) + ")");
             }
         }).join('');
-        var position = this.textState.getPosition();
         var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
         this.canvas.spans.push(span);
     };
@@ -433,6 +436,22 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.setGraphicsStateParameters = function (dictName) {
         logger.warn("Ignoring setGraphicsStateParameters(" + dictName + ") operation");
+    };
+    // path operators
+    /**
+    `x y m`
+    */
+    DrawingContext.prototype.moveTo = function (x, y) {
+        logger.warn("Ignoring moveTo(" + x + ", " + y + ") operation");
+    };
+    /**
+    `x y l`
+    */
+    DrawingContext.prototype.lineTo = function (x, y) {
+        logger.warn("Ignoring lineTo(" + x + ", " + y + ") operation");
+    };
+    DrawingContext.prototype.stroke = function () {
+        logger.warn("Ignoring stroke() operation");
     };
     // ---------------------------------------------------------------------------
     //                           Color operators
