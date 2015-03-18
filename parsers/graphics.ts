@@ -6,11 +6,6 @@ import lexing = require('lexing');
 import StackOperationParser = require('./StackOperationParser');
 import models = require('../models');
 
-/**
-glyphlist is a mapping from PDF glyph names to unicode strings
-*/
-var glyphlist: {[index: string]: string} = require('../encoding/glyphlist');
-
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
   Fill = 0,
@@ -268,13 +263,12 @@ export class DrawingContext {
       throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
     }
     return charCodes.map(charCode => {
-      var glyphname = Font.getGlyphname(charCode);
-      if (glyphname === undefined) {
-        logger.error(`Font "${this.textState.fontName}" could not decode character code: "${charCode}"`)
+      var string = Font.decodeCharCode(charCode);
+      if (string === undefined) {
+        logger.error(`Font "${this.textState.fontName}" could not decode character code: ${charCode}`)
         return '\\' + charCode;
       }
-      return glyphlist[glyphname];
-
+      return string;
     }).join('');
   }
 

@@ -8,7 +8,12 @@ var __extends = this.__extends || function (d, b) {
 var logger = require('loge');
 var lexing = require('lexing');
 var graphics = require('./parsers/graphics');
+var cmap = require('./parsers/cmap');
 var decoders = require('./filters/decoders');
+/**
+glyphlist is a mapping from PDF glyph names to unicode strings
+*/
+var glyphlist = require('./encoding/glyphlist');
 var latin_charset = require('./encoding/latin_charset');
 var IndirectReference = (function () {
     function IndirectReference() {
@@ -244,6 +249,7 @@ var ContentStream = (function (_super) {
     });
     Object.defineProperty(ContentStream.prototype, "Subtype", {
         get: function () {
+            // this may be 'Form' or 'Image', etc., in Resources.XObject values
             return this.object['dictionary']['Subtype'];
         },
         enumerable: true,
@@ -347,7 +353,8 @@ var Resources = (function (_super) {
         configurable: true
     });
     Resources.prototype.getXObject = function (name) {
-        var object = this.object['XObject'][name];
+        var XObject_dictionary = new Model(this._pdf, this.object['XObject']).object;
+        var object = XObject_dictionary[name];
         return object ? new ContentStream(this._pdf, object) : undefined;
     };
     /**
@@ -360,8 +367,9 @@ var Resources = (function (_super) {
     Resources.prototype.getFont = function (name) {
         var cached_font = this._cached_fonts[name];
         if (cached_font === undefined) {
-            var font_object = this.object['Font'][name];
-            cached_font = this._cached_fonts[name] = font_object ? new Font(this._pdf, font_object) : null;
+            var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
+            var object = Font_dictionary[name];
+            cached_font = this._cached_fonts[name] = object ? new Font(this._pdf, object) : null;
         }
         return cached_font;
     };
@@ -381,7 +389,8 @@ var Resources = (function (_super) {
 })(Model);
 exports.Resources = Resources;
 /**
-// cached variables:
+`_charCodeMapping` is a cached mapping from in-PDF character codes to native
+Javascript (unicode) strings.
 */
 var Font = (function (_super) {
     __extends(Font, _super);
@@ -399,6 +408,7 @@ var Font = (function (_super) {
         get: function () {
             // var object = this.object['Encoding'];
             // return object ? new Encoding(this._pdf, object) : undefined;
+            // having an Encoding is useful even if this.object['Encoding'] is undefined
             return new Encoding(this._pdf, this.object['Encoding']);
         },
         enumerable: true,
@@ -427,22 +437,48 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Font.prototype, "ToUnicode", {
+        get: function () {
+            var object = this.object['ToUnicode'];
+            return object ? new ToUnicode(this._pdf, object) : undefined;
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
-    Returns a 'glyphname' (to be resolved via the PDF standard glyphlist)
-  
     We need the Font's Encoding (not always specified) to read its Differences,
     which we use to map character codes into the glyph name (which can then easily
     be mapped to the unicode string representation of that glyph).
-  
-    Caches the Encoding's Mapping.
     */
-    Font.prototype.getGlyphname = function (charCode) {
-        // initialized if needed
-        if (this._EncodingMapping === undefined) {
-            this._EncodingMapping = this.Encoding.Mapping;
+    Font.prototype.getCharCodeMapping = function () {
+        // try the ToUnicode object first
+        var ToUnicode = this.ToUnicode;
+        if (ToUnicode) {
+            return this.ToUnicode.Mapping;
         }
-        // look up the glyph name from the mapping
-        return this._EncodingMapping[charCode];
+        // No luck? Try the Encoding dictionary
+        var Encoding = this.Encoding;
+        if (Encoding) {
+            return this.Encoding.Mapping;
+        }
+        // Neither Encoding nor ToUnicode are specified; that's bad!
+        logger.error("Cannot find any character code mapping for font.");
+        return [];
+    };
+    /**
+    Returns a native (unicode) Javascript string representing the given character
+    code.
+  
+    Caches the loaded Mapping.
+  
+    Returns undefined if the character code cannot be resolved to a string.
+    */
+    Font.prototype.decodeCharCode = function (charCode) {
+        // initialize if needed
+        if (this._charCodeMapping === undefined) {
+            this._charCodeMapping = this.getCharCodeMapping();
+        }
+        return this._charCodeMapping[charCode];
     };
     Font.prototype.toJSON = function () {
         return {
@@ -452,7 +488,13 @@ var Font = (function (_super) {
             FontDescriptor: this.FontDescriptor,
             Widths: this.Widths,
             BaseFont: this.BaseFont,
+            Mapping: this.getCharCodeMapping(),
         };
+    };
+    Font.isFont = function (object) {
+        if (object === undefined || object === null)
+            return false;
+        return object['Type'] === 'Font';
     };
     return Font;
 })(Model);
@@ -545,20 +587,23 @@ var Encoding = (function (_super) {
     });
     Object.defineProperty(Encoding.prototype, "Mapping", {
         /**
-        Mapping returns an object mapping character codes to glyph names.
+        Mapping returns an object mapping character codes to unicode strings.
       
-        If there is no backing object, return an empty mapping.
+        If there are no `Differences` specified, return an empty mapping.
         */
         get: function () {
             var mapping = Encoding.getDefaultMapping('std');
             var current_character_code = 0;
-            // interface EncodingDiffences extends Array<number | string> { }
             this.Differences.forEach(function (difference) {
                 if (typeof difference === 'number') {
                     current_character_code = difference;
                 }
                 else {
-                    mapping[current_character_code++] = difference;
+                    // difference is a glyph name, but we want a mapping from character
+                    // codes to native unicode strings, so we resolve the glyphname via the
+                    // PDF standard glyphlist
+                    // TODO: handle missing glyphnames
+                    mapping[current_character_code++] = glyphlist[difference];
                 }
             });
             return mapping;
@@ -575,8 +620,9 @@ var Encoding = (function (_super) {
         };
     };
     /**
-    This loads the character codes listed in encoding/latin_charset.json, into
-    a (sparse?) Array of strings mapping indices (character codes) to glyph names.
+    This loads the character codes listed in encoding/latin_charset.json into
+    a (sparse?) Array of strings mapping indices (character codes) to unicode
+    strings.
   
     `base` should be one of 'std', 'mac', 'win', or 'pdf'
     */
@@ -585,7 +631,7 @@ var Encoding = (function (_super) {
         latin_charset.forEach(function (charspec) {
             var charCode = charspec[base];
             if (charCode !== null) {
-                mapping[charspec[base]] = charspec.glyphname;
+                mapping[charspec[base]] = glyphlist[charspec.glyphname];
             }
         });
         return mapping;
@@ -598,3 +644,25 @@ var Encoding = (function (_super) {
     return Encoding;
 })(Model);
 exports.Encoding = Encoding;
+var ToUnicode = (function (_super) {
+    __extends(ToUnicode, _super);
+    function ToUnicode() {
+        _super.apply(this, arguments);
+    }
+    Object.defineProperty(ToUnicode.prototype, "Mapping", {
+        get: function () {
+            var string_iterable = lexing.StringIterator.fromBuffer(this.buffer, 'ascii');
+            var parser = new cmap.CMapParser();
+            return parser.parse(string_iterable);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ToUnicode.prototype.toJSON = function () {
+        return {
+            Mapping: this.Mapping,
+        };
+    };
+    return ToUnicode;
+})(ContentStream);
+exports.ToUnicode = ToUnicode;

@@ -8,10 +8,6 @@ var __extends = this.__extends || function (d, b) {
 var logger = require('loge');
 var lexing = require('lexing');
 var StackOperationParser = require('./StackOperationParser');
-/**
-glyphlist is a mapping from PDF glyph names to unicode strings
-*/
-var glyphlist = require('../encoding/glyphlist');
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 (function (RenderingMode) {
     RenderingMode[RenderingMode["Fill"] = 0] = "Fill";
@@ -283,12 +279,12 @@ var DrawingContext = (function () {
             throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
         }
         return charCodes.map(function (charCode) {
-            var glyphname = Font.getGlyphname(charCode);
-            if (glyphname === undefined) {
-                logger.error("Font \"" + _this.textState.fontName + "\" could not decode character code: \"" + charCode + "\"");
+            var string = Font.decodeCharCode(charCode);
+            if (string === undefined) {
+                logger.error("Font \"" + _this.textState.fontName + "\" could not decode character code: " + charCode);
                 return '\\' + charCode;
             }
-            return glyphlist[glyphname];
+            return string;
         }).join('');
     };
     DrawingContext.prototype._renderTextString = function (string) {
