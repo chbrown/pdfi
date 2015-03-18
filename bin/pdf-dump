@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 var logger = require('loge');
 var PDF = require('../').PDF;
+var models = require('../models');
 
 var yargs = require('yargs')
   .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
   .describe({
     filename: 'pdf file to open',
     object: 'object(s) to dump',
+    stream: 'stream(s) to dump',
     trailer: 'dump trailer',
     xref: 'dump cross references',
     pages: 'dump pages',
@@ -17,6 +19,7 @@ var yargs = require('yargs')
     verbose: 'v',
     filename: 'f',
     object: 'o',
+    stream: 's',
   })
   .demand(['filename'])
   .boolean(['help', 'verbose', 'trailer', 'xref', 'pages']);
@@ -33,6 +36,17 @@ function main() {
     console.log('cross_references: %j', pdf.cross_references);
   }
 
+  var eachObject = function(reference_arguments, func) {
+    // reference_arguments may be a single string or an Array of strings
+    [].concat(reference_arguments).forEach(function(reference_argument) {
+      var object_parts = reference_argument.split(':');
+      var object_number = parseInt(object_parts[0], 10);
+      var generation_number = parseInt(object_parts[1] || '0', 10);
+      var object = pdf.getObject(object_number, generation_number);
+      func(object_number, generation_number, object);
+    });
+  };
+
   if (argv.pages) {
     // iterate through the page objects
     pdf.pages.forEach(function(page, i, pages) {
@@ -40,22 +54,24 @@ function main() {
       // page.Contents is a list of IndirectReference instances, or maybe just one
       var contents = [].concat(page.Contents);
       for (var j = 0, content; (content = contents[j]); j++) {
-        var content_object = pdf.findObject(content);
+        var content_object = pdf.getObject(content);
         console.log('Contents[%d]: %j', j, content_object);
       }
     });
   }
 
   if (argv.object) {
-    var reference_arguments = [].concat(argv.object);
-    reference_arguments.forEach(function(reference_argument) {
-      var object_parts = reference_argument.split(':');
-      var reference = {
-        object_number: parseInt(object_parts[0], 10),
-        generation_number: parseInt(object_parts[1] || '0', 10),
-      };
-      var object = pdf.findObject(reference);
-      console.log('%d:%d => %j', reference.object_number, reference.generation_number, object);
+    eachObject(argv.object, function(object_number, generation_number, object) {
+      process.stderr.write(object_number + ':' + generation_number + '\n');
+      process.stdout.write(JSON.stringify(object) + '\n');
+    });
+  }
+
+  if (argv.stream) {
+    eachObject(argv.stream, function(object_number, generation_number, object) {
+      var content_stream = new models.ContentStream(pdf, object);
+      process.stderr.write(object_number + ':' + generation_number + '\n');
+      process.stdout.write(content_stream.buffer);
     });
   }
 }
