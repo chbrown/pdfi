@@ -7,9 +7,9 @@ var __extends = this.__extends || function (d, b) {
 /// <reference path="type_declarations/index.d.ts" />
 var logger = require('loge');
 var lexing = require('lexing');
-var graphics = require('./parsers/graphics');
 var cmap = require('./parsers/cmap');
 var decoders = require('./filters/decoders');
+var drawing = require('./drawing');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -192,12 +192,12 @@ var Page = (function (_super) {
         });
         return strings.join(separator);
     };
-    Page.prototype.render = function () {
-        var canvas = new graphics.Canvas();
+    Page.prototype.renderCanvas = function () {
+        var canvas = new drawing.Canvas(this.MediaBox);
         var contents_string = this.joinContents('\n', 'ascii');
         var contents_string_iterable = new lexing.StringIterator(contents_string);
         canvas.render(contents_string_iterable, this.Resources);
-        return canvas.spans;
+        return canvas;
     };
     Page.prototype.toJSON = function () {
         return {
@@ -404,12 +404,9 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Font.prototype, "Encoding", {
+    Object.defineProperty(Font.prototype, "BaseFont", {
         get: function () {
-            // var object = this.object['Encoding'];
-            // return object ? new Encoding(this._pdf, object) : undefined;
-            // having an Encoding is useful even if this.object['Encoding'] is undefined
-            return new Encoding(this._pdf, this.object['Encoding']);
+            return this.object['BaseFont'];
         },
         enumerable: true,
         configurable: true
@@ -422,17 +419,10 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Font.prototype, "Widths", {
+    Object.defineProperty(Font.prototype, "Encoding", {
         get: function () {
-            // Or even any of the FirstChar, LastChar, Widths stuff
-            return this.object['Widths'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Font.prototype, "BaseFont", {
-        get: function () {
-            return this.object['BaseFont'];
+            var object = this.object['Encoding'];
+            return object ? new Encoding(this._pdf, object) : undefined;
         },
         enumerable: true,
         configurable: true
@@ -445,6 +435,31 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Font.prototype, "Widths", {
+        /**
+        The PDF spec actually recommends that Widths is an indirect reference.
+        */
+        get: function () {
+            var model = new Model(this._pdf, this.object['Widths']);
+            return model.object;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Font.prototype, "FirstChar", {
+        get: function () {
+            return this.object['FirstChar'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Font.prototype, "LastChar", {
+        get: function () {
+            return this.object['LastChar'];
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
     We need the Font's Encoding (not always specified) to read its Differences,
     which we use to map character codes into the glyph name (which can then easily
@@ -452,33 +467,47 @@ var Font = (function (_super) {
     */
     Font.prototype.getCharCodeMapping = function () {
         // try the ToUnicode object first
-        var ToUnicode = this.ToUnicode;
-        if (ToUnicode) {
+        if (this.ToUnicode) {
             return this.ToUnicode.Mapping;
         }
         // No luck? Try the Encoding dictionary
-        var Encoding = this.Encoding;
-        if (Encoding) {
+        if (this.Encoding) {
             return this.Encoding.Mapping;
         }
         // Neither Encoding nor ToUnicode are specified; that's bad!
-        logger.error("Cannot find any character code mapping for font.");
-        return [];
+        logger.warn("Could not find any character code mapping for font; using default mapping");
+        return Encoding.getDefaultMapping('std');
     };
     /**
     Returns a native (unicode) Javascript string representing the given character
-    code.
+    codes.
   
-    Caches the loaded Mapping.
+    Caches the required Mapping.
   
-    Returns undefined if the character code cannot be resolved to a string.
+    Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
+    be resolved to a string.
     */
-    Font.prototype.decodeCharCode = function (charCode) {
+    Font.prototype.decodeString = function (charCodes) {
+        var _this = this;
         // initialize if needed
         if (this._charCodeMapping === undefined) {
             this._charCodeMapping = this.getCharCodeMapping();
         }
-        return this._charCodeMapping[charCode];
+        return charCodes.map(function (charCode) {
+            var string = _this._charCodeMapping[charCode];
+            if (string === undefined) {
+                logger.error("Could not decode character code: " + charCode);
+                return '\\u{' + charCode.toString(16) + '}';
+            }
+            return string;
+        }).join('');
+    };
+    Font.prototype.measureString = function (charCodes, defaultWidth) {
+        var _this = this;
+        if (defaultWidth === void 0) { defaultWidth = 1000; }
+        var widthsOffset = this.FirstChar;
+        var charWidths = charCodes.map(function (charCode) { return _this.Widths[charCode - widthsOffset] || defaultWidth; });
+        return charWidths.reduce(function (a, b) { return a + b; });
     };
     Font.prototype.toJSON = function () {
         return {
@@ -576,11 +605,7 @@ var Encoding = (function (_super) {
     });
     Object.defineProperty(Encoding.prototype, "Differences", {
         get: function () {
-            if (this.object === undefined) {
-                return [];
-            }
-            var Differences = this.object['Differences'];
-            return (Differences === undefined) ? [] : Differences;
+            return this.object['Differences'];
         },
         enumerable: true,
         configurable: true
@@ -589,12 +614,12 @@ var Encoding = (function (_super) {
         /**
         Mapping returns an object mapping character codes to unicode strings.
       
-        If there are no `Differences` specified, return an empty mapping.
+        If there are no `Differences` specified, return a default mapping.
         */
         get: function () {
             var mapping = Encoding.getDefaultMapping('std');
             var current_character_code = 0;
-            this.Differences.forEach(function (difference) {
+            (this.Differences || []).forEach(function (difference) {
                 if (typeof difference === 'number') {
                     current_character_code = difference;
                 }
@@ -622,7 +647,7 @@ var Encoding = (function (_super) {
     /**
     This loads the character codes listed in encoding/latin_charset.json into
     a (sparse?) Array of strings mapping indices (character codes) to unicode
-    strings.
+    strings (not glyphnames).
   
     `base` should be one of 'std', 'mac', 'win', or 'pdf'
     */

@@ -7,6 +7,7 @@ import pdfdom = require('./pdfdom');
 import graphics = require('./parsers/graphics');
 import cmap = require('./parsers/cmap');
 import decoders = require('./filters/decoders');
+import drawing = require('./drawing');
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -17,6 +18,15 @@ var glyphlist: {[index: string]: string} = require('./encoding/glyphlist');
 Most of the classes in this module are wrappers for typed objects in a PDF,
 where the object's Type indicates useful ways it may be processed.
 */
+
+/**
+A Rectangle is a 4-tuple [x1, y1, x2, y2], where [x1, y1] and [x2, y2] are
+points in any two diagonally opposite corners, usually lower-left to
+upper-right.
+*/
+export type Rectangle = [number, number, number, number]
+
+export type Point = [number, number]
 
 interface CharacterSpecification {
   char: string;
@@ -137,7 +147,7 @@ export class Page extends Model {
     return new Pages(this._pdf, this.object['Parent']);
   }
 
-  get MediaBox(): graphics.Rectangle {
+  get MediaBox(): Rectangle {
     return this.object['MediaBox'];
   }
 
@@ -176,14 +186,14 @@ export class Page extends Model {
     return strings.join(separator);
   }
 
-  render(): graphics.TextSpan[] {
-    var canvas = new graphics.Canvas();
+  renderCanvas(): drawing.Canvas {
+    var canvas = new drawing.Canvas(this.MediaBox);
 
     var contents_string = this.joinContents('\n', 'ascii');
     var contents_string_iterable = new lexing.StringIterator(contents_string);
     canvas.render(contents_string_iterable, this.Resources);
 
-    return canvas.spans;
+    return canvas;
   }
 
   toJSON() {
@@ -338,26 +348,33 @@ export class Font extends Model {
   get Subtype(): any {
     return this.object['Subtype'];
   }
-  get Encoding(): Encoding {
-    // var object = this.object['Encoding'];
-    // return object ? new Encoding(this._pdf, object) : undefined;
-    // having an Encoding is useful even if this.object['Encoding'] is undefined
-    return new Encoding(this._pdf, this.object['Encoding']);
+  get BaseFont(): any {
+    return this.object['BaseFont'];
   }
   get FontDescriptor(): any {
     // I don't think I need any of the FontDescriptor stuff for text extraction
     return this.object['FontDescriptor'];
   }
-  get Widths(): any {
-    // Or even any of the FirstChar, LastChar, Widths stuff
-    return this.object['Widths'];
-  }
-  get BaseFont(): any {
-    return this.object['BaseFont'];
+  get Encoding(): Encoding {
+    var object = this.object['Encoding'];
+    return object ? new Encoding(this._pdf, object) : undefined;
   }
   get ToUnicode(): any {
     var object = this.object['ToUnicode'];
     return object ? new ToUnicode(this._pdf, object) : undefined;
+  }
+  /**
+  The PDF spec actually recommends that Widths is an indirect reference.
+  */
+  get Widths(): number[] {
+    var model = new Model(this._pdf, this.object['Widths']);
+    return <number[]>model.object;
+  }
+  get FirstChar(): number {
+    return this.object['FirstChar'];
+  }
+  get LastChar(): number {
+    return this.object['LastChar'];
   }
 
   /**
@@ -367,36 +384,48 @@ export class Font extends Model {
   */
   getCharCodeMapping(): string[] {
     // try the ToUnicode object first
-    var ToUnicode = this.ToUnicode;
-    if (ToUnicode) {
+    if (this.ToUnicode) {
       return this.ToUnicode.Mapping;
     }
 
     // No luck? Try the Encoding dictionary
-    var Encoding = this.Encoding;
-    if (Encoding) {
+    if (this.Encoding) {
       return this.Encoding.Mapping;
     }
 
     // Neither Encoding nor ToUnicode are specified; that's bad!
-    logger.error(`Cannot find any character code mapping for font.`);
-    return [];
+    logger.warn(`Could not find any character code mapping for font; using default mapping`);
+    return Encoding.getDefaultMapping('std');
   }
 
   /**
   Returns a native (unicode) Javascript string representing the given character
-  code.
+  codes.
 
-  Caches the loaded Mapping.
+  Caches the required Mapping.
 
-  Returns undefined if the character code cannot be resolved to a string.
+  Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
+  be resolved to a string.
   */
-  decodeCharCode(charCode: number): string {
+  decodeString(charCodes: number[]): string {
     // initialize if needed
     if (this._charCodeMapping === undefined) {
       this._charCodeMapping = this.getCharCodeMapping();
     }
-    return this._charCodeMapping[charCode];
+    return charCodes.map(charCode => {
+      var string = this._charCodeMapping[charCode];
+      if (string === undefined) {
+        logger.error(`Could not decode character code: ${charCode}`)
+        return '\\u{' + charCode.toString(16) + '}';
+      }
+      return string;
+    }).join('');
+  }
+
+  measureString(charCodes: number[], defaultWidth = 1000): number {
+    var widthsOffset = this.FirstChar;
+    var charWidths = charCodes.map(charCode => this.Widths[charCode - widthsOffset] || defaultWidth);
+    return charWidths.reduce((a, b) => a + b);
   }
 
   toJSON() {
@@ -465,22 +494,18 @@ export class Encoding extends Model {
     return this.object['BaseEncoding'];
   }
   get Differences(): Array<number | string> {
-    if (this.object === undefined) {
-      return [];
-    }
-    var Differences = this.object['Differences'];
-    return (Differences === undefined) ? [] : Differences;
+    return this.object['Differences'];
   }
 
   /**
   Mapping returns an object mapping character codes to unicode strings.
 
-  If there are no `Differences` specified, return an empty mapping.
+  If there are no `Differences` specified, return a default mapping.
   */
   get Mapping(): string[] {
     var mapping = Encoding.getDefaultMapping('std');
     var current_character_code = 0;
-    this.Differences.forEach(difference => {
+    (this.Differences || []).forEach(difference => {
       if (typeof difference === 'number') {
         current_character_code = difference;
       }
@@ -507,7 +532,7 @@ export class Encoding extends Model {
   /**
   This loads the character codes listed in encoding/latin_charset.json into
   a (sparse?) Array of strings mapping indices (character codes) to unicode
-  strings.
+  strings (not glyphnames).
 
   `base` should be one of 'std', 'mac', 'win', or 'pdf'
   */
