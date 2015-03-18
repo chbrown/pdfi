@@ -116,25 +116,6 @@ var GrayColor = (function (_super) {
     return GrayColor;
 })(Color);
 exports.GrayColor = GrayColor;
-var Point = (function () {
-    function Point(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-    Point.prototype.clone = function () {
-        return new Point(this.x, this.y);
-    };
-    Point.prototype.set = function (x, y) {
-        this.x = x;
-        this.y = y;
-    };
-    Point.prototype.move = function (dx, dy) {
-        this.x += dx;
-        this.y += dy;
-    };
-    return Point;
-})();
-exports.Point = Point;
 /**
 > Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
 
@@ -214,38 +195,10 @@ var TextState = (function () {
         // entries, and we discard the rest, so we don't need to calculate them in
         // the first place.
         var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
-        return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+        return [textRenderingMatrix[6], textRenderingMatrix[7]];
     };
     return TextState;
 })();
-var TextSpan = (function () {
-    function TextSpan(position, text, fontName, fontSize) {
-        this.position = position;
-        this.text = text;
-        this.fontName = fontName;
-        this.fontSize = fontSize;
-    }
-    return TextSpan;
-})();
-exports.TextSpan = TextSpan;
-var Canvas = (function () {
-    function Canvas() {
-        // Eventually, this will render out other elements, too
-        this.spans = [];
-    }
-    /**
-    When we render a page, we specify a ContentStream as well as a Resources
-    dictionary. That Resources dictionary may contain XObject streams that are
-    embedded as `Do` operations in the main contents, as well as sub-Resources
-    in those XObjects.
-    */
-    Canvas.prototype.render = function (string_iterable, Resources) {
-        var context = new DrawingContext(Resources);
-        context.render(string_iterable, this);
-    };
-    return Canvas;
-})();
-exports.Canvas = Canvas;
 var DrawingContext = (function () {
     function DrawingContext(Resources, graphicsState, textState) {
         if (graphicsState === void 0) { graphicsState = new GraphicsState(); }
@@ -274,48 +227,38 @@ var DrawingContext = (function () {
             }
         }
     };
-    DrawingContext.prototype._decodeString = function (charCodes) {
-        var _this = this;
-        // the Font instance handles most of the character code resolution
-        var Font = this.Resources.getFont(this.textState.fontName);
-        if (Font === null) {
-            throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
-        }
-        return charCodes.map(function (charCode) {
-            var string = Font.decodeCharCode(charCode);
-            if (string === undefined) {
-                logger.error("Font \"" + _this.textState.fontName + "\" could not decode character code: " + charCode);
-                return '\\' + charCode;
-            }
-            return string;
-        }).join('');
-    };
-    DrawingContext.prototype._renderTextString = function (string) {
-        var text = this._decodeString(string);
+    DrawingContext.prototype._renderTextString = function (charCodes) {
+        var font = this.Resources.getFont(this.textState.fontName);
         var position = this.textState.getPosition();
-        var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
-        this.canvas.spans.push(span);
+        var text = font.decodeString(charCodes);
+        var width_units = font.measureString(charCodes);
+        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, this.textState.fontSize);
     };
     DrawingContext.prototype._renderTextArray = function (array) {
-        var _this = this;
+        var font = this.Resources.getFont(this.textState.fontName);
         var position = this.textState.getPosition();
+        // the Font instance handles most of the character code resolution
+        var width_units = 0;
         var text = array.map(function (item) {
             // each item is either a string (character code array) or a number
             if (Array.isArray(item)) {
                 // if it's a character array, convert it to a unicode string and return it
-                return _this._decodeString(item);
+                var charCodes = item;
+                var string = font.decodeString(charCodes);
+                width_units += font.measureString(charCodes);
+                return string;
             }
             else if (typeof item === 'number') {
                 // if it's a very negative number, insert a space. otherwise, it only
                 // signifies some minute spacing.
+                width_units -= item;
                 return (item < -100) ? ' ' : '';
             }
             else {
                 throw new Error("Unknown TJ argument type: \"" + item + "\" (array: " + JSON.stringify(array) + ")");
             }
         }).join('');
-        var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
-        this.canvas.spans.push(span);
+        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, this.textState.fontSize);
     };
     DrawingContext.prototype._drawObject = function (name) {
         // create a nested drawing context and use that
@@ -442,16 +385,19 @@ var DrawingContext = (function () {
     `x y m`
     */
     DrawingContext.prototype.moveTo = function (x, y) {
-        logger.warn("Ignoring moveTo(" + x + ", " + y + ") operation");
+        logger.silly("Ignoring moveTo(" + x + ", " + y + ") operation");
     };
     /**
     `x y l`
     */
     DrawingContext.prototype.lineTo = function (x, y) {
-        logger.warn("Ignoring lineTo(" + x + ", " + y + ") operation");
+        logger.silly("Ignoring lineTo(" + x + ", " + y + ") operation");
     };
+    /**
+    `S`
+    */
     DrawingContext.prototype.stroke = function () {
-        logger.warn("Ignoring stroke() operation");
+        logger.silly("Ignoring stroke() operation");
     };
     // ---------------------------------------------------------------------------
     //                           Color operators

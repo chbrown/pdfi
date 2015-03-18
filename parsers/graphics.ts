@@ -5,6 +5,7 @@ import lexing = require('lexing');
 
 import StackOperationParser = require('./StackOperationParser');
 import models = require('../models');
+import drawing = require('../drawing');
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
@@ -31,8 +32,6 @@ export enum LineJoinStyle {
   Round = 1,
   Bevel = 2,
 }
-
-export type Rectangle = [number, number, number, number]
 
 var operator_aliases = {
   'Tc': 'setCharSpacing',
@@ -93,21 +92,6 @@ export class GrayColor extends Color {
   clone(): GrayColor { return new GrayColor(this.alpha); }
   toString(): string {
     return `rgb(${this.alpha}, ${this.alpha}, ${this.alpha})`;
-  }
-}
-
-export class Point {
-  constructor(public x: number, public y: number) { }
-  clone(): Point {
-    return new Point(this.x, this.y);
-  }
-  set(x: number, y: number) {
-    this.x = x;
-    this.y = y;
-  }
-  move(dx: number, dy: number) {
-    this.x += dx;
-    this.y += dy;
   }
 }
 
@@ -192,7 +176,7 @@ class TextState {
 
   constructor(public graphicsState: GraphicsState) { }
 
-  getPosition(): Point {
+  getPosition(): models.Point {
     var fs = this.fontSize;
     var fsh = fs * (this.horizontalScaling / 100.0);
     var rise = this.rise;
@@ -203,42 +187,19 @@ class TextState {
     // entries, and we discard the rest, so we don't need to calculate them in
     // the first place.
     var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
-    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
-  }
-}
-
-export class TextSpan {
-  constructor(public position: Point,
-              public text: string,
-              public fontName: string,
-              public fontSize: number) { }
-}
-
-export class Canvas {
-  // Eventually, this will render out other elements, too
-  spans: TextSpan[] = [];
-
-  /**
-  When we render a page, we specify a ContentStream as well as a Resources
-  dictionary. That Resources dictionary may contain XObject streams that are
-  embedded as `Do` operations in the main contents, as well as sub-Resources
-  in those XObjects.
-  */
-  render(string_iterable: lexing.StringIterable, Resources: models.Resources): void {
-    var context = new DrawingContext(Resources);
-    context.render(string_iterable, this);
+    return [textRenderingMatrix[6], textRenderingMatrix[7]];
   }
 }
 
 export class DrawingContext {
-  canvas: Canvas;
+  canvas: drawing.Canvas;
   stateStack: GraphicsState[] = [];
 
   constructor(public Resources: models.Resources,
               public graphicsState: GraphicsState = new GraphicsState(),
               public textState: TextState = null) { }
 
-  render(string_iterable: lexing.StringIterable, canvas: Canvas): void {
+  render(string_iterable: lexing.StringIterable, canvas: drawing.Canvas): void {
     this.canvas = canvas;
     var stack_operation_iterator = new StackOperationParser().map(string_iterable);
     while (1) {
@@ -259,41 +220,35 @@ export class DrawingContext {
     }
   }
 
-  private _decodeString(charCodes: number[]): string {
-    // the Font instance handles most of the character code resolution
-    var Font = this.Resources.getFont(this.textState.fontName);
-    if (Font === null) {
-      throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
-    }
-    return charCodes.map(charCode => {
-      var string = Font.decodeCharCode(charCode);
-      if (string === undefined) {
-        logger.error(`Font "${this.textState.fontName}" could not decode character code: ${charCode}`)
-        return '\\' + charCode;
-      }
-      return string;
-    }).join('');
-  }
-
-  private _renderTextString(string: number[]) {
-    var text = this._decodeString(string);
+  private _renderTextString(charCodes: number[]) {
+    var font = this.Resources.getFont(this.textState.fontName);
     var position = this.textState.getPosition();
-    var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
-    this.canvas.spans.push(span);
+
+    var text = font.decodeString(charCodes);
+    var width_units = font.measureString(charCodes);
+
+    this.canvas.addSpan(text, position[0], position[1], width_units,
+      this.textState.fontName, this.textState.fontSize);
   }
 
   private _renderTextArray(array: Array<number[] | number>) {
+    var font = this.Resources.getFont(this.textState.fontName);
     var position = this.textState.getPosition();
-
+    // the Font instance handles most of the character code resolution
+    var width_units = 0;
     var text = array.map(item => {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
         // if it's a character array, convert it to a unicode string and return it
-        return this._decodeString(<number[]>item);
+        var charCodes = <number[]>item;
+        var string = font.decodeString(charCodes);
+        width_units += font.measureString(charCodes);
+        return string;
       }
       else if (typeof item === 'number') {
         // if it's a very negative number, insert a space. otherwise, it only
         // signifies some minute spacing.
+        width_units -= item;
         return (item < -100) ? ' ' : '';
       }
       else {
@@ -301,8 +256,8 @@ export class DrawingContext {
       }
     }).join('');
 
-    var span = new TextSpan(position, text, this.textState.fontName, this.textState.fontSize);
-    this.canvas.spans.push(span);
+    this.canvas.addSpan(text, position[0], position[1], width_units,
+      this.textState.fontName, this.textState.fontSize);
   }
 
   private _drawObject(name: string) {
@@ -434,16 +389,19 @@ export class DrawingContext {
   `x y m`
   */
   moveTo(x: number, y: number) {
-    logger.warn(`Ignoring moveTo(${x}, ${y}) operation`);
+    logger.silly(`Ignoring moveTo(${x}, ${y}) operation`);
   }
   /**
   `x y l`
   */
   lineTo(x: number, y: number) {
-    logger.warn(`Ignoring lineTo(${x}, ${y}) operation`);
+    logger.silly(`Ignoring lineTo(${x}, ${y}) operation`);
   }
+  /**
+  `S`
+  */
   stroke() {
-    logger.warn(`Ignoring stroke() operation`);
+    logger.silly(`Ignoring stroke() operation`);
   }
   // ---------------------------------------------------------------------------
   //                           Color operators
