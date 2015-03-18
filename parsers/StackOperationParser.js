@@ -24,6 +24,8 @@ state_rules['STRING'] = [
         return Token('END', 'STRING');
     }],
     [/^\\(\(|\)|\[|\])/, function (match) { return Token('CHAR', match[1].charCodeAt(0)); }],
+    [/^\\n/, function (match) { return Token('CHAR', 10); }],
+    [/^\\r/, function (match) { return Token('CHAR', 13); }],
     [/^\\([0-8]{3})/, function (match) { return Token('CODE', parseInt(match[1], 8)); }],
     [/^(.|\n|\r)/, function (match) { return Token('CHAR', match[0].charCodeAt(0)); }],
 ];
