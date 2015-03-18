@@ -39,7 +39,7 @@ function main() {
   var eachObject = function(reference_arguments, func) {
     // reference_arguments may be a single string or an Array of strings
     [].concat(reference_arguments).forEach(function(reference_argument) {
-      var object_parts = reference_argument.split(':');
+      var object_parts = reference_argument.toString().split(':');
       var object_number = parseInt(object_parts[0], 10);
       var generation_number = parseInt(object_parts[1] || '0', 10);
       var object = pdf.getObject(object_number, generation_number);
