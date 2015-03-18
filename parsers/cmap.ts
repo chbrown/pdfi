@@ -25,9 +25,13 @@ var default_rules: lexing.RegexRule<any>[] = [
     // return Token('START', 'BFCHAR');
     return null;
   }],
-  [/^\/(\w+)/, match => Token('NAME', match[1]) ],
+  [/^\/([-A-Za-z0-9]+)/, match => Token('NAME', match[1]) ],
   [/^\w+/, match => Token('STRING', match[0]) ],
   [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ],
+  [/^<</, match => Token('START', 'DICTIONARY') ],
+  [/^>>/, match => Token('END', 'DICTIONARY') ],
+  [/^\(/, match => Token('START', 'STRING') ],
+  [/^\)/, match => Token('END', 'STRING') ],
 ];
 
 var state_rules: {[index: string]: lexing.RegexRule<any>[]} = {};

@@ -22,9 +22,13 @@ var default_rules = [
         // return Token('START', 'BFCHAR');
         return null;
     }],
-    [/^\/(\w+)/, function (match) { return Token('NAME', match[1]); }],
+    [/^\/([-A-Za-z0-9]+)/, function (match) { return Token('NAME', match[1]); }],
     [/^\w+/, function (match) { return Token('STRING', match[0]); }],
     [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }],
+    [/^<</, function (match) { return Token('START', 'DICTIONARY'); }],
+    [/^>>/, function (match) { return Token('END', 'DICTIONARY'); }],
+    [/^\(/, function (match) { return Token('START', 'STRING'); }],
+    [/^\)/, function (match) { return Token('END', 'STRING'); }],
 ];
 var state_rules = {};
 state_rules['CODESPACERANGE'] = [
