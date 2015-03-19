@@ -146,6 +146,23 @@ function countSpaces(text: string): number {
   return matches ? matches.length : 0;
 }
 
+function clone(source: any, target: any = {}): any {
+  for (var key in source) {
+    if (source.hasOwnProperty(key)) {
+      if (source[key].clone) {
+        target[key] = source[key].clone();
+      }
+      else if (Array.isArray(source[key])) {
+        target[key] = source[key].slice();
+      }
+      else {
+        target[key] = source[key];
+      }
+    }
+  }
+  return target;
+}
+
 /**
 We need to be able to clone it since we need a copy when we process a
 `pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
@@ -165,21 +182,7 @@ class GraphicsState {
   public flatnessTolerance: number;
 
   clone(): GraphicsState {
-    var copy = new GraphicsState();
-    for (var key in this) {
-      if (this.hasOwnProperty(key)) {
-        if (this[key].clone) {
-          copy[key] = this[key].clone();
-        }
-        else if (Array.isArray(this[key])) {
-          copy[key] = this[key].slice();
-        }
-        else {
-          copy[key] = this[key];
-        }
-      }
-    }
-    return copy;
+    return clone(this, new GraphicsState());
   }
 }
 
@@ -196,7 +199,9 @@ class TextState {
   textMatrix: number[] = mat3ident;
   textLineMatrix: number[] = mat3ident;
 
-  constructor(public graphicsState: GraphicsState) { }
+  clone(): TextState {
+    return clone(this, new TextState());
+  }
 
   advanceTextMatrix(width_units: number, chars: number, spaces: number) {
     // width_units is positive, but we want to move forward, so tx should be positive too
@@ -208,7 +213,7 @@ class TextState {
                                 tx, 0, 1], this.textMatrix);
   }
 
-  getPosition(): models.Point {
+  getPosition(graphicsState: GraphicsState): models.Point {
     var fs = this.fontSize;
     var fsh = fs * (this.horizontalScaling / 100.0);
     var rise = this.rise;
@@ -216,17 +221,17 @@ class TextState {
                   0,   fs, 0,
                   0, rise, 1];
 
-    var localTextMatrix = mat3mul(base, this.textMatrix);
     // TODO: optimize this final matrix multiplication; we only need two of the
     // entries, and we discard the rest, so we don't need to calculate them in
     // the first place.
-    var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
+    var composedTransformation = mat3mul(this.textMatrix, graphicsState.ctMatrix);
+    var textRenderingMatrix = mat3mul(base, composedTransformation);
     return [textRenderingMatrix[6], textRenderingMatrix[7]];
   }
 
-  getFontSize(): number {
+  getFontSize(graphicsState: GraphicsState): number {
     // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-    var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+    var mat = mat3mul(this.textMatrix, graphicsState.ctMatrix);
     var font_point = transform2d([0, this.fontSize], mat[0], mat[3], mat[1], mat[4]);
     return font_point[1];
   }
@@ -235,10 +240,13 @@ class TextState {
 export class DrawingContext {
   canvas: drawing.Canvas;
   stateStack: GraphicsState[] = [];
+  textState: TextState = new TextState();
+  // apparently textState persists across BT and ET markers, and can be manipulated
+  // with q and Q operators.
+  textStateStack: TextState[] = [];
 
   constructor(public Resources: models.Resources,
-              public graphicsState: GraphicsState = new GraphicsState(),
-              public textState: TextState = null) { }
+              public graphicsState: GraphicsState = new GraphicsState()) { }
 
   render(string_iterable: lexing.StringIterable, canvas: drawing.Canvas): void {
     this.canvas = canvas;
@@ -263,8 +271,8 @@ export class DrawingContext {
 
   private _renderTextString(charCodes: number[]) {
     var font = this.Resources.getFont(this.textState.fontName);
-    var position = this.textState.getPosition();
-    var fontSize = this.textState.getFontSize();
+    var position = this.textState.getPosition(this.graphicsState);
+    var fontSize = this.textState.getFontSize(this.graphicsState);
 
     var text = font.decodeString(charCodes);
     var width_units = font.measureString(charCodes);
@@ -280,8 +288,8 @@ export class DrawingContext {
     if (font === null) {
       throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
     }
-    var position = this.textState.getPosition();
-    var fontSize = this.textState.getFontSize();
+    var position = this.textState.getPosition(this.graphicsState);
+    var fontSize = this.textState.getFontSize(this.graphicsState);
 
     // the Font instance handles most of the character code resolution
     var width_units = 0;
@@ -329,12 +337,12 @@ export class DrawingContext {
     }
 
     if (XObjectStream.Subtype == 'Form') {
-      var Resources = XObjectStream.Resources;
+      logger.debug(`Drawing XObject: ${name}`);
 
       var stream_string = XObjectStream.buffer.toString('ascii');
       var stream_string_iterable = new lexing.StringIterator(stream_string);
 
-      var context = new DrawingContext(Resources, this.graphicsState);
+      var context = new DrawingContext(XObjectStream.Resources, new GraphicsState());
       context.render(stream_string_iterable, this.canvas);
     }
     else {
@@ -349,6 +357,7 @@ export class DrawingContext {
   */
   pushGraphicsState() {
     this.stateStack.push(this.graphicsState.clone());
+    this.textStateStack.push(this.textState.clone());
   }
   /**
   > `Q`: Restore the graphics state by removing the most recently saved state
@@ -356,6 +365,7 @@ export class DrawingContext {
   */
   popGraphicsState() {
     this.graphicsState = this.stateStack.pop();
+    this.textState = this.textStateStack.pop();
   }
   /**
   > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -510,12 +520,12 @@ export class DrawingContext {
   /** `BT` */
   startTextBlock() {
     // intialize state
-    this.textState = new TextState(this.graphicsState);
+    // this.textState = new TextState(this.graphicsState);
   }
   /** `ET` */
   endTextBlock() {
     // remove textState, so that any operations that require it will fail
-    this.textState = null;
+    // this.textState = null;
   }
   // ---------------------------------------------------------------------------
   // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1

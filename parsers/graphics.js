@@ -166,6 +166,23 @@ function countSpaces(text) {
     var matches = text.match(/ /g);
     return matches ? matches.length : 0;
 }
+function clone(source, target) {
+    if (target === void 0) { target = {}; }
+    for (var key in source) {
+        if (source.hasOwnProperty(key)) {
+            if (source[key].clone) {
+                target[key] = source[key].clone();
+            }
+            else if (Array.isArray(source[key])) {
+                target[key] = source[key].slice();
+            }
+            else {
+                target[key] = source[key];
+            }
+        }
+    }
+    return target;
+}
 /**
 We need to be able to clone it since we need a copy when we process a
 `pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
@@ -178,27 +195,12 @@ var GraphicsState = (function () {
         this.fillColor = new Color();
     }
     GraphicsState.prototype.clone = function () {
-        var copy = new GraphicsState();
-        for (var key in this) {
-            if (this.hasOwnProperty(key)) {
-                if (this[key].clone) {
-                    copy[key] = this[key].clone();
-                }
-                else if (Array.isArray(this[key])) {
-                    copy[key] = this[key].slice();
-                }
-                else {
-                    copy[key] = this[key];
-                }
-            }
-        }
-        return copy;
+        return clone(this, new GraphicsState());
     };
     return GraphicsState;
 })();
 var TextState = (function () {
-    function TextState(graphicsState) {
-        this.graphicsState = graphicsState;
+    function TextState() {
         this.charSpacing = 0;
         this.wordSpacing = 0;
         this.horizontalScaling = 100;
@@ -208,40 +210,45 @@ var TextState = (function () {
         this.textMatrix = mat3ident;
         this.textLineMatrix = mat3ident;
     }
+    TextState.prototype.clone = function () {
+        return clone(this, new TextState());
+    };
     TextState.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
         // width_units is positive, but we want to move forward, so tx should be positive too
         var tx = (((width_units / 1000) * this.fontSize) + (this.charSpacing * chars) + (this.wordSpacing * spaces)) * (this.horizontalScaling / 100.0);
         // this.textMatrix = mat3add([0, 0, 0,  0, 0, 0, tx, 0, 0], this.textMatrix);
         this.textMatrix = mat3mul([1, 0, 0, 0, 1, 0, tx, 0, 1], this.textMatrix);
     };
-    TextState.prototype.getPosition = function () {
+    TextState.prototype.getPosition = function (graphicsState) {
         var fs = this.fontSize;
         var fsh = fs * (this.horizontalScaling / 100.0);
         var rise = this.rise;
         var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
-        var localTextMatrix = mat3mul(base, this.textMatrix);
         // TODO: optimize this final matrix multiplication; we only need two of the
         // entries, and we discard the rest, so we don't need to calculate them in
         // the first place.
-        var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
+        var composedTransformation = mat3mul(this.textMatrix, graphicsState.ctMatrix);
+        var textRenderingMatrix = mat3mul(base, composedTransformation);
         return [textRenderingMatrix[6], textRenderingMatrix[7]];
     };
-    TextState.prototype.getFontSize = function () {
+    TextState.prototype.getFontSize = function (graphicsState) {
         // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-        var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var mat = mat3mul(this.textMatrix, graphicsState.ctMatrix);
         var font_point = transform2d([0, this.fontSize], mat[0], mat[3], mat[1], mat[4]);
         return font_point[1];
     };
     return TextState;
 })();
 var DrawingContext = (function () {
-    function DrawingContext(Resources, graphicsState, textState) {
+    function DrawingContext(Resources, graphicsState) {
         if (graphicsState === void 0) { graphicsState = new GraphicsState(); }
-        if (textState === void 0) { textState = null; }
         this.Resources = Resources;
         this.graphicsState = graphicsState;
-        this.textState = textState;
         this.stateStack = [];
+        this.textState = new TextState();
+        // apparently textState persists across BT and ET markers, and can be manipulated
+        // with q and Q operators.
+        this.textStateStack = [];
     }
     DrawingContext.prototype.render = function (string_iterable, canvas) {
         this.canvas = canvas;
@@ -264,8 +271,8 @@ var DrawingContext = (function () {
     };
     DrawingContext.prototype._renderTextString = function (charCodes) {
         var font = this.Resources.getFont(this.textState.fontName);
-        var position = this.textState.getPosition();
-        var fontSize = this.textState.getFontSize();
+        var position = this.textState.getPosition(this.graphicsState);
+        var fontSize = this.textState.getFontSize(this.graphicsState);
         var text = font.decodeString(charCodes);
         var width_units = font.measureString(charCodes);
         var nspaces = countSpaces(text);
@@ -278,8 +285,8 @@ var DrawingContext = (function () {
         if (font === null) {
             throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
         }
-        var position = this.textState.getPosition();
-        var fontSize = this.textState.getFontSize();
+        var position = this.textState.getPosition(this.graphicsState);
+        var fontSize = this.textState.getFontSize(this.graphicsState);
         // the Font instance handles most of the character code resolution
         var width_units = 0;
         var nchars = 0;
@@ -322,10 +329,10 @@ var DrawingContext = (function () {
             throw new Error("Cannot draw undefined XObject: " + name);
         }
         if (XObjectStream.Subtype == 'Form') {
-            var Resources = XObjectStream.Resources;
+            logger.debug("Drawing XObject: " + name);
             var stream_string = XObjectStream.buffer.toString('ascii');
             var stream_string_iterable = new lexing.StringIterator(stream_string);
-            var context = new DrawingContext(Resources, this.graphicsState);
+            var context = new DrawingContext(XObjectStream.Resources, new GraphicsState());
             context.render(stream_string_iterable, this.canvas);
         }
         else {
@@ -339,6 +346,7 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.pushGraphicsState = function () {
         this.stateStack.push(this.graphicsState.clone());
+        this.textStateStack.push(this.textState.clone());
     };
     /**
     > `Q`: Restore the graphics state by removing the most recently saved state
@@ -346,6 +354,7 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.popGraphicsState = function () {
         this.graphicsState = this.stateStack.pop();
+        this.textState = this.textStateStack.pop();
     };
     /**
     > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -499,12 +508,12 @@ var DrawingContext = (function () {
     /** `BT` */
     DrawingContext.prototype.startTextBlock = function () {
         // intialize state
-        this.textState = new TextState(this.graphicsState);
+        // this.textState = new TextState(this.graphicsState);
     };
     /** `ET` */
     DrawingContext.prototype.endTextBlock = function () {
         // remove textState, so that any operations that require it will fail
-        this.textState = null;
+        // this.textState = null;
     };
     // ---------------------------------------------------------------------------
     // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
