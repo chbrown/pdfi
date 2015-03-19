@@ -71,11 +71,13 @@ state_rules['BFCHAR'] = [
     return null;
   }],
   [/^\s+/, match => null ], // skip over whitespace
-  [/^<(\w+)>\s*<(\w+)>/, match => {
+  // not sure how to parse a bfchar like this one:
+  // <0411><5168 fffd (fffd is repeated 32 times in total)>
+  [/^<([A-Za-z0-9]+)>\s*<([A-Za-z0-9 ]+)>/, match => {
     // String.fromCharCode(parseInt('D840', 16), parseInt('DC3E', 16))
     return Token('BFCHAR', {
       from: parseInt(match[1], 16),
-      to: match[2],
+      to: match[2].replace(/\s+/, ''),
     });
   }],
 ];

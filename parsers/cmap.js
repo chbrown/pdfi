@@ -67,11 +67,11 @@ state_rules['BFCHAR'] = [
         return null;
     }],
     [/^\s+/, function (match) { return null; }],
-    [/^<(\w+)>\s*<(\w+)>/, function (match) {
+    [/^<([A-Za-z0-9]+)>\s*<([A-Za-z0-9 ]+)>/, function (match) {
         // String.fromCharCode(parseInt('D840', 16), parseInt('DC3E', 16))
         return Token('BFCHAR', {
             from: parseInt(match[1], 16),
-            to: match[2],
+            to: match[2].replace(/\s+/, ''),
         });
     }],
 ];
