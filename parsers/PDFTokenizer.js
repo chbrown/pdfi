@@ -16,9 +16,7 @@ var default_rules = [
         // by adding 0 character to end of odd-length strings
         var hexstring = match[1];
         var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
-        var bytes = padded.match(/.{2}/g).map(function (pair) {
-            return parseInt(pair, 16);
-        });
+        var bytes = padded.match(/.{2}/g).map(function (pair) { return parseInt(pair, 16); });
         return Token('HEXSTRING', bytes);
     }],
     [/^true/, function (match) { return Token('BOOLEAN', true); }],

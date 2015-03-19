@@ -6,12 +6,12 @@ var Token = lexing.Token;
 // allowing manipulating this.states, or this.reader (a BufferedReader)
 var default_rules: lexing.RegexRule<any>[] = [
   [/^$/, match => Token('EOF') ],
-  [/^<([A-Fa-f0-9]+)>/, function(match) {
+  [/^<([A-Fa-f0-9]+)>/, match => {
     // handle implied final 0 (PDF32000_2008.pdf:16)
     // by adding 0 character to end of odd-length strings
     var hexstring = match[1];
     var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
-    var bytes = padded.match(/.{2}/g).map(function(pair) { return parseInt(pair, 16); });
+    var bytes = padded.match(/.{2}/g).map(pair => parseInt(pair, 16));
     return Token('HEXSTRING', bytes);
   }],
   [/^true/, match => Token('BOOLEAN', true) ],
