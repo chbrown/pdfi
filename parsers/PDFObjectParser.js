@@ -28,8 +28,8 @@ var bnf = {
         ["objects OBJECT", "$$ = $1; $1.push($2)"]
     ],
     "ARRAY": [
-        ["[ objects ]", "$$ = $2;"],
-        ["[ ]", "$$ = [];"]
+        ["[ objects ]", "$$ = $2"],
+        ["[ ]", "$$ = []"]
     ],
     "STRING": [
         "HEXSTRING",
@@ -46,7 +46,8 @@ var bnf = {
         ["STREAM_HEADER STREAM_BUFFER END_STREAM", "$$ = { dictionary: $1, buffer: $2 }"]
     ],
     "DICTIONARY": [
-        ["<< keyvaluepairs >>", "$$ = $2"]
+        ["<< keyvaluepairs >>", "$$ = $2"],
+        ["<< >>", "$$ = {}"]
     ],
     "keyvaluepairs": [
         ["NAME OBJECT", "$$ = {}; $$[$1] = $2;"],
