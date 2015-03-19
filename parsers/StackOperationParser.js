@@ -1,11 +1,30 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
 var Token = lexing.Token;
+/**
+range(10, 4) => [0, 4, 8]
+range(12, 4) => [0, 4, 8]
+range( 0, 4) => []
+*/
+function range(max, step) {
+    if (step === void 0) { step = 1; }
+    var length = Math.ceil(max / step);
+    var indices = new Array(length);
+    for (var i = 0; i < length; i++) {
+        indices[i] = i * step;
+    }
+    return indices;
+}
 // reusable rules:
 var skip_whitespace_rule = [/^\s+/, function (match) { return null; }]; // skip over whitespace
-var name_rule = [/^\/(\w+)/, function (match) { return Token('OPERAND', match[1]); }]; // "/Im3" -> "Im3"
+var name_rule = [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) { return Token('NAME', match[1]); }]; // "/Im3" -> "Im3"
 var float_rule = [/^-?\d*\.\d+/, function (match) { return Token('NUMBER', parseFloat(match[0])); }];
 var int_rule = [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }];
+var hexstring_rule = [/^<([A-Fa-f0-9]*)>/, function (match) {
+    var hexstring = match[1];
+    var charCodes = range(hexstring.length, 4).map(function (i) { return parseInt(hexstring.slice(i, i + 4), 16); });
+    return Token('OPERAND', charCodes);
+}];
 // less generic, still reusable:
 var start_string_rule = [/^\(/, function (match) {
     this.states.push('STRING');
@@ -22,17 +41,7 @@ var start_dictionary_rule = [/^<</, function (match) {
 var default_rules = [
     [/^$/, function (match) { return Token('EOF'); }],
     skip_whitespace_rule,
-    [/^<([A-Fa-f0-9]+)>/, function (match) {
-        // handle implied final 0 (PDF32000_2008.pdf:16)
-        // by adding 0 character to end of odd-length strings
-        var hexstring = match[1];
-        // var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
-        // TODO: I think that the byte-width of each character depends on the font?
-        // assuming it's four is a hack.
-        // var bytes = new Buffer('0078', 'hex'); b.readInt16BE(0) ... ;
-        var bytes = hexstring.match(/.{4}/g).map(function (pair) { return parseInt(pair, 16); });
-        return Token('OPERAND', bytes);
-    }],
+    hexstring_rule,
     start_string_rule,
     start_array_rule,
     start_dictionary_rule,
@@ -59,6 +68,7 @@ state_rules['ARRAY'] = [
         this.states.pop();
         return Token('END', 'ARRAY');
     }],
+    hexstring_rule,
     start_string_rule,
     skip_whitespace_rule,
     float_rule,
@@ -71,6 +81,7 @@ state_rules['DICTIONARY'] = [
         return Token('END', 'DICTIONARY');
     }],
     start_dictionary_rule,
+    start_array_rule,
     start_string_rule,
     skip_whitespace_rule,
     name_rule,

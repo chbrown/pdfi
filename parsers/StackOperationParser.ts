@@ -4,11 +4,31 @@ var Token = lexing.Token;
 
 type StackRule = lexing.RegexRule<any>;
 
+/**
+range(10, 4) => [0, 4, 8]
+range(12, 4) => [0, 4, 8]
+range( 0, 4) => []
+*/
+function range(max: number, step: number = 1): number[] {
+  var length = Math.ceil(max / step);
+  var indices = new Array<number>(length);
+  for (var i = 0; i < length; i++) {
+    indices[i] = i * step;
+  }
+  return indices;
+}
+
 // reusable rules:
 var skip_whitespace_rule: StackRule = [/^\s+/, match => null ]; // skip over whitespace
-var name_rule: StackRule = [/^\/(\w+)/, match => Token('OPERAND', match[1]) ]; // "/Im3" -> "Im3"
+var name_rule: StackRule = [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, match => Token('NAME', match[1]) ]; // "/Im3" -> "Im3"
 var float_rule: StackRule = [/^-?\d*\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ];
 var int_rule: StackRule = [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ];
+var hexstring_rule: StackRule =  [/^<([A-Fa-f0-9]*)>/, match => {
+  var hexstring = match[1];
+  var charCodes = range(hexstring.length, 4).map(i => parseInt(hexstring.slice(i, i + 4), 16));
+  return Token('OPERAND', charCodes);
+}];
+
 // less generic, still reusable:
 var start_string_rule: StackRule = [/^\(/, function(match) {
   this.states.push('STRING');
@@ -26,17 +46,7 @@ var start_dictionary_rule: StackRule = [/^<</, function(match) {
 var default_rules: StackRule[] = [
   [/^$/, match => Token('EOF') ],
   skip_whitespace_rule,
-  [/^<([A-Fa-f0-9]+)>/, match => {
-    // handle implied final 0 (PDF32000_2008.pdf:16)
-    // by adding 0 character to end of odd-length strings
-    var hexstring = match[1];
-    // var padded = (hexstring.length % 2 === 0) ? hexstring : hexstring + '0';
-    // TODO: I think that the byte-width of each character depends on the font?
-    // assuming it's four is a hack.
-    // var bytes = new Buffer('0078', 'hex'); b.readInt16BE(0) ... ;
-    var bytes = hexstring.match(/.{4}/g).map(pair => parseInt(pair, 16));
-    return Token('OPERAND', bytes);
-  }],
+  hexstring_rule,
   start_string_rule,
   start_array_rule,
   // dictionaries for Marked-content operators:
@@ -70,6 +80,7 @@ state_rules['ARRAY'] = [
     this.states.pop();
     return Token('END', 'ARRAY');
   }],
+  hexstring_rule,
   start_string_rule,
   skip_whitespace_rule,
   float_rule,
@@ -82,6 +93,7 @@ state_rules['DICTIONARY'] = [
     return Token('END', 'DICTIONARY');
   }],
   start_dictionary_rule,
+  start_array_rule,
   start_string_rule,
   skip_whitespace_rule,
   name_rule,
