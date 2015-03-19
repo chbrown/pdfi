@@ -231,7 +231,7 @@ export class DrawingContext {
       this.textState.fontName, this.textState.fontSize);
   }
 
-  private _renderTextArray(array: Array<number[] | number>) {
+  private _renderTextArray(array: Array<number[] | number>, min_space_width = -100) {
     var font = this.Resources.getFont(this.textState.fontName);
     var position = this.textState.getPosition();
     // the Font instance handles most of the character code resolution
@@ -249,7 +249,7 @@ export class DrawingContext {
         // if it's a very negative number, insert a space. otherwise, it only
         // signifies some minute spacing.
         width_units -= item;
-        return (item < -100) ? ' ' : '';
+        return (item < min_space_width) ? ' ' : '';
       }
       else {
         throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);

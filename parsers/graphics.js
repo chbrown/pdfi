@@ -234,7 +234,8 @@ var DrawingContext = (function () {
         var width_units = font.measureString(charCodes);
         this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, this.textState.fontSize);
     };
-    DrawingContext.prototype._renderTextArray = function (array) {
+    DrawingContext.prototype._renderTextArray = function (array, min_space_width) {
+        if (min_space_width === void 0) { min_space_width = -100; }
         var font = this.Resources.getFont(this.textState.fontName);
         var position = this.textState.getPosition();
         // the Font instance handles most of the character code resolution
@@ -252,7 +253,7 @@ var DrawingContext = (function () {
                 // if it's a very negative number, insert a space. otherwise, it only
                 // signifies some minute spacing.
                 width_units -= item;
-                return (item < -100) ? ' ' : '';
+                return (item < min_space_width) ? ' ' : '';
             }
             else {
                 throw new Error("Unknown TJ argument type: \"" + item + "\" (array: " + JSON.stringify(array) + ")");
