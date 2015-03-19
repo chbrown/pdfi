@@ -35,27 +35,7 @@ var LineCapStyle = exports.LineCapStyle;
 })(exports.LineJoinStyle || (exports.LineJoinStyle = {}));
 var LineJoinStyle = exports.LineJoinStyle;
 var operator_aliases = {
-    'Tc': 'setCharSpacing',
-    'Tw': 'setWordSpacing',
-    'Tz': 'setHorizontalScale',
-    'TL': 'setLeading',
-    'Tf': 'setFont',
-    'Tr': 'setRenderingMode',
-    'Ts': 'setRise',
-    'Td': 'adjustCurrentPosition',
-    'TD': 'adjustCurrentPositionWithLeading',
-    'Tm': 'setTextMatrix',
-    'T*': 'newLine',
-    'Tj': 'showString',
-    'TJ': 'showStrings',
-    "'": 'newLineAndShowString',
-    '"': 'newLineAndShowStringWithSpacing',
-    'BT': 'startTextBlock',
-    'ET': 'endTextBlock',
-    'q': 'pushGraphicsState',
-    'Q': 'popGraphicsState',
-    'cm': 'setCTM',
-    'Do': 'drawObject',
+    // General graphics state
     'w': 'setLineWidth',
     'J': 'setLineCap',
     'j': 'setLineJoin',
@@ -64,14 +44,73 @@ var operator_aliases = {
     'ri': 'setRenderingIntent',
     'i': 'setFlatnessTolerance',
     'gs': 'setGraphicsStateParameters',
-    'RG': 'setStrokeColor',
-    'rg': 'setFillColor',
+    // Special graphics state
+    'q': 'pushGraphicsState',
+    'Q': 'popGraphicsState',
+    'cm': 'setCTM',
+    // Path construction
+    'm': 'moveTo',
+    'l': 'appendLine',
+    'c': 'appendCurve123',
+    'v': 'appendCurve23',
+    'y': 'appendCurve13',
+    'h': 'closePath',
+    're': 'appendRectangle',
+    // Path painting
+    'S': 'stroke',
+    's': 'closeAndStroke',
+    'f': 'fill',
+    'F': 'fillCompat',
+    'f*': 'fillEvenOdd',
+    'B': 'fillThenStroke',
+    'B*': 'fillThenStrokeEvenOdd',
+    'b': 'closeAndFillThenStroke',
+    'b*': 'closeAndFillThenStrokeEvenOdd',
+    'n': 'closePathNoop',
+    // Clipping paths
+    // incomplete: W, W*
+    // Text objects
+    'BT': 'startTextBlock',
+    'ET': 'endTextBlock',
+    // Text state
+    'Tc': 'setCharSpacing',
+    'Tw': 'setWordSpacing',
+    'Tz': 'setHorizontalScale',
+    'TL': 'setLeading',
+    'Tf': 'setFont',
+    'Tr': 'setRenderingMode',
+    'Ts': 'setRise',
+    // Text positioning
+    'Td': 'adjustCurrentPosition',
+    'TD': 'adjustCurrentPositionWithLeading',
+    'Tm': 'setTextMatrix',
+    'T*': 'newLine',
+    // Text showing
+    'Tj': 'showString',
+    'TJ': 'showStrings',
+    "'": 'newLineAndShowString',
+    '"': 'newLineAndShowStringWithSpacing',
+    // Type 3 fonts
+    // incomplete: d0, d1
+    // Color
+    'CS': 'setStrokeColorSpace',
+    'cs': 'setFillColorSpace',
+    'SC': 'setStrokeColorSpace2',
+    'SCN': 'setStrokeColorSpace3',
+    'sc': 'setFillColorSpace2',
+    'scn': 'setFillColorSpace3',
     'G': 'setStrokeGray',
     'g': 'setFillGray',
-    'm': 'moveTo',
-    'l': 'lineTo',
-    'S': 'stroke',
-    're': 'appendRectangle',
+    'RG': 'setStrokeColor',
+    'rg': 'setFillColor',
+    'K': 'setStrokeCMYK',
+    'k': 'setFillCMYK',
+    // Shading patterns
+    'sh': 'shadingPattern',
+    // Inline images
+    // incomplete: BI, ID, EI
+    // XObjects
+    'Do': 'drawObject',
 };
 var Color = (function () {
     function Color() {
@@ -117,6 +156,24 @@ var GrayColor = (function (_super) {
     return GrayColor;
 })(Color);
 exports.GrayColor = GrayColor;
+var CMYKColor = (function (_super) {
+    __extends(CMYKColor, _super);
+    function CMYKColor(c, m, y, k) {
+        _super.call(this);
+        this.c = c;
+        this.m = m;
+        this.y = y;
+        this.k = k;
+    }
+    CMYKColor.prototype.clone = function () {
+        return new CMYKColor(this.c, this.m, this.y, this.k);
+    };
+    CMYKColor.prototype.toString = function () {
+        return "cmyk(" + this.c + ", " + this.m + ", " + this.y + ", " + this.k + ")";
+    };
+    return CMYKColor;
+})(Color);
+exports.CMYKColor = CMYKColor;
 /**
 > Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
 
@@ -444,7 +501,8 @@ var DrawingContext = (function () {
     DrawingContext.prototype.setGraphicsStateParameters = function (dictName) {
         logger.warn("Ignoring setGraphicsStateParameters(" + dictName + ") operation");
     };
-    // path operators
+    // ---------------------------------------------------------------------------
+    // Path construction (m, l, c, v, y, h, re) - see Table 59
     /**
     `x y m`
     */
@@ -454,14 +512,32 @@ var DrawingContext = (function () {
     /**
     `x y l`
     */
-    DrawingContext.prototype.lineTo = function (x, y) {
-        logger.silly("Ignoring lineTo(" + x + ", " + y + ") operation");
+    DrawingContext.prototype.appendLine = function (x, y) {
+        logger.silly("Ignoring appendLine(" + x + ", " + y + ") operation");
     };
     /**
-    `S`
+    `x1 y1 x2 y2 x3 y3 c`
     */
-    DrawingContext.prototype.stroke = function () {
-        logger.silly("Ignoring stroke() operation");
+    DrawingContext.prototype.appendCurve123 = function (x1, y1, x2, y2, x3, y3) {
+        logger.silly("Ignoring appendCurve123(" + x1 + ", " + y1 + ", " + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
+    };
+    /**
+    `x2 y2 x3 y3 v`
+    */
+    DrawingContext.prototype.appendCurve23 = function (x2, y2, x3, y3) {
+        logger.silly("Ignoring appendCurve23(" + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
+    };
+    /**
+    `x1 y1 x3 y3 y`
+    */
+    DrawingContext.prototype.appendCurve13 = function (x1, y1, x3, y3) {
+        logger.silly("Ignoring appendCurve13(" + x1 + ", " + y1 + ", " + x3 + ", " + y3 + ") operation");
+    };
+    /**
+    `h`
+    */
+    DrawingContext.prototype.closePath = function () {
+        logger.silly("Ignoring closePath() operation");
     };
     /**
     > `x y width height re`: Append a rectangle to the current path as a complete
@@ -476,18 +552,109 @@ var DrawingContext = (function () {
         logger.silly("Ignoring appendRectangle(" + x + ", " + y + ", " + width + ", " + height + ") operation");
     };
     // ---------------------------------------------------------------------------
-    //                           Color operators
+    // Path painting (S, s, f, F, f*, B, B*, b, b*, n) - see Table 60
     /**
-    `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
+    > `S`: Stroke the path.
     */
-    DrawingContext.prototype.setStrokeColor = function (r, g, b) {
-        this.graphicsState.strokeColor = new RGBColor(r, g, b);
+    DrawingContext.prototype.stroke = function () {
+        logger.silly("Ignoring stroke() operation");
+    };
+    /** ALIAS
+    > `s`: Close and stroke the path. This operator shall have the same effect as the sequence h S.
+    */
+    DrawingContext.prototype.closeAndStroke = function () {
+        this.closePath();
+        this.stroke();
     };
     /**
-    `r g b rg`: Same as RG but used for nonstroking operations.
+    > `f`: Fill the path, using the nonzero winding number rule to determine the region to fill. Any subpaths that are open shall be implicitly closed before being filled.
     */
-    DrawingContext.prototype.setFillColor = function (r, g, b) {
-        this.graphicsState.fillColor = new RGBColor(r, g, b);
+    DrawingContext.prototype.fill = function () {
+        // this.closePath(); ?
+        logger.silly("Ignoring fill() operation");
+    };
+    /** ALIAS
+    > `F`: Equivalent to f; included only for compatibility. Although PDF reader applications shall be able to accept this operator, PDF writer applications should use f instead.
+    */
+    DrawingContext.prototype.fillCompat = function () {
+        this.fill();
+    };
+    /**
+    > `f*`: Fill the path, using the even-odd rule to determine the region to fill.
+    */
+    DrawingContext.prototype.fillEvenOdd = function () {
+        logger.silly("Ignoring fillEvenOdd() operation");
+    };
+    /**
+    > `B`: Fill and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall produce the same result as constructing two identical path objects, painting the first with f and the second with S.
+    > NOTE The filling and stroking portions of the operation consult different values of several graphics state parameters, such as the current colour.
+    */
+    DrawingContext.prototype.fillThenStroke = function () {
+        logger.silly("Ignoring fillAndStroke() operation");
+    };
+    /**
+    > `B*`: Fill and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall produce the same result as B, except that the path is filled as if with f* instead of f.
+    */
+    DrawingContext.prototype.fillThenStrokeEvenOdd = function () {
+        logger.silly("Ignoring fillAndStrokeEvenOdd() operation");
+    };
+    /** ALIAS
+    > `b`: Close, fill, and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall have the same effect as the sequence h B.
+    */
+    DrawingContext.prototype.closeAndFillThenStroke = function () {
+        this.closePath();
+        this.fillThenStroke();
+    };
+    /** ALIAS
+    > `b*`: Close, fill, and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall have the same effect as the sequence h B*.
+    */
+    DrawingContext.prototype.closeAndFillThenStrokeEvenOdd = function () {
+        this.closePath();
+        this.fillThenStrokeEvenOdd();
+    };
+    /**
+    > `n`: End the path object without filling or stroking it. This operator shall be a path- painting no-op, used primarily for the side effect of changing the current clipping path.
+    */
+    DrawingContext.prototype.closePathNoop = function () {
+        logger.silly("Ignoring closePathNoop() operation");
+    };
+    // ---------------------------------------------------------------------------
+    //                           Color operators
+    /**
+    > `name CS`
+    */
+    DrawingContext.prototype.setStrokeColorSpace = function (name) {
+        logger.silly("Ignoring setStrokeColorSpace(" + name + ") operation");
+    };
+    /**
+    > `name cs`: Same as CS but used for nonstroking operations.
+    */
+    DrawingContext.prototype.setFillColorSpace = function (name) {
+        logger.silly("Ignoring setFillColorSpace(" + name + ") operation");
+    };
+    /**
+    > `c1 cn SC`
+    */
+    DrawingContext.prototype.setStrokeColorSpace2 = function (c1, cn) {
+        logger.silly("Ignoring setStrokeColorSpace2(" + c1 + ", " + cn + ") operation");
+    };
+    /**
+    > `c1 cn [name] SCN`
+    */
+    DrawingContext.prototype.setStrokeColorSpace3 = function (c1, cn, patternName) {
+        logger.silly("Ignoring setStrokeColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
+    };
+    /**
+    > `c1 cn sc`: Same as SC but used for nonstroking operations.
+    */
+    DrawingContext.prototype.setFillColorSpace2 = function (c1, cn) {
+        logger.silly("Ignoring setFillColorSpace2(" + c1 + ", " + cn + ") operation");
+    };
+    /**
+    > `c1 cn [name] scn`: Same as SCN but used for nonstroking operations.
+    */
+    DrawingContext.prototype.setFillColorSpace3 = function (c1, cn, patternName) {
+        logger.silly("Ignoring setFillColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
     };
     /**
     `gray G`: Set the stroking colour space to DeviceGray and set the gray level
@@ -502,6 +669,30 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.setFillGray = function (gray) {
         this.graphicsState.fillColor = new GrayColor(gray);
+    };
+    /**
+    `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
+    */
+    DrawingContext.prototype.setStrokeColor = function (r, g, b) {
+        this.graphicsState.strokeColor = new RGBColor(r, g, b);
+    };
+    /**
+    `r g b rg`: Same as RG but used for nonstroking operations.
+    */
+    DrawingContext.prototype.setFillColor = function (r, g, b) {
+        this.graphicsState.fillColor = new RGBColor(r, g, b);
+    };
+    /**
+    > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
+    */
+    DrawingContext.prototype.setStrokeCMYK = function (c, m, y, k) {
+        this.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
+    };
+    /**
+    > `c m y k k`: Same as K but used for nonstroking operations.
+    */
+    DrawingContext.prototype.setFillCMYK = function (c, m, y, k) {
+        this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
     };
     // ---------------------------------------------------------------------------
     // Text objects (BT, ET)
