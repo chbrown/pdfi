@@ -199,6 +199,17 @@ var Page = (function (_super) {
         canvas.render(contents_string_iterable, this.Resources);
         return canvas;
     };
+    Page.prototype.getParagraphStrings = function (section_names) {
+        var canvas = this.renderCanvas();
+        var sections = canvas.getSections();
+        var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
+        var selected_sections_paragraphs = selected_sections.map(function (section) { return section.getParagraphs(); });
+        // flatten selected_sections_paragraphs into a single Array of Paragraphs
+        var paragraphs = selected_sections_paragraphs.reduce(function (a, b) { return a.concat(b); });
+        // render each Paragraph into a single string with any pre-existing EOL
+        // markers stripped out
+        return paragraphs.map(function (paragraph) { return paragraph.getText().replace(/(\r\n|\r|\n)/g, ' '); });
+    };
     Page.prototype.toJSON = function () {
         return {
             Type: 'Page',
@@ -505,8 +516,12 @@ var Font = (function (_super) {
     Font.prototype.measureString = function (charCodes, defaultWidth) {
         var _this = this;
         if (defaultWidth === void 0) { defaultWidth = 1000; }
-        var widthsOffset = this.FirstChar;
-        var charWidths = charCodes.map(function (charCode) { return _this.Widths[charCode - widthsOffset] || defaultWidth; });
+        var Widths = this.Widths;
+        var FirstChar = this.FirstChar;
+        if (Widths === undefined || FirstChar === undefined) {
+            return charCodes.length & defaultWidth;
+        }
+        var charWidths = charCodes.map(function (charCode) { return _this.Widths[charCode - FirstChar] || defaultWidth; });
         return charWidths.reduce(function (a, b) { return a + b; });
     };
     Font.prototype.toJSON = function () {

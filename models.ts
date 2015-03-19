@@ -205,6 +205,18 @@ export class Page extends Model {
     return canvas;
   }
 
+  getParagraphStrings(section_names: string[]): string[] {
+    var canvas = this.renderCanvas();
+    var sections = canvas.getSections();
+    var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
+    var selected_sections_paragraphs = selected_sections.map(section => section.getParagraphs());
+    // flatten selected_sections_paragraphs into a single Array of Paragraphs
+    var paragraphs: drawing.Paragraph[] = selected_sections_paragraphs.reduce((a, b) => a.concat(b))
+    // render each Paragraph into a single string with any pre-existing EOL
+    // markers stripped out
+    return paragraphs.map(paragraph => paragraph.getText().replace(/(\r\n|\r|\n)/g, ' '));
+  }
+
   toJSON() {
     return {
       Type: 'Page',
@@ -432,8 +444,12 @@ export class Font extends Model {
   }
 
   measureString(charCodes: number[], defaultWidth = 1000): number {
-    var widthsOffset = this.FirstChar;
-    var charWidths = charCodes.map(charCode => this.Widths[charCode - widthsOffset] || defaultWidth);
+    var Widths = this.Widths;
+    var FirstChar = this.FirstChar;
+    if (Widths === undefined || FirstChar === undefined) {
+      return charCodes.length & defaultWidth;
+    }
+    var charWidths = charCodes.map(charCode => this.Widths[charCode - FirstChar] || defaultWidth);
     return charWidths.reduce((a, b) => a + b);
   }
 
