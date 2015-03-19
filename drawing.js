@@ -159,6 +159,8 @@ var Paragraph = (function () {
         this.lines = lines;
     }
     Paragraph.prototype.getText = function () {
+        // if a line ends with a hyphen, we remove the hyphen and join it to
+        // the next line directly; otherwise, join them with a space
         return this.lines.map(function (line) {
             if (line.match(/-$/)) {
                 // if line is hyphenated, return it without the hyphen.
@@ -180,15 +182,11 @@ var Paragraph = (function () {
 })();
 exports.Paragraph = Paragraph;
 var Section = (function () {
-    // public paragraphs: Paragraph[];
     function Section(name, box) {
         this.name = name;
         this.box = box;
         this.spans = [];
     }
-    Section.prototype.getText = function () {
-        return this.spans.map(function (span) { return span.text; }).join(' ');
-    };
     /**
     This Section's spans should be in reading order
   
@@ -210,13 +208,13 @@ var Section = (function () {
             current_paragraph = new Paragraph();
         };
         // current_maxY is the current paragraph's bottom bound
-        var current_maxY = 0;
+        var last_box = new Rectangle(0, 0, 0, 0);
         // for (var i = 0, span; (span = sorted_spans[i]); i++) {
         this.spans.forEach(function (span) {
             // dY is the distance from current bottom of the paragraph to the top of
             // the next span (this may come out negative, if the span is on the same
             // line as the last one)
-            var dY = span.box.minY - current_maxY;
+            var dY = span.box.minY - last_box.maxY;
             if (dY > max_line_gap) {
                 // okay, the total gap between the two lines is big enough to indicate
                 // a new paragraph
@@ -228,10 +226,15 @@ var Section = (function () {
                 flushLine();
             }
             else {
-                current_line += ' ';
+                // otherwise it's a span on the same line
+                var dX = span.box.minX - last_box.maxX;
+                // and if it's far enough away (horizontally) from the last box, we add a space
+                if (dX > 1) {
+                    current_line += ' ';
+                }
             }
             current_line += span.text;
-            current_maxY = span.box.maxY;
+            last_box = span.box;
         });
         // finish up
         flushParagraph();
@@ -243,7 +246,6 @@ var Section = (function () {
             box: this.box,
             spans: this.spans,
             paragraphs: this.getParagraphs(),
-            text: this.getText(),
         };
     };
     return Section;
