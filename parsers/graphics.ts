@@ -70,6 +70,7 @@ var operator_aliases = {
   'm': 'moveTo',
   'l': 'lineTo',
   'S': 'stroke',
+  're': 'appendRectangle',
 };
 
 export class Color {
@@ -122,7 +123,28 @@ function mat3mul(A: number[], B: number[]): number[] {
     (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
   ];
 }
-var mat3ident = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+function mat3add(A: number[], B: number[]): number[] {
+  return [
+    A[0] + B[0], A[1] + B[1], A[2] + B[2],
+    A[3] + B[3], A[4] + B[4], A[5] + B[5],
+    A[6] + B[6], A[7] + B[7], A[8] + B[8]
+  ];
+}
+var mat3ident = [1, 0, 0,
+                 0, 1, 0,
+                 0, 0, 1];
+
+function transform2d(point: models.Point,
+                     a: number, c: number,
+                     b: number, d: number,
+                     tx: number = 0, ty: number = 0): models.Point {
+  return [(a * point[0]) + (b * point[1]) + tx, (c * point[0]) + (d * point[1]) + ty];
+}
+
+function countSpaces(text: string): number {
+  var matches = text.match(/ /g);
+  return matches ? matches.length : 0;
+}
 
 /**
 We need to be able to clone it since we need a copy when we process a
@@ -176,11 +198,23 @@ class TextState {
 
   constructor(public graphicsState: GraphicsState) { }
 
+  advanceTextMatrix(width_units: number, chars: number, spaces: number) {
+    // width_units is positive, but we want to move forward, so tx should be positive too
+    var tx = (((width_units / 1000) * this.fontSize) + (this.charSpacing * chars) + (this.wordSpacing * spaces)) *
+      (this.horizontalScaling / 100.0);
+    // this.textMatrix = mat3add([0, 0, 0,  0, 0, 0, tx, 0, 0], this.textMatrix);
+    this.textMatrix = mat3mul([  1, 0, 0,
+                                 0, 1, 0,
+                                tx, 0, 1], this.textMatrix);
+  }
+
   getPosition(): models.Point {
     var fs = this.fontSize;
     var fsh = fs * (this.horizontalScaling / 100.0);
     var rise = this.rise;
-    var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
+    var base = [fsh,    0, 0,
+                  0,   fs, 0,
+                  0, rise, 1];
 
     var localTextMatrix = mat3mul(base, this.textMatrix);
     // TODO: optimize this final matrix multiplication; we only need two of the
@@ -188,6 +222,13 @@ class TextState {
     // the first place.
     var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
     return [textRenderingMatrix[6], textRenderingMatrix[7]];
+  }
+
+  getFontSize(): number {
+    // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
+    var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+    var font_point = transform2d([0, this.fontSize], mat[0], mat[3], mat[1], mat[4]);
+    return font_point[1];
   }
 }
 
@@ -223,41 +264,61 @@ export class DrawingContext {
   private _renderTextString(charCodes: number[]) {
     var font = this.Resources.getFont(this.textState.fontName);
     var position = this.textState.getPosition();
+    var fontSize = this.textState.getFontSize();
 
     var text = font.decodeString(charCodes);
     var width_units = font.measureString(charCodes);
 
+    var nspaces = countSpaces(text);
+    this.textState.advanceTextMatrix(width_units, text.length, nspaces);
     this.canvas.addSpan(text, position[0], position[1], width_units,
-      this.textState.fontName, this.textState.fontSize);
+      this.textState.fontName, fontSize);
   }
 
   private _renderTextArray(array: Array<number[] | number>, min_space_width = -100) {
     var font = this.Resources.getFont(this.textState.fontName);
+    if (font === null) {
+      throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
+    }
     var position = this.textState.getPosition();
+    var fontSize = this.textState.getFontSize();
+
     // the Font instance handles most of the character code resolution
     var width_units = 0;
-    var text = array.map(item => {
+    var nchars = 0;
+    var nspaces = 0;
+    var text_parts: string[] = [];
+    array.forEach(item => {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
         // if it's a character array, convert it to a unicode string and return it
         var charCodes = <number[]>item;
         var string = font.decodeString(charCodes);
         width_units += font.measureString(charCodes);
-        return string;
+        nchars += string.length;
+        nspaces += countSpaces(string);
+        text_parts.push(string);
       }
       else if (typeof item === 'number') {
+        // negative numbers indicate forward (rightward) movement.
         // if it's a very negative number, insert a space. otherwise, it only
         // signifies some minute spacing.
         width_units -= item;
-        return (item < min_space_width) ? ' ' : '';
+        if (item < min_space_width) {
+          text_parts.push(' ');
+        }
       }
       else {
         throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
       }
-    }).join('');
+    })
+    var text = text_parts.join('');
 
+    // adjust the text matrix accordingly (but not the text line matrix)
+    // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
+    this.textState.advanceTextMatrix(width_units, nchars, nspaces);
     this.canvas.addSpan(text, position[0], position[1], width_units,
-      this.textState.fontName, this.textState.fontSize);
+      this.textState.fontName, fontSize);
   }
 
   private _drawObject(name: string) {
@@ -403,6 +464,18 @@ export class DrawingContext {
   stroke() {
     logger.silly(`Ignoring stroke() operation`);
   }
+  /**
+  > `x y width height re`: Append a rectangle to the current path as a complete
+  > subpath, with lower-left corner (x, y) and dimensions width and height in
+  > user space. The operation `x y width height re` is equivalent to:
+  >     x y m
+  >     (x + width) y l
+  >     (x + width) (y + height) l x (y + height) l
+  >     h
+  */
+  appendRectangle(x: number, y: number, width: number, height: number) {
+    logger.silly(`Ignoring appendRectangle(${x}, ${y}, ${width}, ${height}) operation`);
+  }
   // ---------------------------------------------------------------------------
   //                           Color operators
   /**
@@ -538,7 +611,9 @@ export class DrawingContext {
   setTextMatrix(a: number, b: number, c: number, d: number, e: number, f: number) {
     // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
     // e and f mark the x and y coordinates of the current position
-    var newTextMatrix = [a, b, 0, c, d, 0, e, f, 1];
+    var newTextMatrix = [a, b, 0,
+                         c, d, 0,
+                         e, f, 1];
     this.textState.textMatrix = this.textState.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
@@ -571,8 +646,7 @@ export class DrawingContext {
   > This amount shall be subtracted from the current horizontal or vertical
   > coordinate, depending on the writing mode. In the default coordinate system,
   > a positive adjustment has the effect of moving the next glyph painted either
-  > to the left or down by the given amount. Figure 46 shows an example of the
-  > effect of passing offsets to TJ.
+  > to the left or down by the given amount.
 
   In other words:
   - large negative numbers equate to spaces

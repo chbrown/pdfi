@@ -71,6 +71,7 @@ var operator_aliases = {
     'm': 'moveTo',
     'l': 'lineTo',
     'S': 'stroke',
+    're': 'appendRectangle',
 };
 var Color = (function () {
     function Color() {
@@ -142,7 +143,29 @@ function mat3mul(A, B) {
         (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
     ];
 }
+function mat3add(A, B) {
+    return [
+        A[0] + B[0],
+        A[1] + B[1],
+        A[2] + B[2],
+        A[3] + B[3],
+        A[4] + B[4],
+        A[5] + B[5],
+        A[6] + B[6],
+        A[7] + B[7],
+        A[8] + B[8]
+    ];
+}
 var mat3ident = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+function transform2d(point, a, c, b, d, tx, ty) {
+    if (tx === void 0) { tx = 0; }
+    if (ty === void 0) { ty = 0; }
+    return [(a * point[0]) + (b * point[1]) + tx, (c * point[0]) + (d * point[1]) + ty];
+}
+function countSpaces(text) {
+    var matches = text.match(/ /g);
+    return matches ? matches.length : 0;
+}
 /**
 We need to be able to clone it since we need a copy when we process a
 `pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
@@ -185,6 +208,12 @@ var TextState = (function () {
         this.textMatrix = mat3ident;
         this.textLineMatrix = mat3ident;
     }
+    TextState.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
+        // width_units is positive, but we want to move forward, so tx should be positive too
+        var tx = (((width_units / 1000) * this.fontSize) + (this.charSpacing * chars) + (this.wordSpacing * spaces)) * (this.horizontalScaling / 100.0);
+        // this.textMatrix = mat3add([0, 0, 0,  0, 0, 0, tx, 0, 0], this.textMatrix);
+        this.textMatrix = mat3mul([1, 0, 0, 0, 1, 0, tx, 0, 1], this.textMatrix);
+    };
     TextState.prototype.getPosition = function () {
         var fs = this.fontSize;
         var fsh = fs * (this.horizontalScaling / 100.0);
@@ -196,6 +225,12 @@ var TextState = (function () {
         // the first place.
         var textRenderingMatrix = mat3mul(localTextMatrix, this.graphicsState.ctMatrix);
         return [textRenderingMatrix[6], textRenderingMatrix[7]];
+    };
+    TextState.prototype.getFontSize = function () {
+        // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
+        var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var font_point = transform2d([0, this.fontSize], mat[0], mat[3], mat[1], mat[4]);
+        return font_point[1];
     };
     return TextState;
 })();
@@ -230,36 +265,55 @@ var DrawingContext = (function () {
     DrawingContext.prototype._renderTextString = function (charCodes) {
         var font = this.Resources.getFont(this.textState.fontName);
         var position = this.textState.getPosition();
+        var fontSize = this.textState.getFontSize();
         var text = font.decodeString(charCodes);
         var width_units = font.measureString(charCodes);
-        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, this.textState.fontSize);
+        var nspaces = countSpaces(text);
+        this.textState.advanceTextMatrix(width_units, text.length, nspaces);
+        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, fontSize);
     };
     DrawingContext.prototype._renderTextArray = function (array, min_space_width) {
         if (min_space_width === void 0) { min_space_width = -100; }
         var font = this.Resources.getFont(this.textState.fontName);
+        if (font === null) {
+            throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
+        }
         var position = this.textState.getPosition();
+        var fontSize = this.textState.getFontSize();
         // the Font instance handles most of the character code resolution
         var width_units = 0;
-        var text = array.map(function (item) {
+        var nchars = 0;
+        var nspaces = 0;
+        var text_parts = [];
+        array.forEach(function (item) {
             // each item is either a string (character code array) or a number
             if (Array.isArray(item)) {
                 // if it's a character array, convert it to a unicode string and return it
                 var charCodes = item;
                 var string = font.decodeString(charCodes);
                 width_units += font.measureString(charCodes);
-                return string;
+                nchars += string.length;
+                nspaces += countSpaces(string);
+                text_parts.push(string);
             }
             else if (typeof item === 'number') {
+                // negative numbers indicate forward (rightward) movement.
                 // if it's a very negative number, insert a space. otherwise, it only
                 // signifies some minute spacing.
                 width_units -= item;
-                return (item < min_space_width) ? ' ' : '';
+                if (item < min_space_width) {
+                    text_parts.push(' ');
+                }
             }
             else {
                 throw new Error("Unknown TJ argument type: \"" + item + "\" (array: " + JSON.stringify(array) + ")");
             }
-        }).join('');
-        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, this.textState.fontSize);
+        });
+        var text = text_parts.join('');
+        // adjust the text matrix accordingly (but not the text line matrix)
+        // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
+        this.textState.advanceTextMatrix(width_units, nchars, nspaces);
+        this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, fontSize);
     };
     DrawingContext.prototype._drawObject = function (name) {
         // create a nested drawing context and use that
@@ -399,6 +453,18 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.stroke = function () {
         logger.silly("Ignoring stroke() operation");
+    };
+    /**
+    > `x y width height re`: Append a rectangle to the current path as a complete
+    > subpath, with lower-left corner (x, y) and dimensions width and height in
+    > user space. The operation `x y width height re` is equivalent to:
+    >     x y m
+    >     (x + width) y l
+    >     (x + width) (y + height) l x (y + height) l
+    >     h
+    */
+    DrawingContext.prototype.appendRectangle = function (x, y, width, height) {
+        logger.silly("Ignoring appendRectangle(" + x + ", " + y + ", " + width + ", " + height + ") operation");
     };
     // ---------------------------------------------------------------------------
     //                           Color operators
@@ -567,8 +633,7 @@ var DrawingContext = (function () {
     > This amount shall be subtracted from the current horizontal or vertical
     > coordinate, depending on the writing mode. In the default coordinate system,
     > a positive adjustment has the effect of moving the next glyph painted either
-    > to the left or down by the given amount. Figure 46 shows an example of the
-    > effect of passing offsets to TJ.
+    > to the left or down by the given amount.
   
     In other words:
     - large negative numbers equate to spaces
