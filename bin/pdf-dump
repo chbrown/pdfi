@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 var logger = require('loge');
-var PDF = require('../').PDF;
-var models = require('../models');
+var commands = require('./commands');
 
 var yargs = require('yargs')
   .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
   .describe({
     filename: 'pdf file to open',
+    // dump targets
+    trailer: 'dump trailer',
+    catalog: 'dump trailer Root',
+    info: 'dump trailer Info',
+    xref: 'dump cross references',
     object: 'object(s) to dump',
     stream: 'stream(s) to dump',
-    trailer: 'dump trailer',
-    xref: 'dump cross references',
     pages: 'dump pages',
+    // cli meta
     help: 'print this help message',
     verbose: 'print extra output',
   })
@@ -27,61 +30,13 @@ var yargs = require('yargs')
 var argv = yargs.argv;
 logger.level = argv.verbose ? 'debug' : 'info';
 
-function main() {
-  var pdf = PDF.open(argv.filename);
-  if (argv.trailer) {
-    console.log('trailer: %j', pdf.trailer);
-  }
-  if (argv.xref) {
-    console.log('cross_references: %j', pdf.cross_references);
-  }
-
-  var eachObject = function(reference_arguments, func) {
-    // reference_arguments may be a single string or an Array of strings
-    [].concat(reference_arguments).forEach(function(reference_argument) {
-      var object_parts = reference_argument.toString().split(':');
-      var object_number = parseInt(object_parts[0], 10);
-      var generation_number = parseInt(object_parts[1] || '0', 10);
-      var object = pdf.getObject(object_number, generation_number);
-      func(object_number, generation_number, object);
-    });
-  };
-
-  if (argv.pages) {
-    // iterate through the page objects
-    pdf.pages.forEach(function(page, i, pages) {
-      console.log('Page %d of %d', i, pages.length);
-      // page.Contents is a list of IndirectReference instances, or maybe just one
-      var contents = [].concat(page.Contents);
-      for (var j = 0, content; (content = contents[j]); j++) {
-        var content_object = pdf.getObject(content);
-        console.log('Contents[%d]: %j', j, content_object);
-      }
-    });
-  }
-
-  if (argv.object) {
-    eachObject(argv.object, function(object_number, generation_number, object) {
-      process.stderr.write(object_number + ':' + generation_number + '\n');
-      process.stdout.write(JSON.stringify(object) + '\n');
-    });
-  }
-
-  if (argv.stream) {
-    eachObject(argv.stream, function(object_number, generation_number, object) {
-      var content_stream = new models.ContentStream(pdf, object);
-      process.stderr.write(object_number + ':' + generation_number + '\n');
-      process.stdout.write(content_stream.buffer);
-    });
-  }
-}
-
 if (argv.help) {
   yargs.showHelp();
 }
 else if (argv.version) {
   console.log(require('../package').version);
 }
-else { // if (require.main == module)
-  main();
+else {
+  commands.dump(argv.filename, argv.trailer, argv.catalog, argv.info, argv.xref, argv.pages,
+    [].concat(argv.object), [].concat(argv.stream));
 }

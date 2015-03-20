@@ -1,4 +1,4 @@
-TYPESCRIPT = $(wildcard *.ts parsers/*.ts filters/*.ts test/*.ts)
+TYPESCRIPT = $(wildcard *.ts bin/*.ts parsers/*.ts filters/*.ts test/*.ts)
 
 all: $(TYPESCRIPT:%.ts=%.js)
 
