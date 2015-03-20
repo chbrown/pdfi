@@ -42,6 +42,10 @@ var start_dictionary_rule: StackRule = [/^<</, function(match) {
   this.states.push('DICTIONARY');
   return Token('START', 'DICTIONARY');
 }];
+var start_imagedata_rule: StackRule = [/^ID/, function(match) {
+  this.states.push('IMAGEDATA');
+  return Token('OPERATOR', match[0]);
+}];
 
 var default_rules: StackRule[] = [
   [/^$/, match => Token('EOF') ],
@@ -49,8 +53,8 @@ var default_rules: StackRule[] = [
   hexstring_rule,
   start_string_rule,
   start_array_rule,
-  // dictionaries for Marked-content operators:
-  start_dictionary_rule,
+  start_dictionary_rule, // dictionaries for Marked-content operators
+  start_imagedata_rule, // Image data for inline images:
   name_rule,
   float_rule,
   int_rule,
@@ -99,6 +103,13 @@ state_rules['DICTIONARY'] = [
   name_rule,
   float_rule,
   int_rule,
+];
+state_rules['IMAGEDATA'] = [
+  [/^EI/, function(match) {
+    this.states.pop();
+    return Token('OPERATOR', 'EI');
+  }],
+  [/^(.|\n|\r)/, match => Token('BYTE', match[0]) ],
 ];
 
 /**

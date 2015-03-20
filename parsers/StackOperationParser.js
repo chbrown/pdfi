@@ -38,6 +38,10 @@ var start_dictionary_rule = [/^<</, function (match) {
     this.states.push('DICTIONARY');
     return Token('START', 'DICTIONARY');
 }];
+var start_imagedata_rule = [/^ID/, function (match) {
+    this.states.push('IMAGEDATA');
+    return Token('OPERATOR', match[0]);
+}];
 var default_rules = [
     [/^$/, function (match) { return Token('EOF'); }],
     skip_whitespace_rule,
@@ -45,6 +49,7 @@ var default_rules = [
     start_string_rule,
     start_array_rule,
     start_dictionary_rule,
+    start_imagedata_rule,
     name_rule,
     float_rule,
     int_rule,
@@ -87,6 +92,13 @@ state_rules['DICTIONARY'] = [
     name_rule,
     float_rule,
     int_rule,
+];
+state_rules['IMAGEDATA'] = [
+    [/^EI/, function (match) {
+        this.states.pop();
+        return Token('OPERATOR', 'EI');
+    }],
+    [/^(.|\n|\r)/, function (match) { return Token('BYTE', match[0]); }],
 ];
 /**
 TODO: I could probably refactor the stack tracking operations into a basic
