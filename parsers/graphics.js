@@ -387,7 +387,7 @@ var DrawingContext = (function () {
         }
         if (XObjectStream.Subtype == 'Form') {
             logger.debug("Drawing XObject: " + name);
-            var stream_string = XObjectStream.buffer.toString('ascii');
+            var stream_string = XObjectStream.buffer.toString('binary');
             var stream_string_iterable = new lexing.StringIterator(stream_string);
             var context = new DrawingContext(XObjectStream.Resources, new GraphicsState());
             context.render(stream_string_iterable, this.canvas);
