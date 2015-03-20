@@ -265,6 +265,13 @@ var ContentStream = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(ContentStream.prototype, "dictionary", {
+        get: function () {
+            return this.object['dictionary'];
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(ContentStream.prototype, "buffer", {
         /**
         Return the object's buffer, decoding if necessary.

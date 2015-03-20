@@ -256,6 +256,10 @@ export class ContentStream extends Model {
     return this.object['dictionary']['Subtype'];
   }
 
+  get dictionary(): any {
+    return this.object['dictionary'];
+  }
+
   /**
   Return the object's buffer, decoding if necessary.
   */
