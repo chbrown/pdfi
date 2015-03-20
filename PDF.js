@@ -38,7 +38,7 @@ var Trailer = (function () {
     });
     Object.defineProperty(Trailer.prototype, "Info", {
         get: function () {
-            return this._object['Info'];
+            return new models.Model(this._pdf, this._object['Info']).object;
         },
         enumerable: true,
         configurable: true

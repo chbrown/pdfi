@@ -38,7 +38,7 @@ class Trailer {
   }
 
   get Info(): any {
-    return this._object['Info'];
+    return new models.Model(this._pdf, this._object['Info']).object;
   }
 
   toJSON() {
