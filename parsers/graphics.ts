@@ -262,7 +262,8 @@ export class DrawingContext {
   textLineMatrix: number[];
 
   constructor(public Resources: models.Resources,
-              public graphicsState: GraphicsState = new GraphicsState()) { }
+              public graphicsState: GraphicsState = new GraphicsState(),
+              public depth = 0) { }
 
   render(string_iterable: lexing.StringIterable, canvas: drawing.Canvas): void {
     this.canvas = canvas;
@@ -381,6 +382,15 @@ export class DrawingContext {
       this.textState.fontName, fontSize);
   }
 
+  /**
+  When the Do operator is applied to a form XObject, a conforming reader shall perform the following tasks:
+  a) Saves the current graphics state, as if by invoking the q operator
+  b) Concatenates the matrix from the form dictionary’s Matrix entry with the current transformation matrix (CTM)
+  c) Clips according to the form dictionary’s BBox entry
+  d) Paints the graphics objects specified in the form’s content stream
+  e) Restores the saved graphics state, as if by invoking the Q operator
+  Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
+  */
   private _drawObject(name: string) {
     // create a nested drawing context and use that
     var XObjectStream = this.Resources.getXObject(name);
@@ -388,14 +398,26 @@ export class DrawingContext {
       throw new Error(`Cannot draw undefined XObject: ${name}`);
     }
 
-    if (XObjectStream.Subtype == 'Form') {
+    if (this.depth > 3) {
+      logger.warn(`Ignoring "${name} Do" command (embedded XObject is too deep; depth = ${this.depth + 1})`);
+    }
+    else if (XObjectStream.Subtype == 'Form') {
       logger.debug(`Drawing XObject: ${name}`);
 
+      // a) push state
+      this.pushGraphicsState();
+      // b) concatenate the dictionary.Matrix
+      if (XObjectStream.dictionary.Matrix) {
+        this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
+      }
+      // c) clip according to the dictionary.BBox value: meh
+      // d) paint the XObject's content stream
       var stream_string = XObjectStream.buffer.toString('binary');
       var stream_string_iterable = new lexing.StringIterator(stream_string);
-
-      var context = new DrawingContext(XObjectStream.Resources, new GraphicsState());
+      var context = new DrawingContext(XObjectStream.Resources, this.graphicsState, this.depth + 1); // new GraphicsState()
       context.render(stream_string_iterable, this.canvas);
+      // e) pop the graphics state
+      this.popGraphicsState();
     }
     else {
       logger.warn(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);

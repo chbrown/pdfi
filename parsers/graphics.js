@@ -272,10 +272,12 @@ var TextState = (function () {
     return TextState;
 })();
 var DrawingContext = (function () {
-    function DrawingContext(Resources, graphicsState) {
+    function DrawingContext(Resources, graphicsState, depth) {
         if (graphicsState === void 0) { graphicsState = new GraphicsState(); }
+        if (depth === void 0) { depth = 0; }
         this.Resources = Resources;
         this.graphicsState = graphicsState;
+        this.depth = depth;
         this.stateStack = [];
         // the textState persists across BT and ET markers, and can be modified anywhere
         this.textState = new TextState();
@@ -376,18 +378,40 @@ var DrawingContext = (function () {
         this.advanceTextMatrix(width_units, nchars, nspaces);
         this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, fontSize);
     };
+    /**
+    When the Do operator is applied to a form XObject, a conforming reader shall perform the following tasks:
+    a) Saves the current graphics state, as if by invoking the q operator
+    b) Concatenates the matrix from the form dictionary’s Matrix entry with the current transformation matrix (CTM)
+    c) Clips according to the form dictionary’s BBox entry
+    d) Paints the graphics objects specified in the form’s content stream
+    e) Restores the saved graphics state, as if by invoking the Q operator
+    Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
+    */
     DrawingContext.prototype._drawObject = function (name) {
         // create a nested drawing context and use that
         var XObjectStream = this.Resources.getXObject(name);
         if (XObjectStream === undefined) {
             throw new Error("Cannot draw undefined XObject: " + name);
         }
-        if (XObjectStream.Subtype == 'Form') {
+        if (this.depth > 3) {
+            logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject is too deep; depth = " + (this.depth + 1) + ")");
+        }
+        else if (XObjectStream.Subtype == 'Form') {
             logger.debug("Drawing XObject: " + name);
+            // a) push state
+            this.pushGraphicsState();
+            // b) concatenate the dictionary.Matrix
+            if (XObjectStream.dictionary.Matrix) {
+                this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
+            }
+            // c) clip according to the dictionary.BBox value: meh
+            // d) paint the XObject's content stream
             var stream_string = XObjectStream.buffer.toString('binary');
             var stream_string_iterable = new lexing.StringIterator(stream_string);
-            var context = new DrawingContext(XObjectStream.Resources, new GraphicsState());
+            var context = new DrawingContext(XObjectStream.Resources, this.graphicsState, this.depth + 1); // new GraphicsState()
             context.render(stream_string_iterable, this.canvas);
+            // e) pop the graphics state
+            this.popGraphicsState();
         }
         else {
             logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject has Subtype \"" + XObjectStream.Subtype + "\")");
