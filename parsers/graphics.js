@@ -68,7 +68,8 @@ var operator_aliases = {
     'b*': 'closeAndFillThenStrokeEvenOdd',
     'n': 'closePathNoop',
     // Clipping paths
-    // incomplete: W, W*
+    'W': 'clip',
+    'W*': 'clipEvenOdd',
     // Text objects
     'BT': 'startTextBlock',
     'ET': 'endTextBlock',
@@ -227,7 +228,10 @@ function clone(source, target) {
     if (target === void 0) { target = {}; }
     for (var key in source) {
         if (source.hasOwnProperty(key)) {
-            if (source[key].clone) {
+            if (source[key] === null || source[key] === undefined) {
+                target[key] = source[key];
+            }
+            else if (source[key].clone) {
                 target[key] = source[key].clone();
             }
             else if (Array.isArray(source[key])) {
@@ -264,36 +268,7 @@ var TextState = (function () {
         this.leading = 0;
         this.renderingMode = 0;
         this.rise = 0;
-        this.textMatrix = mat3ident;
-        this.textLineMatrix = mat3ident;
     }
-    TextState.prototype.clone = function () {
-        return clone(this, new TextState());
-    };
-    TextState.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
-        // width_units is positive, but we want to move forward, so tx should be positive too
-        var tx = (((width_units / 1000) * this.fontSize) + (this.charSpacing * chars) + (this.wordSpacing * spaces)) * (this.horizontalScaling / 100.0);
-        // this.textMatrix = mat3add([0, 0, 0,  0, 0, 0, tx, 0, 0], this.textMatrix);
-        this.textMatrix = mat3mul([1, 0, 0, 0, 1, 0, tx, 0, 1], this.textMatrix);
-    };
-    TextState.prototype.getPosition = function (graphicsState) {
-        var fs = this.fontSize;
-        var fsh = fs * (this.horizontalScaling / 100.0);
-        var rise = this.rise;
-        var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
-        // TODO: optimize this final matrix multiplication; we only need two of the
-        // entries, and we discard the rest, so we don't need to calculate them in
-        // the first place.
-        var composedTransformation = mat3mul(this.textMatrix, graphicsState.ctMatrix);
-        var textRenderingMatrix = mat3mul(base, composedTransformation);
-        return [textRenderingMatrix[6], textRenderingMatrix[7]];
-    };
-    TextState.prototype.getFontSize = function (graphicsState) {
-        // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-        var mat = mat3mul(this.textMatrix, graphicsState.ctMatrix);
-        var font_point = transform2d([0, this.fontSize], mat[0], mat[3], mat[1], mat[4]);
-        return font_point[1];
-    };
     return TextState;
 })();
 var DrawingContext = (function () {
@@ -302,10 +277,8 @@ var DrawingContext = (function () {
         this.Resources = Resources;
         this.graphicsState = graphicsState;
         this.stateStack = [];
+        // the textState persists across BT and ET markers, and can be modified anywhere
         this.textState = new TextState();
-        // apparently textState persists across BT and ET markers, and can be manipulated
-        // with q and Q operators.
-        this.textStateStack = [];
     }
     DrawingContext.prototype.render = function (string_iterable, canvas) {
         this.canvas = canvas;
@@ -326,14 +299,37 @@ var DrawingContext = (function () {
             }
         }
     };
+    DrawingContext.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
+        // width_units is positive, but we want to move forward, so tx should be positive too
+        var tx = (((width_units / 1000) * this.textState.fontSize) + (this.textState.charSpacing * chars) + (this.textState.wordSpacing * spaces)) * (this.textState.horizontalScaling / 100.0);
+        this.textMatrix = mat3mul([1, 0, 0, 0, 1, 0, tx, 0, 1], this.textMatrix);
+    };
+    DrawingContext.prototype.getTextPosition = function () {
+        var fs = this.textState.fontSize;
+        var fsh = fs * (this.textState.horizontalScaling / 100.0);
+        var rise = this.textState.rise;
+        var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
+        // TODO: optimize this final matrix multiplication; we only need two of the
+        // entries, and we discard the rest, so we don't need to calculate them in
+        // the first place.
+        var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var textRenderingMatrix = mat3mul(base, composedTransformation);
+        return [textRenderingMatrix[6], textRenderingMatrix[7]];
+    };
+    DrawingContext.prototype.getTextSize = function () {
+        // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
+        var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var font_point = transform2d([0, this.textState.fontSize], mat[0], mat[3], mat[1], mat[4]);
+        return font_point[1];
+    };
     DrawingContext.prototype._renderTextString = function (charCodes) {
         var font = this.Resources.getFont(this.textState.fontName);
-        var position = this.textState.getPosition(this.graphicsState);
-        var fontSize = this.textState.getFontSize(this.graphicsState);
+        var position = this.getTextPosition();
+        var fontSize = this.getTextSize();
         var text = font.decodeString(charCodes);
         var width_units = font.measureString(charCodes);
         var nspaces = countSpaces(text);
-        this.textState.advanceTextMatrix(width_units, text.length, nspaces);
+        this.advanceTextMatrix(width_units, text.length, nspaces);
         this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, fontSize);
     };
     DrawingContext.prototype._renderTextArray = function (array, min_space_width) {
@@ -342,8 +338,8 @@ var DrawingContext = (function () {
         if (font === null) {
             throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
         }
-        var position = this.textState.getPosition(this.graphicsState);
-        var fontSize = this.textState.getFontSize(this.graphicsState);
+        var position = this.getTextPosition();
+        var fontSize = this.getTextSize();
         // the Font instance handles most of the character code resolution
         var width_units = 0;
         var nchars = 0;
@@ -374,9 +370,10 @@ var DrawingContext = (function () {
             }
         });
         var text = text_parts.join('');
+        // logger.debug(`Adding span "${text}" where graphicsState = ${this.graphicsState.ctMatrix}`);
         // adjust the text matrix accordingly (but not the text line matrix)
         // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
-        this.textState.advanceTextMatrix(width_units, nchars, nspaces);
+        this.advanceTextMatrix(width_units, nchars, nspaces);
         this.canvas.addSpan(text, position[0], position[1], width_units, this.textState.fontName, fontSize);
     };
     DrawingContext.prototype._drawObject = function (name) {
@@ -403,7 +400,6 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.pushGraphicsState = function () {
         this.stateStack.push(this.graphicsState.clone());
-        this.textStateStack.push(this.textState.clone());
     };
     /**
     > `Q`: Restore the graphics state by removing the most recently saved state
@@ -411,7 +407,6 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.popGraphicsState = function () {
         this.graphicsState = this.stateStack.pop();
-        this.textState = this.textStateStack.pop();
     };
     /**
     > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -430,6 +425,7 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.setCTM = function (a, b, c, d, e, f) {
         var newCTMatrix = mat3mul([a, b, 0, c, d, 0, e, f, 1], this.graphicsState.ctMatrix);
+        // logger.info('ctMatrix = %j', newCTMatrix);
         this.graphicsState.ctMatrix = newCTMatrix;
     };
     // ---------------------------------------------------------------------------
@@ -695,16 +691,28 @@ var DrawingContext = (function () {
         this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
     };
     // ---------------------------------------------------------------------------
+    // Clipping Path Operators (W, W*)
+    /**
+    > `W`: Modify the current clipping path by intersecting it with the current path, using the nonzero winding number rule to determine which regions lie inside the clipping path.
+    */
+    DrawingContext.prototype.clip = function () {
+        logger.silly("Ignoring clip() operation");
+    };
+    /**
+    > `W*`: Modify the current clipping path by intersecting it with the current path, using the even-odd rule to determine which regions lie inside the clipping path.
+    */
+    DrawingContext.prototype.clipEvenOdd = function () {
+        logger.silly("Ignoring clipEvenOdd() operation");
+    };
+    // ---------------------------------------------------------------------------
     // Text objects (BT, ET)
     /** `BT` */
     DrawingContext.prototype.startTextBlock = function () {
-        // intialize state
-        // this.textState = new TextState(this.graphicsState);
+        this.textMatrix = this.textLineMatrix = mat3ident;
     };
     /** `ET` */
     DrawingContext.prototype.endTextBlock = function () {
-        // remove textState, so that any operations that require it will fail
-        // this.textState = null;
+        this.textMatrix = this.textLineMatrix = null;
     };
     // ---------------------------------------------------------------------------
     // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
@@ -775,8 +783,8 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.adjustCurrentPosition = function (x, y) {
         // y is usually 0, and never positive in normal text.
-        var newTextMatrix = mat3mul([1, 0, 0, 0, 1, 0, x, y, 1], this.textState.textLineMatrix);
-        this.textState.textMatrix = this.textState.textLineMatrix = newTextMatrix;
+        var newTextMatrix = mat3mul([1, 0, 0, 0, 1, 0, x, y, 1], this.textLineMatrix);
+        this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)
     > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -801,7 +809,7 @@ var DrawingContext = (function () {
         // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
         // e and f mark the x and y coordinates of the current position
         var newTextMatrix = [a, b, 0, c, d, 0, e, f, 1];
-        this.textState.textMatrix = this.textState.textLineMatrix = newTextMatrix;
+        this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)
     > `T*`: Move to the start of the next line. This operator has the same effect
