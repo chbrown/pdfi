@@ -184,17 +184,16 @@ var Page = (function (_super) {
     TODO: don't combine the strings (more complex)
           see MultiStringIterator in scratch.txt
     */
-    Page.prototype.joinContents = function (separator, encoding) {
+    Page.prototype.joinContents = function (separator) {
         var _this = this;
-        if (encoding === void 0) { encoding = 'ascii'; }
         var strings = [].concat(this.Contents.object).map(function (stream) {
-            return new ContentStream(_this._pdf, stream).buffer.toString(encoding);
+            return new ContentStream(_this._pdf, stream).buffer.toString('binary');
         });
         return strings.join(separator);
     };
     Page.prototype.renderCanvas = function () {
         var canvas = new drawing.Canvas(this.MediaBox);
-        var contents_string = this.joinContents('\n', 'ascii');
+        var contents_string = this.joinContents('\n');
         var contents_string_iterable = new lexing.StringIterator(contents_string);
         canvas.render(contents_string_iterable, this.Resources);
         return canvas;
@@ -498,8 +497,9 @@ var Font = (function (_super) {
     Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
     be resolved to a string.
     */
-    Font.prototype.decodeString = function (charCodes) {
+    Font.prototype.decodeString = function (charCodes, skipMissing) {
         var _this = this;
+        if (skipMissing === void 0) { skipMissing = false; }
         // initialize if needed
         if (this._charCodeMapping === undefined) {
             this._charCodeMapping = this.getCharCodeMapping();
@@ -508,6 +508,9 @@ var Font = (function (_super) {
             var string = _this._charCodeMapping[charCode];
             if (string === undefined) {
                 logger.error("Could not decode character code: " + charCode);
+                if (skipMissing) {
+                    return '';
+                }
                 return '\\u{' + charCode.toString(16) + '}';
             }
             return string;

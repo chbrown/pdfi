@@ -188,9 +188,9 @@ export class Page extends Model {
   TODO: don't combine the strings (more complex)
         see MultiStringIterator in scratch.txt
   */
-  joinContents(separator: string, encoding: string = 'ascii'): string {
+  joinContents(separator: string): string {
     var strings = [].concat(this.Contents.object).map(stream => {
-      return new ContentStream(this._pdf, stream).buffer.toString(encoding)
+      return new ContentStream(this._pdf, stream).buffer.toString('binary');
     });
     return strings.join(separator);
   }
@@ -198,7 +198,7 @@ export class Page extends Model {
   renderCanvas(): drawing.Canvas {
     var canvas = new drawing.Canvas(this.MediaBox);
 
-    var contents_string = this.joinContents('\n', 'ascii');
+    var contents_string = this.joinContents('\n');
     var contents_string_iterable = new lexing.StringIterator(contents_string);
     canvas.render(contents_string_iterable, this.Resources);
 
@@ -428,7 +428,7 @@ export class Font extends Model {
   Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
   be resolved to a string.
   */
-  decodeString(charCodes: number[]): string {
+  decodeString(charCodes: number[], skipMissing = false): string {
     // initialize if needed
     if (this._charCodeMapping === undefined) {
       this._charCodeMapping = this.getCharCodeMapping();
@@ -437,6 +437,9 @@ export class Font extends Model {
       var string = this._charCodeMapping[charCode];
       if (string === undefined) {
         logger.error(`Could not decode character code: ${charCode}`)
+        if (skipMissing) {
+          return '';
+        }
         return '\\u{' + charCode.toString(16) + '}';
       }
       return string;
