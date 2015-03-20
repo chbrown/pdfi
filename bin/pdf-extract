@@ -1,0 +1,44 @@
+#!/usr/bin/env node
+var logger = require('loge');
+var PDF = require('../').PDF;
+var models = require('../models');
+
+var yargs = require('yargs')
+  .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
+  .describe({
+    filename: 'pdf file to open',
+    sections: 'page sections to extract',
+    help: 'print this help message',
+    verbose: 'print extra output',
+  })
+  .alias({
+    verbose: 'v',
+    filename: 'f',
+    sections: 's',
+  })
+  .demand(['filename'])
+  .boolean(['help', 'verbose']);
+
+var argv = yargs.argv;
+logger.level = argv.verbose ? 'debug' : 'error';
+
+function main() {
+  var pdf = PDF.open(argv.filename);
+  var sections = [].concat(argv.sections);
+
+  pdf.pages.forEach(function(page, page_index) {
+    process.stderr.write('rendering Page ' + (page_index + 1) + '\n');
+    var lines = page.getParagraphStrings(sections);
+    process.stdout.write(lines.join('\n'));
+  });
+}
+
+if (argv.help) {
+  yargs.showHelp();
+}
+else if (argv.version) {
+  console.log(require('../package').version);
+}
+else {
+  main();
+}

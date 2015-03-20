@@ -29,7 +29,8 @@
     "typescript": "*"
   },
   "bin": {
-    "pdf-dump": "bin/pdf-dump"
+    "pdf-dump": "bin/pdf-dump",
+    "pdf-extract": "bin/pdf-extract"
   },
   "scripts": {
     "test": "make test"
