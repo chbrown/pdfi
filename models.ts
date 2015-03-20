@@ -9,6 +9,8 @@ import cmap = require('./parsers/cmap');
 import decoders = require('./filters/decoders');
 import drawing = require('./drawing');
 
+var unorm = require('unorm');
+
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -205,16 +207,25 @@ export class Page extends Model {
     return canvas;
   }
 
+  /**
+  Returns one string (one line) for each paragraph.
+  */
   getParagraphStrings(section_names: string[]): string[] {
     var canvas = this.renderCanvas();
     var sections = canvas.getSections();
     var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
     var selected_sections_paragraphs = selected_sections.map(section => section.getParagraphs());
     // flatten selected_sections_paragraphs into a single Array of Paragraphs
-    var paragraphs: drawing.Paragraph[] = selected_sections_paragraphs.reduce((a, b) => a.concat(b))
+    var paragraphs: drawing.Paragraph[] = selected_sections_paragraphs.reduce((a, b) => a.concat(b), [])
     // render each Paragraph into a single string with any pre-existing EOL
     // markers stripped out
-    return paragraphs.map(paragraph => paragraph.getText().replace(/(\r\n|\r|\n)/g, ' '));
+    return paragraphs.map(paragraph => {
+      var parargraph_text = paragraph.getText();
+      var line = parargraph_text.replace(/(\r\n|\r|\n|\t)/g, ' ');
+      var visible_line = parargraph_text.replace(/[\x00-\x1F]/g, '');
+      var normalized_line = unorm.nfkc(visible_line);
+      return normalized_line;
+    });
   }
 
   toJSON() {
@@ -457,7 +468,7 @@ export class Font extends Model {
       return charCodes.length & defaultWidth;
     }
     var charWidths = charCodes.map(charCode => this.Widths[charCode - FirstChar] || defaultWidth);
-    return charWidths.reduce((a, b) => a + b);
+    return charWidths.reduce((a, b) => a + b, 0);
   }
 
   toJSON() {

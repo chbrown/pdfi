@@ -10,6 +10,7 @@ var lexing = require('lexing');
 var cmap = require('./parsers/cmap');
 var decoders = require('./filters/decoders');
 var drawing = require('./drawing');
+var unorm = require('unorm');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -198,16 +199,25 @@ var Page = (function (_super) {
         canvas.render(contents_string_iterable, this.Resources);
         return canvas;
     };
+    /**
+    Returns one string (one line) for each paragraph.
+    */
     Page.prototype.getParagraphStrings = function (section_names) {
         var canvas = this.renderCanvas();
         var sections = canvas.getSections();
         var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
         var selected_sections_paragraphs = selected_sections.map(function (section) { return section.getParagraphs(); });
         // flatten selected_sections_paragraphs into a single Array of Paragraphs
-        var paragraphs = selected_sections_paragraphs.reduce(function (a, b) { return a.concat(b); });
+        var paragraphs = selected_sections_paragraphs.reduce(function (a, b) { return a.concat(b); }, []);
         // render each Paragraph into a single string with any pre-existing EOL
         // markers stripped out
-        return paragraphs.map(function (paragraph) { return paragraph.getText().replace(/(\r\n|\r|\n)/g, ' '); });
+        return paragraphs.map(function (paragraph) {
+            var parargraph_text = paragraph.getText();
+            var line = parargraph_text.replace(/(\r\n|\r|\n|\t)/g, ' ');
+            var visible_line = parargraph_text.replace(/[\x00-\x1F]/g, '');
+            var normalized_line = unorm.nfkc(visible_line);
+            return normalized_line;
+        });
     };
     Page.prototype.toJSON = function () {
         return {
@@ -532,7 +542,7 @@ var Font = (function (_super) {
             return charCodes.length & defaultWidth;
         }
         var charWidths = charCodes.map(function (charCode) { return _this.Widths[charCode - FirstChar] || defaultWidth; });
-        return charWidths.reduce(function (a, b) { return a + b; });
+        return charWidths.reduce(function (a, b) { return a + b; }, 0);
     };
     Font.prototype.toJSON = function () {
         return {
