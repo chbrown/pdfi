@@ -23,8 +23,8 @@ var skip_whitespace_rule: StackRule = [/^\s+/, match => null ]; // skip over whi
 var name_rule: StackRule = [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, match => Token('NAME', match[1]) ]; // "/Im3" -> "Im3"
 var float_rule: StackRule = [/^-?\d*\.\d+/, match => Token('NUMBER', parseFloat(match[0])) ];
 var int_rule: StackRule = [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ];
-var hexstring_rule: StackRule =  [/^<([A-Fa-f0-9]*)>/, match => {
-  var hexstring = match[1];
+var hexstring_rule: StackRule =  [/^<([A-Fa-f0-9 \r\n]*)>/, match => {
+  var hexstring = match[1].replace(/\s+/g, '');
   var charCodes = range(hexstring.length, 4).map(i => parseInt(hexstring.slice(i, i + 4), 16));
   return Token('OPERAND', charCodes);
 }];
@@ -58,6 +58,7 @@ var default_rules: StackRule[] = [
   name_rule,
   float_rule,
   int_rule,
+  [/^%%EOF/, match => Token('EOF') ], // WTF?
   [/^[A-Za-z'"]+\*?/, match => Token('OPERATOR', match[0]) ],
 ];
 
@@ -96,6 +97,7 @@ state_rules['DICTIONARY'] = [
     this.states.pop();
     return Token('END', 'DICTIONARY');
   }],
+  hexstring_rule,
   start_dictionary_rule,
   start_array_rule,
   start_string_rule,
@@ -109,7 +111,9 @@ state_rules['IMAGEDATA'] = [
     this.states.pop();
     return Token('OPERATOR', 'EI');
   }],
-  [/^(.|\n|\r)/, match => Token('BYTE', match[0]) ],
+  // how to deal with non-operator "EI" strings that crop up in the ID value?
+  [/^(\S+)/, match => Token('CHUNK', match[0]) ],
+  [/^(.|\n|\r)/, match => Token('CHUNK', match[0]) ],
 ];
 
 /**

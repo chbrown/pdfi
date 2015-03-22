@@ -20,8 +20,8 @@ var skip_whitespace_rule = [/^\s+/, function (match) { return null; }]; // skip 
 var name_rule = [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) { return Token('NAME', match[1]); }]; // "/Im3" -> "Im3"
 var float_rule = [/^-?\d*\.\d+/, function (match) { return Token('NUMBER', parseFloat(match[0])); }];
 var int_rule = [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }];
-var hexstring_rule = [/^<([A-Fa-f0-9]*)>/, function (match) {
-    var hexstring = match[1];
+var hexstring_rule = [/^<([A-Fa-f0-9 \r\n]*)>/, function (match) {
+    var hexstring = match[1].replace(/\s+/g, '');
     var charCodes = range(hexstring.length, 4).map(function (i) { return parseInt(hexstring.slice(i, i + 4), 16); });
     return Token('OPERAND', charCodes);
 }];
@@ -53,6 +53,7 @@ var default_rules = [
     name_rule,
     float_rule,
     int_rule,
+    [/^%%EOF/, function (match) { return Token('EOF'); }],
     [/^[A-Za-z'"]+\*?/, function (match) { return Token('OPERATOR', match[0]); }],
 ];
 var state_rules = {};
@@ -85,6 +86,7 @@ state_rules['DICTIONARY'] = [
         this.states.pop();
         return Token('END', 'DICTIONARY');
     }],
+    hexstring_rule,
     start_dictionary_rule,
     start_array_rule,
     start_string_rule,
@@ -98,7 +100,8 @@ state_rules['IMAGEDATA'] = [
         this.states.pop();
         return Token('OPERATOR', 'EI');
     }],
-    [/^(.|\n|\r)/, function (match) { return Token('BYTE', match[0]); }],
+    [/^(\S+)/, function (match) { return Token('CHUNK', match[0]); }],
+    [/^(.|\n|\r)/, function (match) { return Token('CHUNK', match[0]); }],
 ];
 /**
 TODO: I could probably refactor the stack tracking operations into a basic
