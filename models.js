@@ -17,7 +17,9 @@ glyphlist is a mapping from PDF glyph names to unicode strings
 var glyphlist = require('./encoding/glyphlist');
 var latin_charset = require('./encoding/latin_charset');
 var IndirectReference = (function () {
-    function IndirectReference() {
+    function IndirectReference(object_number, generation_number) {
+        this.object_number = object_number;
+        this.generation_number = generation_number;
     }
     IndirectReference.isIndirectReference = function (object) {
         if (object === undefined || object === null)
@@ -26,6 +28,18 @@ var IndirectReference = (function () {
         var object_number = object['object_number'];
         var generation_number = object['generation_number'];
         return (object_number !== undefined) && (generation_number !== undefined);
+    };
+    /**
+    Create an IndirectReference from an "object[:reference=0]" string.
+    */
+    IndirectReference.fromString = function (reference) {
+        var reference_parts = reference.split(':');
+        var object_number = parseInt(reference_parts[0], 10);
+        var generation_number = (reference_parts.length > 1) ? parseInt(reference_parts[1], 10) : 0;
+        return new IndirectReference(object_number, generation_number);
+    };
+    IndirectReference.prototype.toString = function () {
+        return "" + this.object_number + ":" + this.generation_number;
     };
     return IndirectReference;
 })();

@@ -51,12 +51,26 @@ interface CharacterSpecification {
 var latin_charset: CharacterSpecification[] = require('./encoding/latin_charset');
 
 export class IndirectReference {
+  constructor(public object_number: number, public generation_number: number) { }
+
   static isIndirectReference(object): boolean {
     if (object === undefined || object === null) return false;
     // return ('object_number' in object) && ('generation_number' in object);
     var object_number = object['object_number'];
     var generation_number = object['generation_number'];
     return (object_number !== undefined) && (generation_number !== undefined);
+  }
+  /**
+  Create an IndirectReference from an "object[:reference=0]" string.
+  */
+  static fromString(reference: string): IndirectReference {
+    var reference_parts = reference.split(':');
+    var object_number = parseInt(reference_parts[0], 10);
+    var generation_number = (reference_parts.length > 1) ? parseInt(reference_parts[1], 10) : 0;
+    return new IndirectReference(object_number, generation_number);
+  }
+  toString(): string {
+    return `${this.object_number}:${this.generation_number}`;
   }
 }
 
