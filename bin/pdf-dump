@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 var logger = require('loge');
 var commands = require('./commands');
+var models = require('../models');
 
 var yargs = require('yargs')
   .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
@@ -11,9 +12,9 @@ var yargs = require('yargs')
     catalog: 'dump trailer Root',
     info: 'dump trailer Info',
     xref: 'dump cross references',
-    object: 'object(s) to dump',
-    stream: 'stream(s) to dump',
     pages: 'dump pages',
+    object: 'object(s) to dump (repeatable)',
+    enhance: 'enhance objects when possible',
     // cli meta
     help: 'print this help message',
     verbose: 'print extra output',
@@ -22,10 +23,11 @@ var yargs = require('yargs')
     verbose: 'v',
     filename: 'f',
     object: 'o',
-    stream: 's',
+    enhance: 'e',
   })
+  .string(['object'])
   .demand(['filename'])
-  .boolean(['help', 'verbose', 'trailer', 'xref', 'pages']);
+  .boolean(['help', 'verbose', 'trailer', 'xref', 'pages', 'enhance']);
 
 var argv = yargs.argv;
 logger.level = argv.verbose ? 'debug' : 'info';
@@ -37,6 +39,6 @@ else if (argv.version) {
   console.log(require('../package').version);
 }
 else {
-  commands.dump(argv.filename, argv.trailer, argv.catalog, argv.info, argv.xref, argv.pages,
-    [].concat(argv.object), [].concat(argv.stream));
+  var objects = [].concat(argv.object || []).map(models.IndirectReference.fromString);
+  commands.dump(argv.filename, argv.trailer, argv.catalog, argv.info, argv.xref, argv.pages, objects, argv.enhance);
 }

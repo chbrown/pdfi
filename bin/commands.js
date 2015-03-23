@@ -8,14 +8,28 @@ function stderr(line) {
     process.stderr.write(chalk.magenta(line) + '\n');
 }
 var escaper = new visible.Escaper({});
-function dump(filename, trailer, catalog, info, xref, pages, object, stream) {
+function enhanceObject(pdf, object) {
+    if (models.ContentStream.isContentStream(object)) {
+        var content_stream = new models.ContentStream(pdf, object);
+        return content_stream.buffer;
+    }
+    if (models.Font.isFont(object)) {
+        return new models.Font(pdf, object);
+    }
+    if (models.Encoding.isEncoding(object)) {
+        return new models.Encoding(pdf, object);
+    }
+    stderr("Could not enhance object");
+    return object;
+}
+function dump(filename, trailer, catalog, info, xref, pages, objects, enhance) {
     if (trailer === void 0) { trailer = true; }
     if (catalog === void 0) { catalog = false; }
     if (info === void 0) { info = false; }
     if (xref === void 0) { xref = false; }
     if (pages === void 0) { pages = false; }
-    if (object === void 0) { object = []; }
-    if (stream === void 0) { stream = []; }
+    if (objects === void 0) { objects = []; }
+    if (enhance === void 0) { enhance = false; }
     var pdf = PDF.open(filename);
     if (trailer) {
         stderr("[" + filename + "] Trailer");
@@ -35,15 +49,6 @@ function dump(filename, trailer, catalog, info, xref, pages, object, stream) {
         stderr("[" + filename + "] Cross References");
         process.stdout.write(JSON.stringify(pdf.cross_references) + '\n');
     }
-    var eachObject = function (reference_arguments, func) {
-        reference_arguments.forEach(function (reference_argument) {
-            var object_parts = reference_argument.toString().split(':');
-            var object_number = parseInt(object_parts[0], 10);
-            var generation_number = parseInt(object_parts[1] || '0', 10);
-            var object = pdf.getObject(object_number, generation_number);
-            func(object_number, generation_number, object);
-        });
-    };
     if (pages) {
         // iterate through the page objects
         pdf.pages.forEach(function (page, i, pages) {
@@ -51,19 +56,15 @@ function dump(filename, trailer, catalog, info, xref, pages, object, stream) {
             process.stdout.write(page.joinContents('\n'));
         });
     }
-    if (object) {
-        eachObject(object, function (object_number, generation_number, object) {
-            stderr("" + object_number + ":" + generation_number);
-            process.stdout.write(JSON.stringify(object) + '\n');
-        });
-    }
-    if (stream) {
-        eachObject(stream, function (object_number, generation_number, object) {
-            var content_stream = new models.ContentStream(pdf, object);
-            stderr("" + object_number + ":" + generation_number);
-            process.stdout.write(content_stream.buffer);
-        });
-    }
+    objects.forEach(function (reference) {
+        stderr(reference.toString());
+        var model = new models.Model(pdf, reference);
+        var object = model.object;
+        if (enhance) {
+            object = enhanceObject(pdf, object);
+        }
+        process.stdout.write(JSON.stringify(object) + '\n');
+    });
 }
 exports.dump = dump;
 function extract(filename, sections) {

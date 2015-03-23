@@ -4,7 +4,7 @@ import models = require('../models');
 import chalk = require('chalk');
 chalk.enabled = true; // dumb
 
-var visible = require('visible');
+import visible = require('visible');
 
 function stderr(line: string) {
   process.stderr.write(chalk.magenta(line) + '\n');
@@ -14,14 +14,32 @@ var escaper = new visible.Escaper({
   // literalEOL: false,
 });
 
+function enhanceObject(pdf: PDF, object: any): any {
+  if (models.ContentStream.isContentStream(object)) {
+    var content_stream = new models.ContentStream(pdf, object);
+    return content_stream.buffer;
+  }
+
+  if (models.Font.isFont(object)) {
+    return new models.Font(pdf, object);
+  }
+
+  if (models.Encoding.isEncoding(object)) {
+    return new models.Encoding(pdf, object);
+  }
+
+  stderr(`Could not enhance object`);
+  return object;
+}
+
 export function dump(filename: string,
                      trailer: boolean = true,
                      catalog: boolean = false,
                      info: boolean = false,
                      xref: boolean = false,
                      pages: boolean = false,
-                     object: string[] = [],
-                     stream: string[] = []) {
+                     objects: models.IndirectReference[] = [],
+                     enhance: boolean = false) {
   var pdf = PDF.open(filename);
 
   if (trailer) {
@@ -43,16 +61,6 @@ export function dump(filename: string,
     process.stdout.write(JSON.stringify(pdf.cross_references) + '\n');
   }
 
-  var eachObject = (reference_arguments: string[], func) => {
-    reference_arguments.forEach(reference_argument => {
-      var object_parts = reference_argument.toString().split(':');
-      var object_number = parseInt(object_parts[0], 10);
-      var generation_number = parseInt(object_parts[1] || '0', 10);
-      var object = pdf.getObject(object_number, generation_number);
-      func(object_number, generation_number, object);
-    });
-  };
-
   if (pages) {
     // iterate through the page objects
     pdf.pages.forEach((page, i, pages) => {
@@ -61,20 +69,17 @@ export function dump(filename: string,
     });
   }
 
-  if (object) {
-    eachObject(object, (object_number, generation_number, object) => {
-      stderr(`${object_number}:${generation_number}`);
-      process.stdout.write(JSON.stringify(object) + '\n');
-    });
-  }
+  objects.forEach(reference => {
+    stderr(reference.toString());
+    var model = new models.Model(pdf, reference);
+    var object = model.object;
 
-  if (stream) {
-    eachObject(stream, (object_number, generation_number, object) => {
-      var content_stream = new models.ContentStream(pdf, object);
-      stderr(`${object_number}:${generation_number}`);
-      process.stdout.write(content_stream.buffer);
-    });
-  }
+    if (enhance) {
+      object = enhanceObject(pdf, object)
+    }
+
+    process.stdout.write(JSON.stringify(object) + '\n');
+  });
 
 }
 
