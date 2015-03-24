@@ -2,7 +2,9 @@
 var assert = require('assert');
 var lexing = require('lexing');
 var models = require('../models');
+var graphics = require('../parsers/graphics');
 var drawing = require('../drawing');
+var shapes = require('../shapes');
 function createResources() {
     var font_object = {
         Type: "Font",
@@ -21,12 +23,17 @@ function createResources() {
     return new models.Resources(null, resource_object);
 }
 function renderString(contents) {
-    // var contents_string = this.joinContents('\n');
-    var iterable = new lexing.StringIterator(contents);
+    // prepare content stream string
+    var contents_string_iterable = new lexing.StringIterator(contents);
+    // prepare canvas
+    var bounds = new shapes.Rectangle(0, 0, 800, 600);
+    var canvas = new drawing.Canvas(bounds);
+    // prepare context
     var resources = createResources();
-    var canvas = new drawing.Canvas([0, 0, 800, 600]);
-    canvas.render(iterable, resources);
-    return canvas.spans.map(function (span) { return span.text; });
+    var context = new graphics.DrawingContext(resources);
+    context.render(contents_string_iterable, canvas);
+    // extract text spans strings
+    return canvas.spans.map(function (span) { return span.string; });
 }
 describe('graphics text parsing', function () {
     it('should parse a simple text show operation', function () {

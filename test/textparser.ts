@@ -5,6 +5,7 @@ import lexing = require('lexing');
 import models = require('../models');
 import graphics = require('../parsers/graphics');
 import drawing = require('../drawing');
+import shapes = require('../shapes');
 
 function createResources(): models.Resources {
   var font_object = {
@@ -25,14 +26,20 @@ function createResources(): models.Resources {
 }
 
 function renderString(contents: string): string[] {
-  // var contents_string = this.joinContents('\n');
-  var iterable = new lexing.StringIterator(contents);
+  // prepare content stream string
+  var contents_string_iterable = new lexing.StringIterator(contents);
+
+  // prepare canvas
+  var bounds = new shapes.Rectangle(0, 0, 800, 600);
+  var canvas = new drawing.Canvas(bounds);
+
+  // prepare context
   var resources = createResources();
+  var context = new graphics.DrawingContext(resources);
+  context.render(contents_string_iterable, canvas);
 
-  var canvas = new drawing.Canvas([0, 0, 800, 600]);
-  canvas.render(iterable, resources);
-
-  return canvas.spans.map(span => span.text);
+  // extract text spans strings
+  return canvas.spans.map(span => span.string);
 }
 
 describe('graphics text parsing', function() {
