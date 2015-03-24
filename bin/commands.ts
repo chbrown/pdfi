@@ -20,6 +20,14 @@ function enhanceObject(pdf: PDF, object: any): any {
     return content_stream.buffer;
   }
 
+  if (models.Type1Font.isType1Font(object)) {
+    return new models.Type1Font(pdf, object);
+  }
+
+  if (models.Type0Font.isType0Font(object)) {
+    return new models.Type0Font(pdf, object);
+  }
+
   if (models.Font.isFont(object)) {
     return new models.Font(pdf, object);
   }
