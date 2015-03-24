@@ -6,6 +6,7 @@ import lexing = require('lexing');
 import StackOperationParser = require('./StackOperationParser');
 import models = require('../models');
 import drawing = require('../drawing');
+import shapes = require('../shapes');
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
@@ -186,13 +187,6 @@ var mat3ident = [1, 0, 0,
                  0, 1, 0,
                  0, 0, 1];
 
-function transform2d(point: models.Point,
-                     a: number, c: number,
-                     b: number, d: number,
-                     tx: number = 0, ty: number = 0): models.Point {
-  return [(a * point[0]) + (b * point[1]) + tx, (c * point[0]) + (d * point[1]) + ty];
-}
-
 function countSpaces(text: string): number {
   var matches = text.match(/ /g);
   return matches ? matches.length : 0;
@@ -286,7 +280,7 @@ export class DrawingContext {
     }
   }
 
-  private advanceTextMatrix(width_units: number, chars: number, spaces: number) {
+  private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
     // width_units is positive, but we want to move forward, so tx should be positive too
     var tx = (((width_units / 1000) * this.textState.fontSize) +
         (this.textState.charSpacing * chars) +
@@ -295,9 +289,10 @@ export class DrawingContext {
     this.textMatrix = mat3mul([  1, 0, 0,
                                  0, 1, 0,
                                 tx, 0, 1], this.textMatrix);
+    return tx;
   }
 
-  private getTextPosition(): models.Point {
+  private getTextPosition(): shapes.Point {
     var fs = this.textState.fontSize;
     var fsh = fs * (this.textState.horizontalScaling / 100.0);
     var rise = this.textState.rise;
@@ -310,76 +305,64 @@ export class DrawingContext {
     // the first place.
     var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
     var textRenderingMatrix = mat3mul(base, composedTransformation);
-    return [textRenderingMatrix[6], textRenderingMatrix[7]];
+    return new shapes.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
   }
 
   private getTextSize(): number {
     // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
     var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    var font_point = transform2d([0, this.textState.fontSize], mat[0], mat[3], mat[1], mat[4]);
-    return font_point[1];
+    var font_point = new shapes.Point(0, this.textState.fontSize);
+    return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
   }
 
-  private _renderTextString(charCodes: number[]) {
+  private _renderGlyphs(charCodes: number[]) {
     var font = this.Resources.getFont(this.textState.fontName);
-    var position = this.getTextPosition();
-    var fontSize = this.getTextSize();
-
-    var text = font.decodeString(charCodes);
-    var width_units = font.measureString(charCodes);
-
-    var nspaces = countSpaces(text);
-    this.advanceTextMatrix(width_units, text.length, nspaces);
-    this.canvas.addSpan(text, position[0], position[1], width_units,
-      this.textState.fontName, fontSize);
-  }
-
-  private _renderTextArray(array: Array<number[] | number>, min_space_width = -100) {
-    var font = this.Resources.getFont(this.textState.fontName);
+    // the Font instance handles most of the character code resolution
     if (font === null) {
       throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
     }
-    var position = this.getTextPosition();
+    var origin = this.getTextPosition();
     var fontSize = this.getTextSize();
 
-    // the Font instance handles most of the character code resolution
-    var width_units = 0;
-    var nchars = 0;
-    var nspaces = 0;
-    var text_parts: string[] = [];
+    var string = font.decodeString(charCodes);
+    var width_units = font.measureString(charCodes);
+    var nchars = string.length;
+    var nspaces = countSpaces(string);
+
+    // adjust the text matrix accordingly (but not the text line matrix)
+    // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
+    var tx = this.advanceTextMatrix(width_units, nchars, nspaces);
+    var width = tx; // TODO: account for graphics transform
+    // var width = mat3mul([  1, 0, 0,
+    //                        0, 1, 0,
+    //                       tx, 0, 1], this.graphicsState.ctMatrix)[6];
+    // var width = this.getTextPosition().x - origin.x;
+    var height = Math.ceil(fontSize) | 0;
+    var size = new shapes.Size(width, height);
+
+    logger.info(`_renderGlyphs: ${string} (${width_units} + ${nchars} + ${nspaces}): ${width}x${height}`)
+
+    this.canvas.addSpan(string, origin, size, fontSize);
+  }
+
+  private _renderTextArray(array: Array<number[] | number>) {
     array.forEach(item => {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
-        // if it's a character array, convert it to a unicode string and return it
+        // if it's a character array, convert it to a unicode string and render it
         var charCodes = <number[]>item;
-        var string = font.decodeString(charCodes);
-        width_units += font.measureString(charCodes);
-        nchars += string.length;
-        nspaces += countSpaces(string);
-        text_parts.push(string);
+        this._renderGlyphs(charCodes);
       }
       else if (typeof item === 'number') {
-        // negative numbers indicate forward (rightward) movement.
-        // if it's a very negative number, insert a space. otherwise, it only
-        // signifies some minute spacing.
-        width_units -= item;
-        if (item < min_space_width) {
-          text_parts.push(' ');
-        }
+        // negative numbers indicate forward (rightward) movement. if it's a
+        // very negative number, it's like inserting a space. otherwise, it
+        // only signifies a small manual spacing hack.
+        this.advanceTextMatrix(-item, 0, 0);
       }
       else {
         throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
       }
     })
-    var text = text_parts.join('');
-
-    // logger.debug(`Adding span "${text}" where graphicsState = ${this.graphicsState.ctMatrix}`);
-
-    // adjust the text matrix accordingly (but not the text line matrix)
-    // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
-    this.advanceTextMatrix(width_units, nchars, nspaces);
-    this.canvas.addSpan(text, position[0], position[1], width_units,
-      this.textState.fontName, fontSize);
   }
 
   /**
@@ -866,7 +849,7 @@ export class DrawingContext {
   string is a list of character codes, potentially larger than 256
   */
   showString(string: number[]) {
-    this._renderTextString(string);
+    this._renderGlyphs(string);
   }
   /**
   > `array TJ`: Show one or more text strings, allowing individual glyph

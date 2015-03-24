@@ -8,6 +8,7 @@ import graphics = require('./parsers/graphics');
 import cmap = require('./parsers/cmap');
 import decoders = require('./filters/decoders');
 import drawing = require('./drawing');
+import shapes = require('./shapes');
 
 var unorm = require('unorm');
 
@@ -20,24 +21,6 @@ var glyphlist: {[index: string]: string} = require('./encoding/glyphlist');
 Most of the classes in this module are wrappers for typed objects in a PDF,
 where the object's Type indicates useful ways it may be processed.
 */
-
-/**
-A Rectangle is a 4-tuple [x1, y1, x2, y2], where [x1, y1] and [x2, y2] are
-points in any two diagonally opposite corners, usually lower-left to
-upper-right.
-
-From the spec:
-
-> **rectangle**
-> a specific array object used to describe locations on a page and bounding
-> boxes for a variety of objects and written as an array of four numbers giving
-> the coordinates of a pair of diagonally opposite corners, typically in the
-> form `[ llx lly urx ury ]` specifying the lower-left x, lower-left y,
-> upper-right x, and upper-right y coordinates of the rectangle, in that order
-*/
-export type Rectangle = [number, number, number, number]
-
-export type Point = [number, number]
 
 interface CharacterSpecification {
   char: string;
@@ -172,7 +155,7 @@ export class Page extends Model {
     return new Pages(this._pdf, this.object['Parent']);
   }
 
-  get MediaBox(): Rectangle {
+  get MediaBox(): [number, number, number, number] {
     return this.object['MediaBox'];
   }
 
@@ -211,12 +194,21 @@ export class Page extends Model {
     return strings.join(separator);
   }
 
+  /**
+  When we render a page, we specify a ContentStream as well as a Resources
+  dictionary. That Resources dictionary may contain XObject streams that are
+  embedded as `Do` operations in the main contents, as well as sub-Resources
+  in those XObjects.
+  */
   renderCanvas(): drawing.Canvas {
-    var canvas = new drawing.Canvas(this.MediaBox);
+    var pageBox = new shapes.Rectangle(this.MediaBox[0], this.MediaBox[1], this.MediaBox[2], this.MediaBox[3]);
+    var canvas = new drawing.Canvas(pageBox);
 
     var contents_string = this.joinContents('\n');
     var contents_string_iterable = new lexing.StringIterator(contents_string);
-    canvas.render(contents_string_iterable, this.Resources);
+
+    var context = new graphics.DrawingContext(this.Resources);
+    context.render(contents_string_iterable, canvas);
 
     return canvas;
   }
@@ -368,8 +360,17 @@ export class Resources extends Model {
     var cached_font = this._cached_fonts[name];
     if (cached_font === undefined) {
       var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-      var object = Font_dictionary[name];
-      cached_font = this._cached_fonts[name] = object ? new Font(this._pdf, object) : null;
+      var Font_model = (name in Font_dictionary) ? new Font(this._pdf, Font_dictionary[name]) : null;
+      // See Table 110 – Font types:
+      // Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+      if (Type0Font.isType0Font(Font_model.object)) {
+        Font_model = new Type0Font(this._pdf, Font_model.object);
+      }
+      else if (Type1Font.isType1Font(Font_model.object)) {
+        Font_model = new Type1Font(this._pdf, Font_model.object);
+      }
+      // TODO: add the others...
+      cached_font = this._cached_fonts[name] = Font_model;
     }
     return cached_font;
   }
@@ -391,19 +392,26 @@ export class Resources extends Model {
 /**
 `_charCodeMapping` is a cached mapping from in-PDF character codes to native
 Javascript (unicode) strings.
+`_widthMapping` is a cached mapping from charCodes to character widths
+(numbers).
+`_defaultWidth` is a cached number representing the default character width,
+when the character code cannot be found in `_widthMapping`.
 */
 export class Font extends Model {
   private _charCodeMapping: string[];
+  private _widthMapping: number[];
+  private _defaultWidth: number;
 
   get Subtype(): any {
     return this.object['Subtype'];
   }
-  get BaseFont(): any {
+  get BaseFont(): string {
     return this.object['BaseFont'];
   }
   get FontDescriptor(): any {
     // I don't think I need any of the FontDescriptor stuff for text extraction
-    return this.object['FontDescriptor'];
+    var model = new Model(this._pdf, this.object['FontDescriptor']);
+    return model.object;
   }
   get Encoding(): Encoding {
     var object = this.object['Encoding'];
@@ -413,18 +421,13 @@ export class Font extends Model {
     var object = this.object['ToUnicode'];
     return object ? new ToUnicode(this._pdf, object) : undefined;
   }
-  /**
-  The PDF spec actually recommends that Widths is an indirect reference.
-  */
-  get Widths(): number[] {
-    var model = new Model(this._pdf, this.object['Widths']);
-    return <number[]>model.object;
+
+  getDefaultWidth(): number {
+    return 1000;
   }
-  get FirstChar(): number {
-    return this.object['FirstChar'];
-  }
-  get LastChar(): number {
-    return this.object['LastChar'];
+
+  getWidthMapping(): number[] {
+    return [];
   }
 
   /**
@@ -475,14 +478,18 @@ export class Font extends Model {
     }).join('');
   }
 
-  measureString(charCodes: number[], defaultWidth = 1000): number {
-    var Widths = this.Widths;
-    var FirstChar = this.FirstChar;
-    if (Widths === undefined || FirstChar === undefined) {
-      return charCodes.length & defaultWidth;
+  measureString(charCodes: number[]): number {
+    if (this._widthMapping === undefined) {
+      this._widthMapping = this.getWidthMapping();
+      this._defaultWidth = this.getDefaultWidth();
     }
-    var charWidths = charCodes.map(charCode => this.Widths[charCode - FirstChar] || defaultWidth);
-    return charWidths.reduce((a, b) => a + b, 0);
+
+    var total_width = 0;
+    charCodes.forEach(charCode => {
+      var width = this._widthMapping[charCode];
+      total_width += (width !== undefined) ? width : this._defaultWidth;
+    });
+    return total_width;
   }
 
   toJSON() {
@@ -491,15 +498,144 @@ export class Font extends Model {
       Subtype: this.Subtype,
       Encoding: this.Encoding,
       FontDescriptor: this.FontDescriptor,
-      Widths: this.Widths,
       BaseFont: this.BaseFont,
       Mapping: this.getCharCodeMapping(),
+      defaultWidth: this.getDefaultWidth(),
+      widthMapping: this.getWidthMapping(),
     };
   }
 
   static isFont(object): boolean {
     if (object === undefined || object === null) return false;
     return object['Type'] === 'Font';
+  }
+}
+
+export class Type1Font extends Font {
+  /**
+  The PDF spec actually recommends that Widths is an indirect reference.
+  */
+  get Widths(): number[] {
+    var model = new Model(this._pdf, this.object['Widths']);
+    return <number[]>model.object;
+  }
+  get FirstChar(): number {
+    return this.object['FirstChar'];
+  }
+  get LastChar(): number {
+    return this.object['LastChar'];
+  }
+
+  getDefaultWidth(): number {
+    return this.FontDescriptor['MissingWidth'];
+  }
+
+  getWidthMapping(): number[] {
+    var mapping: number[] = [];
+    var FirstChar = this.FirstChar;
+    this.Widths.forEach((width, width_index) => {
+      mapping[FirstChar + width_index] = width;
+    });
+    return mapping;
+  }
+
+  static isType1Font(object): boolean {
+    if (object === undefined || object === null) return false;
+    return object['Type'] === 'Font' && object['Subtype'] === 'Type1';
+  }
+}
+
+/**
+Composite font (PDF32000_2008.pdf:9.7)
+
+> Type: 'Font'
+> Subtype: 'Type0'
+*/
+export class Type0Font extends Font {
+  /**
+  > DescendantFonts: array (Required): A one-element array specifying the
+  > CIDFont dictionary that is the descendant of this Type 0 font.
+  */
+  get DescendantFont(): CIDFont {
+    return new CIDFont(this._pdf, this.object['DescendantFonts'][0]);
+  }
+
+  getDefaultWidth(): number {
+    return this.DescendantFont.getDefaultWidth();
+  }
+
+  getWidthMapping(): number[] {
+    return this.DescendantFont.getWidthMapping();
+  }
+
+  static isType0Font(object): boolean {
+    if (object === undefined || object === null) return false;
+    return object['Type'] === 'Font' && object['Subtype'] === 'Type0';
+  }
+}
+
+/**
+CIDFonts (PDF32000_2008.pdf:9.7.4)
+
+Goes well with Type 0 fonts.
+
+> Type: 'Font'
+> Subtype: 'CIDFontType0' or 'CIDFontType2'
+> CIDSystemInfo: dictionary (Required)
+> DW: integer (Optional) The default width for glyphs in the CIDFont. Default
+    value: 1000 (defined in user units).
+> W: array (Optional) A description of the widths for the glyphs in the CIDFont.
+    The array’s elements have a variable format that can specify individual
+    widths for consecutive CIDs or one width for a range of CIDs. Default
+    value: none (the DW value shall be used for all glyphs).
+
+*/
+export class CIDFont extends Font {
+  get CIDSystemInfo(): string {
+    return this.object['CIDSystemInfo'];
+  }
+
+  getDefaultWidth(): number {
+    return this.object['DW'];
+  }
+
+  /**
+  The W array allows the definition of widths for individual CIDs. The elements of the array shall be organized in groups of two or three, where each group shall be in one of these two formats:
+  `c [w1 w2 ... wn]`: c shall be an integer specifying a starting CID value; it shall be followed by an array of n numbers that shall specify the widths for n consecutive CIDs, starting with c.
+  `c_first c_last w`: define the same width, w, for all CIDs in the range c_first to c_last.
+  */
+  getWidthMapping(): number[] {
+    var mapping: number[] = [];
+    var addConsecutive = (starting_cid_value: number, widths: number[]) => {
+      widths.forEach((width, width_offset) => {
+        mapping[starting_cid_value + width_offset] = width;
+      });
+    };
+    var addRange = (c_first: number, c_last: number, width: number) => {
+      for (var cid = c_first; cid <= c_last; cid++) {
+        mapping[cid] = width;
+      }
+    };
+    var W_object = new Model(this._pdf, this.object['W']).object;
+    var cid_widths = <Array<number | number[]>>(W_object || []);
+    var index = 0;
+    var length = cid_widths.length;
+    while (index < length) {
+      if (Array.isArray(cid_widths[index + 1])) {
+        var starting_cid_value = <number>cid_widths[index];
+        var widths = <number[]>cid_widths[index + 1];
+        addConsecutive(starting_cid_value, widths);
+        index += 2;
+      }
+      else {
+        var c_first = <number>cid_widths[index];
+        var c_last = <number>cid_widths[index + 1];
+        var width = <number>cid_widths[index + 2];
+        addRange(c_first, c_last, width);
+        index += 3;
+      }
+    }
+    return mapping;
   }
 }
 

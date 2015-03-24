@@ -1,158 +1,4 @@
-var __extends = this.__extends || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
-var graphics = require('./parsers/graphics');
-function min(numbers) {
-    return Math.min.apply(null, numbers);
-}
-function max(numbers) {
-    return Math.max.apply(null, numbers);
-}
-/**
-This works a lot like the CSS `transform: matrix(a, c, b, d, tx, ty)` syntax.
-*/
-function transform2d(x, y, a, c, b, d, tx, ty) {
-    return [(a * x) + (b * y) + tx, (c * x) + (d * y) + ty];
-}
-function rectanglesToPointArray(rectangles) {
-    var xs = [];
-    var ys = [];
-    rectangles.forEach(function (rectangle) {
-        xs.push(rectangle.minX, rectangle.maxX);
-        ys.push(rectangle.minY, rectangle.maxY);
-    });
-    return [xs, ys];
-}
-function pointsToPointArray(points) {
-    return [points.map(function (point) { return point.x; }), points.map(function (point) { return point.y; })];
-}
-var Point = (function () {
-    function Point(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-    Point.prototype.clone = function () {
-        return new Point(this.x, this.y);
-    };
-    Point.prototype.set = function (x, y) {
-        this.x = x;
-        this.y = y;
-    };
-    Point.prototype.move = function (dx, dy) {
-        this.x += dx;
-        this.y += dy;
-    };
-    return Point;
-})();
-exports.Point = Point;
-/**
-This is much like the standard PDF rectangle, using two diagonally opposite
-corners of a rectangle as its internal representation, but we are always assured
-that they represent the corner nearest the origin first, and the opposite corner
-last.
-*/
-var Rectangle = (function () {
-    function Rectangle(minX, minY, maxX, maxY) {
-        this.minX = minX;
-        this.minY = minY;
-        this.maxX = maxX;
-        this.maxY = maxY;
-    }
-    Rectangle.bounding = function (pointArray) {
-        return new Rectangle(min(pointArray[0]), min(pointArray[1]), max(pointArray[0]), max(pointArray[1]));
-    };
-    Rectangle.fromPointSize = function (x, y, width, height) {
-        return new Rectangle(x, y, x + width, y + height);
-    };
-    Object.defineProperty(Rectangle.prototype, "midX", {
-        get: function () {
-            return (this.maxX - this.minX) / 2 + this.minX;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Rectangle.prototype, "midY", {
-        get: function () {
-            return (this.maxY - this.minY) / 2 + this.minY;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Rectangle.prototype, "dX", {
-        /**
-        I.e., width
-        */
-        get: function () {
-            return this.maxX - this.minX;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Rectangle.prototype, "dY", {
-        /**
-        I.e., height
-        */
-        get: function () {
-            return this.maxY - this.minY;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-    Returns true if this fully contains the other rectangle.
-  
-    The calculation is inclusive; i.e., this.containsRectangle(this) === true
-    */
-    Rectangle.prototype.containsRectangle = function (other) {
-        return (this.minX <= other.minX) && (this.minY <= other.minY) && (this.maxX >= other.maxX) && (this.maxY >= other.maxY);
-    };
-    /**
-    Returns the a standard 4-tuple representation
-    */
-    Rectangle.prototype.toJSON = function () {
-        return [this.minX, this.minY, this.maxX, this.maxY];
-    };
-    Rectangle.fromJSON = function (value) {
-        return new Rectangle(Math.min(value[0], value[2]), Math.min(value[1], value[3]), Math.max(value[0], value[2]), Math.max(value[1], value[3]));
-    };
-    return Rectangle;
-})();
-exports.Rectangle = Rectangle;
-var EmptyRectangle = (function (_super) {
-    __extends(EmptyRectangle, _super);
-    function EmptyRectangle() {
-        _super.call(this, 0, 0, 0, 0);
-    }
-    EmptyRectangle.prototype.containsRectangle = function (other) {
-        return false;
-    };
-    EmptyRectangle.prototype.toJSON = function () {
-        return null;
-    };
-    return EmptyRectangle;
-})(Rectangle);
-exports.EmptyRectangle = EmptyRectangle;
-var TextSpan = (function () {
-    function TextSpan(text, box, fontName, fontSize) {
-        this.text = text;
-        this.box = box;
-        this.fontName = fontName;
-        this.fontSize = fontSize;
-    }
-    TextSpan.prototype.toJSON = function () {
-        return {
-            text: this.text,
-            box: this.box,
-            fontName: this.fontName,
-            fontSize: this.fontSize,
-        };
-    };
-    return TextSpan;
-})();
-exports.TextSpan = TextSpan;
+var shapes = require('./shapes');
 var Paragraph = (function () {
     function Paragraph(lines) {
         if (lines === void 0) { lines = []; }
@@ -182,9 +28,9 @@ var Paragraph = (function () {
 })();
 exports.Paragraph = Paragraph;
 var Section = (function () {
-    function Section(name, box) {
+    function Section(name, bounds) {
         this.name = name;
-        this.box = box;
+        this.bounds = bounds;
         this.spans = [];
     }
     /**
@@ -208,13 +54,13 @@ var Section = (function () {
             current_paragraph = new Paragraph();
         };
         // current_maxY is the current paragraph's bottom bound
-        var last_box = new Rectangle(0, 0, 0, 0);
+        var last_bounds = new shapes.Rectangle(0, 0, 0, 0);
         // for (var i = 0, span; (span = sorted_spans[i]); i++) {
         this.spans.forEach(function (span) {
             // dY is the distance from current bottom of the paragraph to the top of
             // the next span (this may come out negative, if the span is on the same
             // line as the last one)
-            var dY = span.box.minY - last_box.maxY;
+            var dY = span.bounds.minY - last_bounds.maxY;
             if (dY > max_line_gap) {
                 // okay, the total gap between the two lines is big enough to indicate
                 // a new paragraph
@@ -227,14 +73,14 @@ var Section = (function () {
             }
             else {
                 // otherwise it's a span on the same line
-                var dX = span.box.minX - last_box.maxX;
+                var dX = span.bounds.minX - last_bounds.maxX;
                 // and if it's far enough away (horizontally) from the last box, we add a space
                 if (dX > 1) {
                     current_line += ' ';
                 }
             }
-            current_line += span.text;
-            last_box = span.box;
+            current_line += span.string;
+            last_bounds = span.bounds;
         });
         // finish up
         flushParagraph();
@@ -243,7 +89,7 @@ var Section = (function () {
     Section.prototype.toJSON = function () {
         return {
             name: this.name,
-            box: this.box,
+            bounds: this.bounds,
             spans: this.spans,
             paragraphs: this.getParagraphs(),
         };
@@ -252,20 +98,11 @@ var Section = (function () {
 })();
 exports.Section = Section;
 var Canvas = (function () {
-    function Canvas(MediaBox) {
+    function Canvas(bounds) {
+        this.bounds = bounds;
+        // Eventually, this will render out other elements, too
         this.spans = [];
-        this.pageBox = Rectangle.fromJSON(MediaBox);
     }
-    /**
-    When we render a page, we specify a ContentStream as well as a Resources
-    dictionary. That Resources dictionary may contain XObject streams that are
-    embedded as `Do` operations in the main contents, as well as sub-Resources
-    in those XObjects.
-    */
-    Canvas.prototype.render = function (string_iterable, Resources) {
-        var context = new graphics.DrawingContext(Resources);
-        context.render(string_iterable, this);
-    };
     /**
     We define a header as the group of spans at the top separated from the rest
     of the text by at least `min_header_gap`, but which is at most
@@ -276,26 +113,26 @@ var Canvas = (function () {
         if (min_header_gap === void 0) { min_header_gap = 10; }
         // sort in ascending order. the sort occurs in-place but the map creates a
         // new array anyway (though it's shallow; the points are not copies)
-        var spans = this.spans.slice().sort(function (a, b) { return a.box.minY - b.box.minY; });
+        var spans = this.spans.slice().sort(function (a, b) { return a.bounds.minY - b.bounds.minY; });
         // var boxes = this.spans.map(span => span.box).sort((a, b) => a.minY - b.minY);
         // the header starts as a page-wide sliver at the top of the highest span box
-        var header_minY = spans[0].box.minY;
+        var header_minY = spans[0].bounds.minY;
         var header_maxY = header_minY;
         for (var i = 0, next_lower_span; (next_lower_span = spans[i]); i++) {
-            var dY = next_lower_span.box.minY - header_maxY;
+            var dY = next_lower_span.bounds.minY - header_maxY;
             if (dY > min_header_gap) {
                 break;
             }
             // set the new lower bound to the bottom of the newly added box
-            header_maxY = next_lower_span.box.maxY;
+            header_maxY = next_lower_span.bounds.maxY;
             // if we've surpassed how high we decided the header can get, give up
             if ((header_maxY - header_minY) > max_header_height) {
                 // set the header back to the default sliver at the top of the page
-                header_maxY = this.pageBox.minY;
+                header_maxY = this.bounds.minY;
                 break;
             }
         }
-        return new Rectangle(this.pageBox.minX, this.pageBox.minY, this.pageBox.maxX, header_maxY);
+        return new shapes.Rectangle(this.bounds.minX, this.bounds.minY, this.bounds.maxX, header_maxY);
     };
     /**
     The footer can extend at most `max_footer_height` from the bottom of the page,
@@ -305,28 +142,28 @@ var Canvas = (function () {
         if (max_footer_height === void 0) { max_footer_height = 50; }
         if (min_footer_gap === void 0) { min_footer_gap = 10; }
         // sort in descending order -- lowest boxes first
-        var spans = this.spans.slice().sort(function (a, b) { return b.box.maxY - a.box.maxY; });
+        var spans = this.spans.slice().sort(function (a, b) { return b.bounds.maxY - a.bounds.maxY; });
         // var boxes = this.spans.map(span => span.box).sort((a, b) => b.maxY - a.maxY);
         // default the footer to a box as high as the lowest span on the page.
-        var footer_minY = spans[0].box.minY;
+        var footer_minY = spans[0].bounds.minY;
         var footer_maxY = footer_minY;
         for (var i = 1, next_higher_span; (next_higher_span = spans[i]); i++) {
             // dY is the distance from the highest point on the current footer to the
             // bottom of the next highest rectangle on the page
-            var dY = footer_minY - next_higher_span.box.maxY;
+            var dY = footer_minY - next_higher_span.bounds.maxY;
             if (dY > min_footer_gap) {
                 break;
             }
             // set the new footer upper bound
-            footer_minY = next_higher_span.box.minY;
+            footer_minY = next_higher_span.bounds.minY;
             // if we've surpassed how high we decided the footer can get, give up
             if ((footer_maxY - footer_minY) > max_footer_height) {
                 // set the footer back to the sliver at the bottom of the page
-                footer_minY = this.pageBox.maxY;
+                footer_minY = this.bounds.maxY;
                 break;
             }
         }
-        return new Rectangle(this.pageBox.minX, footer_minY, this.pageBox.maxX, this.pageBox.maxY);
+        return new shapes.Rectangle(this.bounds.minX, footer_minY, this.bounds.maxX, this.bounds.maxY);
     };
     Canvas.prototype.getSections = function () {
         var header = this.getHeader();
@@ -334,9 +171,9 @@ var Canvas = (function () {
         // Excluding the header and footer, find a vertical split between the spans,
         // and return an Array of Rectangles bounding each column.
         // For now, split into two columns down the middle of the page.
-        var contents = new Rectangle(this.pageBox.minX, header.maxY, this.pageBox.maxX, footer.minY);
-        var col1 = new Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-        var col2 = new Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
+        var contents = new shapes.Rectangle(this.bounds.minX, header.maxY, this.bounds.maxX, footer.minY);
+        var col1 = new shapes.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
+        var col2 = new shapes.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
         // okay, we've got the bounding boxes, now we need to find the spans they contain
         var sections = [
             new Section('header', header),
@@ -344,12 +181,12 @@ var Canvas = (function () {
             new Section('col1', col1),
             new Section('col2', col2),
         ];
-        var outside_section = new Section('outside', this.pageBox);
+        var outside_section = new Section('outside', this.bounds);
         // now loop through the spans and put them in the appropriate rectangles
         this.spans.forEach(function (span) {
             var outside = true;
             sections.forEach(function (section) {
-                if (section.box.containsRectangle(span.box)) {
+                if (section.bounds.containsRectangle(span.bounds)) {
                     outside = false;
                     section.spans.push(span);
                 }
@@ -361,17 +198,19 @@ var Canvas = (function () {
         sections.push(outside_section);
         return sections;
     };
-    Canvas.prototype.addSpan = function (text, x, y, width_units, fontName, fontSize) {
+    Canvas.prototype.addSpan = function (string, origin, size, fontSize) {
+        // fontName: string,
         // transform into origin at top left
-        var canvas_position = transform2d(x, y, 1, 0, 0, -1, 0, this.pageBox.dY);
-        var box = Rectangle.fromPointSize(canvas_position[0], canvas_position[1], fontSize * (width_units / 1000), Math.ceil(fontSize) | 0);
-        var span = new TextSpan(text, box, fontName, fontSize);
+        var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.bounds.dY);
+        var bounds = shapes.Rectangle.fromPointSize(canvas_origin, size);
+        var details = [bounds.minX, bounds.minY, bounds.maxX, bounds.maxY].map(function (x) { return x.toFixed(3); }).join(',');
+        var span = new shapes.TextSpan(string, bounds, fontSize, details);
         this.spans.push(span);
     };
     Canvas.prototype.toJSON = function () {
         return {
             spans: this.spans,
-            pageBox: this.pageBox,
+            bounds: this.bounds,
             sections: this.getSections(),
         };
     };

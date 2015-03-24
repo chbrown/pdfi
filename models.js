@@ -7,9 +7,11 @@ var __extends = this.__extends || function (d, b) {
 /// <reference path="type_declarations/index.d.ts" />
 var logger = require('loge');
 var lexing = require('lexing');
+var graphics = require('./parsers/graphics');
 var cmap = require('./parsers/cmap');
 var decoders = require('./filters/decoders');
 var drawing = require('./drawing');
+var shapes = require('./shapes');
 var unorm = require('unorm');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -206,11 +208,19 @@ var Page = (function (_super) {
         });
         return strings.join(separator);
     };
+    /**
+    When we render a page, we specify a ContentStream as well as a Resources
+    dictionary. That Resources dictionary may contain XObject streams that are
+    embedded as `Do` operations in the main contents, as well as sub-Resources
+    in those XObjects.
+    */
     Page.prototype.renderCanvas = function () {
-        var canvas = new drawing.Canvas(this.MediaBox);
+        var pageBox = new shapes.Rectangle(this.MediaBox[0], this.MediaBox[1], this.MediaBox[2], this.MediaBox[3]);
+        var canvas = new drawing.Canvas(pageBox);
         var contents_string = this.joinContents('\n');
         var contents_string_iterable = new lexing.StringIterator(contents_string);
-        canvas.render(contents_string_iterable, this.Resources);
+        var context = new graphics.DrawingContext(this.Resources);
+        context.render(contents_string_iterable, canvas);
         return canvas;
     };
     /**
@@ -409,8 +419,17 @@ var Resources = (function (_super) {
         var cached_font = this._cached_fonts[name];
         if (cached_font === undefined) {
             var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-            var object = Font_dictionary[name];
-            cached_font = this._cached_fonts[name] = object ? new Font(this._pdf, object) : null;
+            var Font_model = (name in Font_dictionary) ? new Font(this._pdf, Font_dictionary[name]) : null;
+            // See Table 110 – Font types:
+            // Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+            if (Type0Font.isType0Font(Font_model.object)) {
+                Font_model = new Type0Font(this._pdf, Font_model.object);
+            }
+            else if (Type1Font.isType1Font(Font_model.object)) {
+                Font_model = new Type1Font(this._pdf, Font_model.object);
+            }
+            // TODO: add the others...
+            cached_font = this._cached_fonts[name] = Font_model;
         }
         return cached_font;
     };
@@ -432,6 +451,10 @@ exports.Resources = Resources;
 /**
 `_charCodeMapping` is a cached mapping from in-PDF character codes to native
 Javascript (unicode) strings.
+`_widthMapping` is a cached mapping from charCodes to character widths
+(numbers).
+`_defaultWidth` is a cached number representing the default character width,
+when the character code cannot be found in `_widthMapping`.
 */
 var Font = (function (_super) {
     __extends(Font, _super);
@@ -455,7 +478,8 @@ var Font = (function (_super) {
     Object.defineProperty(Font.prototype, "FontDescriptor", {
         get: function () {
             // I don't think I need any of the FontDescriptor stuff for text extraction
-            return this.object['FontDescriptor'];
+            var model = new Model(this._pdf, this.object['FontDescriptor']);
+            return model.object;
         },
         enumerable: true,
         configurable: true
@@ -476,31 +500,12 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Font.prototype, "Widths", {
-        /**
-        The PDF spec actually recommends that Widths is an indirect reference.
-        */
-        get: function () {
-            var model = new Model(this._pdf, this.object['Widths']);
-            return model.object;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Font.prototype, "FirstChar", {
-        get: function () {
-            return this.object['FirstChar'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Font.prototype, "LastChar", {
-        get: function () {
-            return this.object['LastChar'];
-        },
-        enumerable: true,
-        configurable: true
-    });
+    Font.prototype.getDefaultWidth = function () {
+        return 1000;
+    };
+    Font.prototype.getWidthMapping = function () {
+        return [];
+    };
     /**
     We need the Font's Encoding (not always specified) to read its Differences,
     which we use to map character codes into the glyph name (which can then easily
@@ -547,16 +552,18 @@ var Font = (function (_super) {
             return string;
         }).join('');
     };
-    Font.prototype.measureString = function (charCodes, defaultWidth) {
+    Font.prototype.measureString = function (charCodes) {
         var _this = this;
-        if (defaultWidth === void 0) { defaultWidth = 1000; }
-        var Widths = this.Widths;
-        var FirstChar = this.FirstChar;
-        if (Widths === undefined || FirstChar === undefined) {
-            return charCodes.length & defaultWidth;
+        if (this._widthMapping === undefined) {
+            this._widthMapping = this.getWidthMapping();
+            this._defaultWidth = this.getDefaultWidth();
         }
-        var charWidths = charCodes.map(function (charCode) { return _this.Widths[charCode - FirstChar] || defaultWidth; });
-        return charWidths.reduce(function (a, b) { return a + b; }, 0);
+        var total_width = 0;
+        charCodes.forEach(function (charCode) {
+            var width = _this._widthMapping[charCode];
+            total_width += (width !== undefined) ? width : _this._defaultWidth;
+        });
+        return total_width;
     };
     Font.prototype.toJSON = function () {
         return {
@@ -564,9 +571,10 @@ var Font = (function (_super) {
             Subtype: this.Subtype,
             Encoding: this.Encoding,
             FontDescriptor: this.FontDescriptor,
-            Widths: this.Widths,
             BaseFont: this.BaseFont,
             Mapping: this.getCharCodeMapping(),
+            defaultWidth: this.getDefaultWidth(),
+            widthMapping: this.getWidthMapping(),
         };
     };
     Font.isFont = function (object) {
@@ -577,6 +585,163 @@ var Font = (function (_super) {
     return Font;
 })(Model);
 exports.Font = Font;
+var Type1Font = (function (_super) {
+    __extends(Type1Font, _super);
+    function Type1Font() {
+        _super.apply(this, arguments);
+    }
+    Object.defineProperty(Type1Font.prototype, "Widths", {
+        /**
+        The PDF spec actually recommends that Widths is an indirect reference.
+        */
+        get: function () {
+            var model = new Model(this._pdf, this.object['Widths']);
+            return model.object;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Type1Font.prototype, "FirstChar", {
+        get: function () {
+            return this.object['FirstChar'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Type1Font.prototype, "LastChar", {
+        get: function () {
+            return this.object['LastChar'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Type1Font.prototype.getDefaultWidth = function () {
+        return this.FontDescriptor['MissingWidth'];
+    };
+    Type1Font.prototype.getWidthMapping = function () {
+        var mapping = [];
+        var FirstChar = this.FirstChar;
+        this.Widths.forEach(function (width, width_index) {
+            mapping[FirstChar + width_index] = width;
+        });
+        return mapping;
+    };
+    Type1Font.isType1Font = function (object) {
+        if (object === undefined || object === null)
+            return false;
+        return object['Type'] === 'Font' && object['Subtype'] === 'Type1';
+    };
+    return Type1Font;
+})(Font);
+exports.Type1Font = Type1Font;
+/**
+Composite font (PDF32000_2008.pdf:9.7)
+
+> Type: 'Font'
+> Subtype: 'Type0'
+*/
+var Type0Font = (function (_super) {
+    __extends(Type0Font, _super);
+    function Type0Font() {
+        _super.apply(this, arguments);
+    }
+    Object.defineProperty(Type0Font.prototype, "DescendantFont", {
+        /**
+        > DescendantFonts: array (Required): A one-element array specifying the
+        > CIDFont dictionary that is the descendant of this Type 0 font.
+        */
+        get: function () {
+            return new CIDFont(this._pdf, this.object['DescendantFonts'][0]);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Type0Font.prototype.getDefaultWidth = function () {
+        return this.DescendantFont.getDefaultWidth();
+    };
+    Type0Font.prototype.getWidthMapping = function () {
+        return this.DescendantFont.getWidthMapping();
+    };
+    Type0Font.isType0Font = function (object) {
+        if (object === undefined || object === null)
+            return false;
+        return object['Type'] === 'Font' && object['Subtype'] === 'Type0';
+    };
+    return Type0Font;
+})(Font);
+exports.Type0Font = Type0Font;
+/**
+CIDFonts (PDF32000_2008.pdf:9.7.4)
+
+Goes well with Type 0 fonts.
+
+> Type: 'Font'
+> Subtype: 'CIDFontType0' or 'CIDFontType2'
+> CIDSystemInfo: dictionary (Required)
+> DW: integer (Optional) The default width for glyphs in the CIDFont. Default
+    value: 1000 (defined in user units).
+> W: array (Optional) A description of the widths for the glyphs in the CIDFont.
+    The array’s elements have a variable format that can specify individual
+    widths for consecutive CIDs or one width for a range of CIDs. Default
+    value: none (the DW value shall be used for all glyphs).
+
+*/
+var CIDFont = (function (_super) {
+    __extends(CIDFont, _super);
+    function CIDFont() {
+        _super.apply(this, arguments);
+    }
+    Object.defineProperty(CIDFont.prototype, "CIDSystemInfo", {
+        get: function () {
+            return this.object['CIDSystemInfo'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    CIDFont.prototype.getDefaultWidth = function () {
+        return this.object['DW'];
+    };
+    /**
+    The W array allows the definition of widths for individual CIDs. The elements of the array shall be organized in groups of two or three, where each group shall be in one of these two formats:
+    `c [w1 w2 ... wn]`: c shall be an integer specifying a starting CID value; it shall be followed by an array of n numbers that shall specify the widths for n consecutive CIDs, starting with c.
+    `c_first c_last w`: define the same width, w, for all CIDs in the range c_first to c_last.
+    */
+    CIDFont.prototype.getWidthMapping = function () {
+        var mapping = [];
+        var addConsecutive = function (starting_cid_value, widths) {
+            widths.forEach(function (width, width_offset) {
+                mapping[starting_cid_value + width_offset] = width;
+            });
+        };
+        var addRange = function (c_first, c_last, width) {
+            for (var cid = c_first; cid <= c_last; cid++) {
+                mapping[cid] = width;
+            }
+        };
+        var W_object = new Model(this._pdf, this.object['W']).object;
+        var cid_widths = (W_object || []);
+        var index = 0;
+        var length = cid_widths.length;
+        while (index < length) {
+            if (Array.isArray(cid_widths[index + 1])) {
+                var starting_cid_value = cid_widths[index];
+                var widths = cid_widths[index + 1];
+                addConsecutive(starting_cid_value, widths);
+                index += 2;
+            }
+            else {
+                var c_first = cid_widths[index];
+                var c_last = cid_widths[index + 1];
+                var width = cid_widths[index + 2];
+                addRange(c_first, c_last, width);
+                index += 3;
+            }
+        }
+        return mapping;
+    };
+    return CIDFont;
+})(Font);
+exports.CIDFont = CIDFont;
 /**
 The PDF points to its catalog object with its trailer's `Root` reference.
 
