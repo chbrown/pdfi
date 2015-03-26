@@ -402,12 +402,18 @@ var Resources = (function (_super) {
             var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
             var Font_model = (name in Font_dictionary) ? new Font(this._pdf, Font_dictionary[name]) : null;
             // See Table 110 – Font types:
-            // Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
-            if (Type0Font.isType0Font(Font_model.object)) {
-                Font_model = new Type0Font(this._pdf, Font_model.object);
-            }
-            else if (Type1Font.isType1Font(Font_model.object)) {
-                Font_model = new Type1Font(this._pdf, Font_model.object);
+            //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+            if (Font_model.object['Type'] === 'Font') {
+                if (Font_model.object['Subtype'] === 'Type0') {
+                    Font_model = new Type0Font(this._pdf, Font_model.object);
+                }
+                else if (Font_model.object['Subtype'] === 'Type1') {
+                    Font_model = new Type1Font(this._pdf, Font_model.object);
+                }
+                else if (Font_model.object['Subtype'] === 'TrueType') {
+                    // apparently TrueType and Type 1 fonts are pretty much the same.
+                    Font_model = new Type1Font(this._pdf, Font_model.object);
+                }
             }
             Font_model.Name = name;
             // TODO: add the other types of fonts
@@ -529,7 +535,7 @@ var Font = (function (_super) {
     (usually somewhere in the range of 250-750 for each character/glyph).
     */
     Font.prototype.measureString = function (charCodes) {
-        throw new Error("Cannot measureString() in base Font class (Subtype: " + this.Subtype + ")");
+        throw new Error("Cannot measureString() in base Font class (Subtype: " + this.Subtype + ", Name: " + this.Name + ")");
     };
     Font.prototype.toJSON = function () {
         return {
@@ -652,7 +658,7 @@ var Type1Font = (function (_super) {
     */
     Type1Font.prototype._initializeWidthMapping = function () {
         var _this = this;
-        logger.debug('Type1Font#_initializeWidthMapping() called');
+        logger.debug("Type1Font[" + this.Name + "]#_initializeWidthMapping() called");
         // Try using the local Widths, etc., configuration first.
         if (this.Widths) {
             var FirstChar = this.FirstChar;
@@ -724,7 +730,7 @@ var Type0Font = (function (_super) {
         configurable: true
     });
     Type0Font.prototype._initializeWidthMapping = function () {
-        logger.debug('Type0Font#_initializeWidthMapping() called');
+        logger.debug("Type0Font[" + this.Name + "]#_initializeWidthMapping() called");
         this._widthMapping = this.DescendantFont.getWidthMapping();
         this._defaultWidth = this.DescendantFont.getDefaultWidth();
     };
