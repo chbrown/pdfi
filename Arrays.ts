@@ -28,3 +28,51 @@ export function median(xs: number[]): number {
   }
   return xs[middle | 0];
 }
+
+export function mean(xs: number[]): number {
+  return sum(xs) / xs.length;
+}
+
+export function min(xs: number[]): number {
+  return Math.min.apply(null, xs);
+}
+
+export function max(xs: number[]): number {
+  return Math.max.apply(null, xs);
+}
+
+export function mkString(charCodes: number[]): string {
+  return String.fromCharCode.apply(null, charCodes);
+}
+
+/**
+range(10, 4) => [0, 4, 8]
+range(12, 4) => [0, 4, 8]
+range( 0, 4) => []
+*/
+export function range(max: number, step: number = 1): number[] {
+  var length = Math.ceil(max / step);
+  var indices = new Array<number>(length);
+  for (var i = 0; i < length; i++) {
+    indices[i] = i * step;
+  }
+  return indices;
+}
+
+/**
+groups([1, 2, 3, 4, 5], 1) => [[1], [2], [3], [4], [5]]
+groups([1, 2, 3, 4, 5], 2) => [[1, 2], [3, 4], [5]]
+groups([1, 2, 3, 4, 5], 3) => [[1, 2, 3], [4, 5]]
+*/
+export function groups<T>(elements: T[], size: number): T[][] {
+  var groups: T[][] = [];
+  var index = 0;
+  var offset = 0;
+  var length = elements.length;
+  while (offset < length) {
+    groups[index] = elements.slice(offset, offset + size);
+    index++;
+    offset += size;
+  }
+  return groups;
+}

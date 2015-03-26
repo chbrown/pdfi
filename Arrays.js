@@ -29,3 +29,52 @@ function median(xs) {
     return xs[middle | 0];
 }
 exports.median = median;
+function mean(xs) {
+    return sum(xs) / xs.length;
+}
+exports.mean = mean;
+function min(xs) {
+    return Math.min.apply(null, xs);
+}
+exports.min = min;
+function max(xs) {
+    return Math.max.apply(null, xs);
+}
+exports.max = max;
+function mkString(charCodes) {
+    return String.fromCharCode.apply(null, charCodes);
+}
+exports.mkString = mkString;
+/**
+range(10, 4) => [0, 4, 8]
+range(12, 4) => [0, 4, 8]
+range( 0, 4) => []
+*/
+function range(max, step) {
+    if (step === void 0) { step = 1; }
+    var length = Math.ceil(max / step);
+    var indices = new Array(length);
+    for (var i = 0; i < length; i++) {
+        indices[i] = i * step;
+    }
+    return indices;
+}
+exports.range = range;
+/**
+groups([1, 2, 3, 4, 5], 1) => [[1], [2], [3], [4], [5]]
+groups([1, 2, 3, 4, 5], 2) => [[1, 2], [3, 4], [5]]
+groups([1, 2, 3, 4, 5], 3) => [[1, 2, 3], [4, 5]]
+*/
+function groups(elements, size) {
+    var groups = [];
+    var index = 0;
+    var offset = 0;
+    var length = elements.length;
+    while (offset < length) {
+        groups[index] = elements.slice(offset, offset + size);
+        index++;
+        offset += size;
+    }
+    return groups;
+}
+exports.groups = groups;

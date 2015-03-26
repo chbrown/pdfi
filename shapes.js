@@ -4,12 +4,6 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-function min(numbers) {
-    return Math.min.apply(null, numbers);
-}
-function max(numbers) {
-    return Math.max.apply(null, numbers);
-}
 var Point = (function () {
     function Point(x, y) {
         this.x = x;

@@ -1,10 +1,3 @@
-function min(numbers: number[]): number {
-  return Math.min.apply(null, numbers);
-}
-function max(numbers: number[]): number {
-  return Math.max.apply(null, numbers);
-}
-
 export class Point {
   constructor(public x: number, public y: number) { }
   clone(): Point {
