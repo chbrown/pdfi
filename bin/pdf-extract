@@ -3,7 +3,7 @@ var logger = require('loge');
 var commands = require('./commands');
 
 var yargs = require('yargs')
-  .usage('Usage: $0 -f ScienceArticle.pdf [-o 1:0]')
+  .usage('Usage: $0 -f ScienceArticle.pdf [-s col1]')
   .describe({
     filename: 'pdf file to open',
     // extraction targets
@@ -13,9 +13,9 @@ var yargs = require('yargs')
     verbose: 'print extra output',
   })
   .alias({
-    verbose: 'v',
     filename: 'f',
     sections: 's',
+    verbose: 'v',
   })
   .demand(['filename'])
   .boolean(['help', 'verbose']);

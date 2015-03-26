@@ -92,12 +92,13 @@ export function dump(filename: string,
 }
 
 export function extract(filename: string,
-                        sections: string[] = []) {
+                        section_names: string[] = []) {
   var pdf = PDF.open(filename);
 
-  pdf.pages.forEach(function(page, page_index, pages) {
-    stderr(`Rendering Page ${page_index} of ${pages.length}`);
-    var lines = page.getParagraphStrings(sections);
-    process.stdout.write(lines.join('\n') + '\n');
+  var paragraphs = pdf.getParagraphs(section_names);
+  stderr(`[${filename}] Extracted ${paragraphs.length} paragraphs`);
+
+  paragraphs.forEach((paragraph, index, pages) => {
+    process.stdout.write(`    ${paragraph}\n`);
   });
 }

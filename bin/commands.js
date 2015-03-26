@@ -73,13 +73,13 @@ function dump(filename, trailer, catalog, info, xref, pages, objects, enhance) {
     });
 }
 exports.dump = dump;
-function extract(filename, sections) {
-    if (sections === void 0) { sections = []; }
+function extract(filename, section_names) {
+    if (section_names === void 0) { section_names = []; }
     var pdf = PDF.open(filename);
-    pdf.pages.forEach(function (page, page_index, pages) {
-        stderr("Rendering Page " + page_index + " of " + pages.length);
-        var lines = page.getParagraphStrings(sections);
-        process.stdout.write(lines.join('\n') + '\n');
+    var paragraphs = pdf.getParagraphs(section_names);
+    stderr("[" + filename + "] Extracted " + paragraphs.length + " paragraphs");
+    paragraphs.forEach(function (paragraph, index, pages) {
+        process.stdout.write("    " + paragraph + "\n");
     });
 }
 exports.extract = extract;
