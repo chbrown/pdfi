@@ -66,3 +66,19 @@ export interface CrossReference {
   generation_number: number; // non-negative integer
   in_use: boolean;
 }
+
+/**
+A PDF Rectangle is a 4-tuple [x1, y1, x2, y2], where [x1, y1] and [x2, y2] are
+points in any two diagonally opposite corners, usually lower-left to
+upper-right.
+
+From the spec:
+
+> **rectangle**
+> a specific array object used to describe locations on a page and bounding
+> boxes for a variety of objects and written as an array of four numbers giving
+> the coordinates of a pair of diagonally opposite corners, typically in the
+> form `[ llx lly urx ury ]` specifying the lower-left x, lower-left y,
+> upper-right x, and upper-right y coordinates of the rectangle, in that order
+*/
+export type Rectangle = [number, number, number, number]
