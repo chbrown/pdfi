@@ -18,3 +18,13 @@ export function sum(xs: number[]): number {
   }
   return sum;
 }
+
+export function median(xs: number[]): number {
+  xs.sort((a, b) => a - b);
+  var middle = xs.length / 2;
+  // if xs is even, average the two middle items
+  if (xs.length % 2 === 0) {
+    return (xs[middle - 1] + xs[middle]) / 2.0;
+  }
+  return xs[middle | 0];
+}
