@@ -6,8 +6,10 @@ import lexing = require('lexing');
 
 import File = require('./File');
 
+import Arrays = require('./Arrays');
 import pdfdom = require('./pdfdom');
 import models = require('./models');
+import drawing = require('./drawing');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
 import graphics = require('./parsers/graphics');
@@ -181,6 +183,46 @@ class PDF {
   */
   get pages(): models.Page[] {
     return this.trailer.Root.Pages.getLeaves();
+  }
+
+  /**
+  Returns one string (one line) for each paragraph.
+  */
+  getParagraphs(section_names: string[], paragraph_indent = 5): string[] {
+    // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
+    // track of the container it belongs to, so that we can measure offsets
+    // later.
+    var lines = Arrays.flatMap(this.pages, page => {
+      var sections = page.renderCanvas().getSections();
+      var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
+      var selected_sections_lines: drawing.Line[] = Arrays.flatMap(selected_sections, section => section.getLines());
+      return selected_sections_lines;
+    });
+
+    var paragraphs: string[] = []; // = new Arrays.Builder<string>();
+    var currentParagraph: drawing.Line[] = [];
+
+    var previousLine: drawing.Line = null; // = paragraphs.last
+    lines.forEach(currentLine => {
+      if (previousLine !== null) {
+        var previousLine_offsetX = previousLine.minX - previousLine.container.minX;
+        var offsetX = currentLine.minX - currentLine.container.minX;
+        var diff_offsetX = Math.abs(previousLine_offsetX - offsetX);
+        // var offsetY = currentLine.container.minY - currentLine.minY;
+        if (diff_offsetX > paragraph_indent) {
+          var string = drawing.joinLines(currentParagraph);
+          paragraphs.push(string);
+          currentParagraph = [];
+        }
+      }
+      currentParagraph.push(currentLine);
+      previousLine = currentLine;
+    });
+    // finish up
+    var string = drawing.joinLines(currentParagraph);
+    paragraphs.push(string);
+
+    return paragraphs;
   }
 
   /**

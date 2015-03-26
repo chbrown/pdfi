@@ -12,7 +12,7 @@ var cmap = require('./parsers/cmap');
 var decoders = require('./filters/decoders');
 var drawing = require('./drawing');
 var shapes = require('./shapes');
-var unorm = require('unorm');
+var FontMetrics = require('./font/FontMetrics');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -105,7 +105,8 @@ var Pages = (function (_super) {
     "Pages"-type objects have a field, Kids: IndirectReference[].
     Each indirect reference will resolve to a Page or Pages object.
   
-    This function will flatten the page list breadth-first, returning
+    This will flatten the page list breadth-first, returning only the Page objects
+    at the leaves of the pages tree.
     */
     Pages.prototype.getLeaves = function () {
         var PageGroups = this.Kids.map(function (Kid) {
@@ -192,7 +193,7 @@ var Page = (function (_super) {
   
     From the spec:
   
-    > If the value is an array, the effect shall be as if all of the streams in the array were concatenated, in order, to form a single stream. Conforming writers can create image objects and other resources as they occur, even though they interrupt the content stream. The division between streams may occur only at the boundaries between lexical tokens but shall be unrelated to the page’s logical content or organization. Applications that consume or produce PDF files need not preserve the existing structure of the Contents array. Conforming writers shall not create a Contents array containing no elements.
+    > If the value is an array, the effect shall be as if all of the streams in the array were concatenated, in order, to form a single stream. Conforming writers can create image objects and other resources as they occur, even though they interrupt the content stream. The division between streams may occur only at the boundaries between lexical tokens but shall be unrelated to the page's logical content or organization. Applications that consume or produce PDF files need not preserve the existing structure of the Contents array. Conforming writers shall not create a Contents array containing no elements.
   
     Merging the streams would be pretty simple, except that the separations
     between them count as token separators, so we can't feed the result of
@@ -222,26 +223,6 @@ var Page = (function (_super) {
         var context = new graphics.DrawingContext(this.Resources);
         context.render(contents_string_iterable, canvas);
         return canvas;
-    };
-    /**
-    Returns one string (one line) for each paragraph.
-    */
-    Page.prototype.getParagraphStrings = function (section_names) {
-        var canvas = this.renderCanvas();
-        var sections = canvas.getSections();
-        var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
-        var selected_sections_paragraphs = selected_sections.map(function (section) { return section.getParagraphs(); });
-        // flatten selected_sections_paragraphs into a single Array of Paragraphs
-        var paragraphs = selected_sections_paragraphs.reduce(function (a, b) { return a.concat(b); }, []);
-        // render each Paragraph into a single string with any pre-existing EOL
-        // markers stripped out
-        return paragraphs.map(function (paragraph) {
-            var parargraph_text = paragraph.getText();
-            var line = parargraph_text.replace(/(\r\n|\r|\n|\t)/g, ' ');
-            var visible_line = parargraph_text.replace(/[\x00-\x1F]/g, '');
-            var normalized_line = unorm.nfkc(visible_line);
-            return normalized_line;
-        });
     };
     Page.prototype.toJSON = function () {
         return {
@@ -428,7 +409,8 @@ var Resources = (function (_super) {
             else if (Type1Font.isType1Font(Font_model.object)) {
                 Font_model = new Type1Font(this._pdf, Font_model.object);
             }
-            // TODO: add the others...
+            Font_model.Name = name;
+            // TODO: add the other types of fonts
             cached_font = this._cached_fonts[name] = Font_model;
         }
         return cached_font;
@@ -449,12 +431,21 @@ var Resources = (function (_super) {
 })(Model);
 exports.Resources = Resources;
 /**
-`_charCodeMapping` is a cached mapping from in-PDF character codes to native
-Javascript (unicode) strings.
-`_widthMapping` is a cached mapping from charCodes to character widths
-(numbers).
-`_defaultWidth` is a cached number representing the default character width,
-when the character code cannot be found in `_widthMapping`.
+Font is a general, sometimes abstract (see Font#measureString), representation
+of a PDF Font of any Subtype.
+
+Some uses, which vary in their implementation based on the Type of the font,
+require creating a specific Font subclass, e.g., Type1Font().
+
+Beyond the `object` property, common to all Model instances, Font also has a
+`Name` field, which is populated when the Font is instantiated from within
+Resources#getFont(), for easier debugging. It should not be used for any
+material purposes (and is not necessary for any).
+
+# Cached objects
+
+* `_charCodeMapping: string[]` is a cached mapping from in-PDF character codes to native
+  Javascript (unicode) strings.
 */
 var Font = (function (_super) {
     __extends(Font, _super);
@@ -475,75 +466,56 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Font.prototype, "FontDescriptor", {
+    Object.defineProperty(Font.prototype, "charCodeMapping", {
+        /**
+        Cached as `_charCodeMapping`.
+      
+        We need the Font's Encoding (not always specified) to read its Differences,
+        which we use to map character codes into the glyph name (which can then easily
+        be mapped to the unicode string representation of that glyph).
+        */
         get: function () {
-            // I don't think I need any of the FontDescriptor stuff for text extraction
-            var model = new Model(this._pdf, this.object['FontDescriptor']);
-            return model.object;
+            // initialize if needed
+            if (this._charCodeMapping === undefined) {
+                // try the ToUnicode object first
+                if (this.object['ToUnicode']) {
+                    this._charCodeMapping = new ToUnicode(this._pdf, this.object['ToUnicode']).Mapping;
+                }
+                else if (this.object['Encoding']) {
+                    this._charCodeMapping = new Encoding(this._pdf, this.object['Encoding']).Mapping;
+                }
+                else {
+                    // Neither Encoding nor ToUnicode are specified; that's bad!
+                    logger.warn("Could not find any character code mapping for font; using default mapping");
+                    // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
+                    this._charCodeMapping = Encoding.getDefaultMapping('std');
+                }
+            }
+            return this._charCodeMapping;
         },
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Font.prototype, "Encoding", {
-        get: function () {
-            var object = this.object['Encoding'];
-            return object ? new Encoding(this._pdf, object) : undefined;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Font.prototype, "ToUnicode", {
-        get: function () {
-            var object = this.object['ToUnicode'];
-            return object ? new ToUnicode(this._pdf, object) : undefined;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Font.prototype.getDefaultWidth = function () {
-        return 1000;
-    };
-    Font.prototype.getWidthMapping = function () {
-        return [];
-    };
-    /**
-    We need the Font's Encoding (not always specified) to read its Differences,
-    which we use to map character codes into the glyph name (which can then easily
-    be mapped to the unicode string representation of that glyph).
-    */
-    Font.prototype.getCharCodeMapping = function () {
-        // try the ToUnicode object first
-        if (this.ToUnicode) {
-            return this.ToUnicode.Mapping;
-        }
-        // No luck? Try the Encoding dictionary
-        if (this.Encoding) {
-            return this.Encoding.Mapping;
-        }
-        // Neither Encoding nor ToUnicode are specified; that's bad!
-        logger.warn("Could not find any character code mapping for font; using default mapping");
-        return Encoding.getDefaultMapping('std');
-    };
     /**
     Returns a native (unicode) Javascript string representing the given character
-    codes.
+    codes. These character codes may have nothing to do with Latin-1, directly,
+    but can be mapped to unicode via the Font dictionary's Encoding or ToUnicode
+    fields, and can be assigned widths via the Font dictionary's Widths or
+    BaseFont fields.
   
-    Caches the required Mapping.
+    Uses a cached mapping via the charCodeMapping getter.
   
     Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
-    be resolved to a string.
+    be resolved to a string (unless the `skipMissing` argument is set to `true`,
+    in which case, it simply skips those characters.
     */
     Font.prototype.decodeString = function (charCodes, skipMissing) {
         var _this = this;
         if (skipMissing === void 0) { skipMissing = false; }
-        // initialize if needed
-        if (this._charCodeMapping === undefined) {
-            this._charCodeMapping = this.getCharCodeMapping();
-        }
         return charCodes.map(function (charCode) {
-            var string = _this._charCodeMapping[charCode];
+            var string = _this.charCodeMapping[charCode];
             if (string === undefined) {
-                logger.error("Could not decode character code: " + charCode);
+                logger.error("[Font=" + _this.Name + "] Could not decode character code: " + charCode);
                 if (skipMissing) {
                     return '';
                 }
@@ -552,29 +524,18 @@ var Font = (function (_super) {
             return string;
         }).join('');
     };
+    /**
+    This should be overridden by subclasses to return a total width, in text units
+    (usually somewhere in the range of 250-750 for each character/glyph).
+    */
     Font.prototype.measureString = function (charCodes) {
-        var _this = this;
-        if (this._widthMapping === undefined) {
-            this._widthMapping = this.getWidthMapping();
-            this._defaultWidth = this.getDefaultWidth();
-        }
-        var total_width = 0;
-        charCodes.forEach(function (charCode) {
-            var width = _this._widthMapping[charCode];
-            total_width += (width !== undefined) ? width : _this._defaultWidth;
-        });
-        return total_width;
+        throw new Error("Cannot measureString() in base Font class (Subtype: " + this.Subtype + ")");
     };
     Font.prototype.toJSON = function () {
         return {
             Type: 'Font',
             Subtype: this.Subtype,
-            Encoding: this.Encoding,
-            FontDescriptor: this.FontDescriptor,
             BaseFont: this.BaseFont,
-            Mapping: this.getCharCodeMapping(),
-            defaultWidth: this.getDefaultWidth(),
-            widthMapping: this.getWidthMapping(),
         };
     };
     Font.isFont = function (object) {
@@ -585,22 +546,62 @@ var Font = (function (_super) {
     return Font;
 })(Model);
 exports.Font = Font;
+/**
+Type 1 Font (See PDF32000_2008.pdf:9.6.2, Table 111)
+
+## The basics
+
+* `Type: string = 'Font'`
+* `Subtype: string = 'Type1'`
+* `BaseFont: string`
+  This is required, but does not always name a Core14 font. From the spec:
+  > The PostScript name of the font. For Type 1 fonts, this is always the value
+  > of the FontName entry in the font program. The PostScript name of the font
+  > may be used to find the font program in the conforming reader or its
+  > environment
+* `Name?: string`
+  Obsolete. This is a relic of PDF 1.0, when it matched the key of this font in
+  the current Resources' `Font` dictionary.
+
+## Metrics for non-Core14 fonts
+
+* `FirstChar?: integer`
+* `LastChar?: integer`
+* `Widths?: array`
+  The PDF spec actually recommends that `Widths` be an indirect reference.
+* `FontDescriptor?: array`
+
+These four fields are optional for the Core14 ("standard 14") fonts, but are
+not precluded for the Core14 fonts. In fact, PDF 1.5 suggests that even the
+Core14 fonts specify these fields. They come in a package -- they "shall" all
+be present, or all be absent.
+
+## Resolving character codes
+
+* `Encoding?: string | dictionary`
+  Optional. From the spec:
+  > A specification of the font's character encoding if different from its built-in encoding. The value of Encoding shall be either the name of a predefined encoding (MacRomanEncoding, MacExpertEncoding, or WinAnsiEncoding) or an encoding dictionary that shall specify differences from the font's built-in encoding or from a specified predefined encoding.
+* `ToUnicode?: ContentStream`
+  Optional. From the spec:
+  > A stream containing a CMap file that maps character codes to Unicode values.
+
+# Cached objects
+
+* `_widthMapping: {[index: string]: number}`
+  A cached mapping from unicode strings to character widths (numbers). In the
+  case that `Widths`, etc., are defined, it'd be easier to map directly from
+  character codes, but since we might also have to load the widths from a Core14
+  font metrics file, unicode is the common denominator.
+* `_defaultWidth: number`
+  A cached number representing the default character width, when the character
+  code cannot be found in `_widthMapping`.
+
+*/
 var Type1Font = (function (_super) {
     __extends(Type1Font, _super);
     function Type1Font() {
         _super.apply(this, arguments);
     }
-    Object.defineProperty(Type1Font.prototype, "Widths", {
-        /**
-        The PDF spec actually recommends that Widths is an indirect reference.
-        */
-        get: function () {
-            var model = new Model(this._pdf, this.object['Widths']);
-            return model.object;
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(Type1Font.prototype, "FirstChar", {
         get: function () {
             return this.object['FirstChar'];
@@ -615,16 +616,72 @@ var Type1Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Type1Font.prototype.getDefaultWidth = function () {
-        return this.FontDescriptor['MissingWidth'];
+    Object.defineProperty(Type1Font.prototype, "Widths", {
+        get: function () {
+            var model = new Model(this._pdf, this.object['Widths']);
+            return model.object;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Type1Font.prototype, "FontDescriptor", {
+        get: function () {
+            var model = new Model(this._pdf, this.object['FontDescriptor']);
+            return model.object;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Type1Font.prototype.measureString = function (charCodes) {
+        var _this = this;
+        if (this._widthMapping === undefined || this._defaultWidth === undefined) {
+            this._initializeWidthMapping();
+        }
+        return charCodes.reduce(function (sum, charCode) {
+            var string = _this.charCodeMapping[charCode];
+            var width = (string in _this._widthMapping) ? _this._widthMapping[string] : _this._defaultWidth;
+            return sum + width;
+        }, 0);
     };
-    Type1Font.prototype.getWidthMapping = function () {
-        var mapping = [];
-        var FirstChar = this.FirstChar;
-        this.Widths.forEach(function (width, width_index) {
-            mapping[FirstChar + width_index] = width;
-        });
-        return mapping;
+    /**
+    This may be able to determine character code widths directly from the Font
+    resource, but may have to load a FontMetrics instance for Core14 fonts.
+  
+    If `Widths`, `FirstChar`, `LastChar`, and `FontDescriptor` are missing, and
+    the BaseFont value is not one of the Core14 fonts, this will throw an Error.
+    */
+    Type1Font.prototype._initializeWidthMapping = function () {
+        var _this = this;
+        logger.debug('Type1Font#_initializeWidthMapping() called');
+        // Try using the local Widths, etc., configuration first.
+        if (this.Widths) {
+            var FirstChar = this.FirstChar;
+            // TODO: verify LastChar?
+            this._widthMapping = {};
+            this.Widths.forEach(function (width, width_index) {
+                var charCode = FirstChar + width_index;
+                var string = _this.charCodeMapping[charCode];
+                _this._widthMapping[string] = width;
+            });
+            // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
+            this._defaultWidth = this.FontDescriptor['MissingWidth'] || null;
+        }
+        else if (FontMetrics.isCore14(this.BaseFont)) {
+            var fontMetrics = FontMetrics.loadCore14(this.BaseFont);
+            this._widthMapping = {};
+            fontMetrics.characters.forEach(function (charMetrics) {
+                // charMetrics only specifies the glyphname and the default character
+                // code; we need to express the mapping in terms of the font's
+                var string = glyphlist[charMetrics.name];
+                _this._widthMapping[string] = charMetrics.width;
+            });
+            // As far as I can tell, in the case of the Core14 fonts, the default
+            // width should never be referenced, but I'll set it here just in case.
+            this._defaultWidth = 1000;
+        }
+        else {
+            throw new Error('Cannot initialize width mapping for non-Core14 Type 1 Font without "Widths" field');
+        }
     };
     Type1Font.isType1Font = function (object) {
         if (object === undefined || object === null)
@@ -637,8 +694,17 @@ exports.Type1Font = Type1Font;
 /**
 Composite font (PDF32000_2008.pdf:9.7)
 
-> Type: 'Font'
-> Subtype: 'Type0'
+* `Type: string = 'Font'`
+* `Subtype: string = 'Type0'`
+* `DescendantFonts: Array`
+
+# Cached objects
+
+* `_widthMapping: number[]`
+  A cached mapping from charCodes to character widths.
+* `_defaultWidth: number`
+  A cached number representing the default character width, when the character
+  code cannot be found in `_widthMapping`.
 */
 var Type0Font = (function (_super) {
     __extends(Type0Font, _super);
@@ -651,16 +717,26 @@ var Type0Font = (function (_super) {
         > CIDFont dictionary that is the descendant of this Type 0 font.
         */
         get: function () {
-            return new CIDFont(this._pdf, this.object['DescendantFonts'][0]);
+            var array = new Model(this._pdf, this.object['DescendantFonts']).object;
+            return new CIDFont(this._pdf, array[0]);
         },
         enumerable: true,
         configurable: true
     });
-    Type0Font.prototype.getDefaultWidth = function () {
-        return this.DescendantFont.getDefaultWidth();
+    Type0Font.prototype._initializeWidthMapping = function () {
+        logger.debug('Type0Font#_initializeWidthMapping() called');
+        this._widthMapping = this.DescendantFont.getWidthMapping();
+        this._defaultWidth = this.DescendantFont.getDefaultWidth();
     };
-    Type0Font.prototype.getWidthMapping = function () {
-        return this.DescendantFont.getWidthMapping();
+    Type0Font.prototype.measureString = function (charCodes) {
+        var _this = this;
+        if (this._widthMapping === undefined || this._defaultWidth === undefined) {
+            this._initializeWidthMapping();
+        }
+        return charCodes.reduce(function (sum, charCode) {
+            var width = (charCode in _this._widthMapping) ? _this._widthMapping[charCode] : _this._defaultWidth;
+            return sum + width;
+        }, 0);
     };
     Type0Font.isType0Font = function (object) {
         if (object === undefined || object === null)
@@ -681,7 +757,7 @@ Goes well with Type 0 fonts.
 > DW: integer (Optional) The default width for glyphs in the CIDFont. Default
     value: 1000 (defined in user units).
 > W: array (Optional) A description of the widths for the glyphs in the CIDFont.
-    The array’s elements have a variable format that can specify individual
+    The array's elements have a variable format that can specify individual
     widths for consecutive CIDs or one width for a range of CIDs. Default
     value: none (the DW value shall be used for all glyphs).
 
@@ -698,13 +774,26 @@ var CIDFont = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(CIDFont.prototype, "W", {
+        get: function () {
+            var model = new Model(this._pdf, this.object['W']);
+            return model.object;
+        },
+        enumerable: true,
+        configurable: true
+    });
     CIDFont.prototype.getDefaultWidth = function () {
         return this.object['DW'];
     };
     /**
-    The W array allows the definition of widths for individual CIDs. The elements of the array shall be organized in groups of two or three, where each group shall be in one of these two formats:
-    `c [w1 w2 ... wn]`: c shall be an integer specifying a starting CID value; it shall be followed by an array of n numbers that shall specify the widths for n consecutive CIDs, starting with c.
-    `c_first c_last w`: define the same width, w, for all CIDs in the range c_first to c_last.
+    The W array allows the definition of widths for individual CIDs. The elements
+    of the array shall be organized in groups of two or three, where each group
+    shall be in one of these two formats:
+    1. `c [w1 w2 ... wn]`: `c` shall be an integer specifying a starting CID
+      value; it shall be followed by an array of `n` numbers that shall specify
+      the widths for n consecutive CIDs, starting with `c`.
+    2. `c_first c_last w`: define the same width, `w`, for all CIDs in the range
+      `c_first` to `c_last` (inclusive).
     */
     CIDFont.prototype.getWidthMapping = function () {
         var mapping = [];
@@ -718,8 +807,7 @@ var CIDFont = (function (_super) {
                 mapping[cid] = width;
             }
         };
-        var W_object = new Model(this._pdf, this.object['W']).object;
-        var cid_widths = (W_object || []);
+        var cid_widths = (this.W || []);
         var index = 0;
         var length = cid_widths.length;
         while (index < length) {
@@ -741,7 +829,6 @@ var CIDFont = (function (_super) {
     };
     return CIDFont;
 })(Font);
-exports.CIDFont = CIDFont;
 /**
 The PDF points to its catalog object with its trailer's `Root` reference.
 

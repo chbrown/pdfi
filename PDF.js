@@ -2,7 +2,9 @@ var chalk = require('chalk');
 var logger = require('loge');
 var lexing = require('lexing');
 var File = require('./File');
+var Arrays = require('./Arrays');
 var models = require('./models');
+var drawing = require('./drawing');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
 var util = require('util-enhanced');
 /**
@@ -184,6 +186,43 @@ var PDF = (function () {
         enumerable: true,
         configurable: true
     });
+    /**
+    Returns one string (one line) for each paragraph.
+    */
+    PDF.prototype.getParagraphs = function (section_names, paragraph_indent) {
+        if (paragraph_indent === void 0) { paragraph_indent = 5; }
+        // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
+        // track of the container it belongs to, so that we can measure offsets
+        // later.
+        var lines = Arrays.flatMap(this.pages, function (page) {
+            var sections = page.renderCanvas().getSections();
+            var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
+            var selected_sections_lines = Arrays.flatMap(selected_sections, function (section) { return section.getLines(); });
+            return selected_sections_lines;
+        });
+        var paragraphs = []; // = new Arrays.Builder<string>();
+        var currentParagraph = [];
+        var previousLine = null; // = paragraphs.last
+        lines.forEach(function (currentLine) {
+            if (previousLine !== null) {
+                var previousLine_offsetX = previousLine.minX - previousLine.container.minX;
+                var offsetX = currentLine.minX - currentLine.container.minX;
+                var diff_offsetX = Math.abs(previousLine_offsetX - offsetX);
+                // var offsetY = currentLine.container.minY - currentLine.minY;
+                if (diff_offsetX > paragraph_indent) {
+                    var string = drawing.joinLines(currentParagraph);
+                    paragraphs.push(string);
+                    currentParagraph = [];
+                }
+            }
+            currentParagraph.push(currentLine);
+            previousLine = currentLine;
+        });
+        // finish up
+        var string = drawing.joinLines(currentParagraph);
+        paragraphs.push(string);
+        return paragraphs;
+    };
     /**
     Resolves a potential IndirectReference to the target object.
   
