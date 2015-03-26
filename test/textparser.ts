@@ -16,6 +16,9 @@ function createResources(): models.Resources {
       Differences: []
     },
     Widths: [],
+    FontDescriptor: {
+      MissingWidth: 1000,
+    }
   };
   var resource_object = {
     Font: {

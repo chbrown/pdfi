@@ -14,6 +14,9 @@ function createResources() {
             Differences: []
         },
         Widths: [],
+        FontDescriptor: {
+            MissingWidth: 1000,
+        }
     };
     var resource_object = {
         Font: {
