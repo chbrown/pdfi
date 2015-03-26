@@ -35,3 +35,8 @@ encoding/glyphlist.json: encoding/glyphlist.txt
 encoding/latin_charset.json: encoding/latin_charset.tsv
 	# encoding/latin_charset.tsv comes from PDF32000_2008.pdf: Appendix D.2
 	node dev/read_charset.js <$< >$@
+
+font/Core14:
+	# thanks to http://stackoverflow.com/a/6506818/424651 for the URL
+	mkdir -p $@
+	curl https://partners.adobe.com/public/developer/en/pdf/Core14_AFMs.tar | tar -x -C $@
