@@ -69,14 +69,13 @@ export class Rectangle {
 
 export class Container<T extends Rectangle> extends Rectangle {
   protected elements: T[] = [];
-
-  get length(): number {
-    return this.elements.length;
-  }
-
   constructor(elements: T[] = []) {
     super(Infinity, Infinity, -Infinity, -Infinity);
     elements.forEach(element => this.push(element));
+  }
+
+  get length(): number {
+    return this.elements.length;
   }
 
   /**
