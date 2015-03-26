@@ -1,20 +1,14 @@
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
 function min(numbers) {
     return Math.min.apply(null, numbers);
 }
 function max(numbers) {
     return Math.max.apply(null, numbers);
-}
-function rectanglesToPointArray(rectangles) {
-    var xs = [];
-    var ys = [];
-    rectangles.forEach(function (rectangle) {
-        xs.push(rectangle.minX, rectangle.maxX);
-        ys.push(rectangle.minY, rectangle.maxY);
-    });
-    return [xs, ys];
-}
-function pointsToPointArray(points) {
-    return [points.map(function (point) { return point.x; }), points.map(function (point) { return point.y; })];
 }
 var Point = (function () {
     function Point(x, y) {
@@ -46,25 +40,10 @@ var Size = (function () {
 })();
 exports.Size = Size;
 /**
-A PDF Rectangle is a 4-tuple [x1, y1, x2, y2], where [x1, y1] and [x2, y2] are
-points in any two diagonally opposite corners, usually lower-left to
-upper-right.
-
-From the spec:
-
-> **rectangle**
-> a specific array object used to describe locations on a page and bounding
-> boxes for a variety of objects and written as an array of four numbers giving
-> the coordinates of a pair of diagonally opposite corners, typically in the
-> form `[ llx lly urx ury ]` specifying the lower-left x, lower-left y,
-> upper-right x, and upper-right y coordinates of the rectangle, in that order
-*/
-// export type RectangleTuple = [number, number, number, number]
-/**
 This is much like the standard PDF rectangle, using two diagonally opposite
 corners of a rectangle as its internal representation, but we are always assured
-that they represent the corner nearest the origin first, and the opposite corner
-last.
+that they represent the corner nearest the origin first (as minX/minY), and the
+opposite corner last (as maxX/maxY).
 */
 var Rectangle = (function () {
     function Rectangle(minX, minY, maxX, maxY) {
@@ -73,12 +52,6 @@ var Rectangle = (function () {
         this.maxX = maxX;
         this.maxY = maxY;
     }
-    Rectangle.bounding = function (pointArray) {
-        return new Rectangle(min(pointArray[0]), min(pointArray[1]), max(pointArray[0]), max(pointArray[1]));
-    };
-    Rectangle.fromPointSize = function (point, size) {
-        return new Rectangle(point.x, point.y, point.x + size.width, point.y + size.height);
-    };
     Object.defineProperty(Rectangle.prototype, "midX", {
         get: function () {
             return (this.maxX - this.minX) / 2 + this.minX;
@@ -121,35 +94,58 @@ var Rectangle = (function () {
     Rectangle.prototype.containsRectangle = function (other) {
         return (this.minX <= other.minX) && (this.minY <= other.minY) && (this.maxX >= other.maxX) && (this.maxY >= other.maxY);
     };
-    Rectangle.prototype.toJSON = function () {
-        return {
-            x: this.minX,
-            y: this.minY,
-            width: this.dX,
-            height: this.dY,
-        };
-    };
     return Rectangle;
 })();
 exports.Rectangle = Rectangle;
-var TextSpan = (function () {
-    function TextSpan(string, bounds, fontSize, details) {
+var Container = (function (_super) {
+    __extends(Container, _super);
+    function Container(elements) {
+        var _this = this;
+        if (elements === void 0) { elements = []; }
+        _super.call(this, Infinity, Infinity, -Infinity, -Infinity);
+        this.elements = [];
+        elements.forEach(function (element) { return _this.push(element); });
+    }
+    Object.defineProperty(Container.prototype, "length", {
+        get: function () {
+            return this.elements.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    /**
+    Add the given `element`, and extend to contain its Rectangle (if needed).
+  
+    This is a mutating method.
+    */
+    Container.prototype.push = function (element) {
+        this.elements.push(element);
+        this.minX = Math.min(this.minX, element.minX);
+        this.minY = Math.min(this.minY, element.minY);
+        this.maxX = Math.max(this.maxX, element.maxX);
+        this.maxY = Math.max(this.maxY, element.maxY);
+    };
+    return Container;
+})(Rectangle);
+exports.Container = Container;
+var NamedContainer = (function (_super) {
+    __extends(NamedContainer, _super);
+    function NamedContainer(name, elements) {
+        if (elements === void 0) { elements = []; }
+        _super.call(this, elements);
+        this.name = name;
+    }
+    return NamedContainer;
+})(Container);
+exports.NamedContainer = NamedContainer;
+var TextSpan = (function (_super) {
+    __extends(TextSpan, _super);
+    function TextSpan(string, minX, minY, maxX, maxY, fontSize, details) {
+        _super.call(this, minX, minY, maxX, maxY);
         this.string = string;
-        this.bounds = bounds;
         this.fontSize = fontSize;
         this.details = details;
     }
-    TextSpan.prototype.toJSON = function () {
-        return {
-            string: this.string,
-            x: this.bounds.minX,
-            y: this.bounds.minY,
-            width: this.bounds.dX,
-            height: this.bounds.dY,
-            fontSize: this.fontSize,
-            details: this.details,
-        };
-    };
     return TextSpan;
-})();
+})(Rectangle);
 exports.TextSpan = TextSpan;
