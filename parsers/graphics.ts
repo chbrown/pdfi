@@ -331,12 +331,9 @@ export class DrawingContext {
 
     // adjust the text matrix accordingly (but not the text line matrix)
     // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
-    var tx = this.advanceTextMatrix(width_units, nchars, nspaces);
-    var width = tx; // TODO: account for graphics transform
-    // var width = mat3mul([  1, 0, 0,
-    //                        0, 1, 0,
-    //                       tx, 0, 1], this.graphicsState.ctMatrix)[6];
-    // var width = this.getTextPosition().x - origin.x;
+    this.advanceTextMatrix(width_units, nchars, nspaces);
+    // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
+    var width = this.getTextPosition().x - origin.x;
     var height = Math.ceil(fontSize) | 0;
     var size = new shapes.Size(width, height);
 
