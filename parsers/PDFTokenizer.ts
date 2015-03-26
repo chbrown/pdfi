@@ -22,9 +22,17 @@ var default_rules: lexing.RegexRule<any>[] = [
     this.states.push('INPARENS');
     return Token('OPENPARENS', null);
   }],
-  [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, match => Token('NAME', match[1]) ],
+  [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, match => {
+    // unescape any #-escaped sequences in the name
+    var string = match[1].replace(/#([A-Fa-f0-9]{2})/g, (m, m1) => String.fromCharCode(parseInt(m1, 16)));
+    return Token('NAME', string);
+  }],
   [/^<</, match => Token('<<', match[0]) ],
   [/^>>/, match => Token('>>', match[0]) ],
+  [/^</, function(match) {
+    this.states.push('EXTENDED_HEXSTRING');
+    return Token('<', match[0]);
+  }],
   [/^\[/, match => Token('[', match[0]) ],
   [/^\]/, match => Token(']', match[0]) ],
   [/^([0-9]+)\s+([0-9]+)\s+R/, match => Token('REFERENCE', {
@@ -90,6 +98,16 @@ state_rules['XREF_SUBSECTION'] = [
       in_use: match[3] === 'n',
     });
   }],
+];
+
+state_rules['EXTENDED_HEXSTRING'] = [
+  [/^>/, function(match) {
+    this.states.pop();
+    return Token('>', match[0]);
+  }],
+  [/^[A-Fa-f0-9]{2}/, match => Token('BYTE', parseInt(match[0], 16)) ],
+  // handle implied final 0 (PDF32000_2008.pdf:16)
+  [/^[A-Fa-f0-9]/, match => Token('BYTE', parseInt(match[0] + '0', 16)) ],
 ];
 
 state_rules['STREAM'] = [

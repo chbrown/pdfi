@@ -27,9 +27,17 @@ var default_rules = [
         this.states.push('INPARENS');
         return Token('OPENPARENS', null);
     }],
-    [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) { return Token('NAME', match[1]); }],
+    [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) {
+        // unescape any #-escaped sequences in the name
+        var string = match[1].replace(/#([A-Fa-f0-9]{2})/g, function (m, m1) { return String.fromCharCode(parseInt(m1, 16)); });
+        return Token('NAME', string);
+    }],
     [/^<</, function (match) { return Token('<<', match[0]); }],
     [/^>>/, function (match) { return Token('>>', match[0]); }],
+    [/^</, function (match) {
+        this.states.push('EXTENDED_HEXSTRING');
+        return Token('<', match[0]);
+    }],
     [/^\[/, function (match) { return Token('[', match[0]); }],
     [/^\]/, function (match) { return Token(']', match[0]); }],
     [/^([0-9]+)\s+([0-9]+)\s+R/, function (match) { return Token('REFERENCE', {
@@ -82,6 +90,14 @@ state_rules['XREF_SUBSECTION'] = [
             in_use: match[3] === 'n',
         });
     }],
+];
+state_rules['EXTENDED_HEXSTRING'] = [
+    [/^>/, function (match) {
+        this.states.pop();
+        return Token('>', match[0]);
+    }],
+    [/^[A-Fa-f0-9]{2}/, function (match) { return Token('BYTE', parseInt(match[0], 16)); }],
+    [/^[A-Fa-f0-9]/, function (match) { return Token('BYTE', parseInt(match[0] + '0', 16)); }],
 ];
 state_rules['STREAM'] = [
     [/^\s*endstream/, function (match) {

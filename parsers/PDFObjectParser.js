@@ -33,8 +33,16 @@ var bnf = {
     ],
     "STRING": [
         "HEXSTRING",
+        "EXTENDED_HEXSTRING",
         ["OPENPARENS CLOSEPARENS", "$$ = \"\""],
         ["OPENPARENS chars CLOSEPARENS", "$$ = $2.join(\"\")"]
+    ],
+    "EXTENDED_HEXSTRING": [
+        ["< bytes >", "$$ = $2"],
+    ],
+    "bytes": [
+        ["BYTE", "$$ = [$1]"],
+        ["bytes BYTE", "$$ = $1; $1.push($2)"]
     ],
     "STREAM_HEADER": [
         [
