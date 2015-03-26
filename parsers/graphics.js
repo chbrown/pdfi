@@ -343,8 +343,7 @@ var DrawingContext = (function () {
         // var width = this.getTextPosition().x - origin.x;
         var height = Math.ceil(fontSize) | 0;
         var size = new shapes.Size(width, height);
-        logger.info("_renderGlyphs: " + string + " (" + width_units + " + " + nchars + " + " + nspaces + "): " + width + "x" + height);
-        this.canvas.addSpan(string, origin, size, fontSize);
+        this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
     };
     DrawingContext.prototype._renderTextArray = function (array) {
         var _this = this;
