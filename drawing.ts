@@ -3,6 +3,7 @@ import logger = require('loge');
 import lexing = require('lexing');
 var unorm = require('unorm');
 
+import Arrays = require('./Arrays');
 import shapes = require('./shapes');
 
 export class Canvas {
@@ -145,6 +146,8 @@ export class Canvas {
 Could also be called "NamedTextContainer"
 */
 export class TextSection extends shapes.NamedContainer<shapes.TextSpan> {
+  private _medianLeftOffset: number;
+  private _lines: Line[];
   constructor(name: string, public outerBounds: shapes.Rectangle) { super(name) }
 
   /**
@@ -155,37 +158,49 @@ export class TextSection extends shapes.NamedContainer<shapes.TextSpan> {
   `max_line_gap`: the maximum distance between lines before we consider the
       next line a new paragraph.
   */
-  getLines(line_gap = -5): Line[] {
-    var lines: Line[] = [];
+  get lines(): Line[] {
+    var line_gap = -5;
+    if (this._lines === undefined) {
+      var lines: Line[] = [];
+      var currentLine: Line = new Line(this);
 
-    var currentLine: Line = new Line(this);
-    // var lastSpan: TextSpan = null;
+      this.elements.forEach(currentSpan => {
+        var dY = -1000;
+        if (currentLine.length > 0) {
+          // dY is the distance from bottom of the current (active) line to the
+          // top of the next span (this should come out negative if the span is
+          // on the same line as the last one)
+          dY = currentSpan.minY - currentLine.maxY;
+        }
+        if (dY > line_gap) {
+          // if the new span does not vertically overlap with the previous one
+          // at all, we consider it a new line
+          lines.push(currentLine);
+          // lastLine = currentLine;
+          currentLine = new Line(this);
+        }
+        // otherwise it's a span on the same line
+        currentLine.push(currentSpan);
+      });
 
-    this.elements.forEach(currentSpan => {
-      var dY = -1000;
-      if (currentLine.length > 0) {
-        // dY is the distance from bottom of the current (active) line to the
-        // top of the next span (this should come out negative if the span is
-        // on the same line as the last one)
-        dY = currentSpan.minY - currentLine.maxY;
-        // logger.info(`${currentLine.toString()} -> ${currentSpan.string}`);
-        // logger.info(`${currentSpan.minY} - ${currentLine.maxY} => ${dY}`);
-      }
-      if (dY > line_gap) {
-        // if the new span does not vertically overlap with the previous one
-        // at all, we consider it a new line
-        lines.push(currentLine);
-        // lastLine = currentLine;
-        currentLine = new Line(this);
-      }
-      // otherwise it's a span on the same line
-      currentLine.push(currentSpan);
-    });
+      // finish up
+      lines.push(currentLine);
 
-    // finish up
-    lines.push(currentLine);
+      // get medianLeftOffset(): number {
+      // offsets will all be non-negative
+      var offsets = lines.map(line => line.minX - this.minX);
+      var median_offset = Arrays.median(offsets);
 
-    return lines;
+      // set cached values
+      this._lines = lines;
+      this._medianLeftOffset = median_offset;
+    }
+
+    return this._lines;
+  }
+
+  get medianLeftOffset(): number {
+    return this._medianLeftOffset;
   }
 
   toJSON() {
@@ -195,13 +210,14 @@ export class TextSection extends shapes.NamedContainer<shapes.TextSpan> {
       elements: this.elements,
       outerBounds: this.outerBounds,
       // getters
-      lines: this.getLines(),
+      lines: this.lines,
     };
   }
 }
 
 export class Line extends shapes.Container<shapes.TextSpan> {
-  constructor(public container: shapes.Rectangle, elements: shapes.TextSpan[] = []) { super(elements) }
+  constructor(public container: TextSection,
+              elements: shapes.TextSpan[] = []) { super(elements) }
 
   toString(min_space_width = 1): string {
     var previousSpan: shapes.TextSpan = null;
@@ -212,7 +228,6 @@ export class Line extends shapes.Container<shapes.TextSpan> {
       var dX = -1000;
       if (previousSpan) {
         dX = currentSpan.minX - previousSpan.maxX;
-        // logger.info(`${previousSpan.string} -> ${currentSpan.string} = ${dX}`);
       }
       // save the previous span for future reference
       previousSpan = currentSpan;
@@ -233,6 +248,12 @@ export class Line extends shapes.Container<shapes.TextSpan> {
       // methods
       string: this.toString(),
     };
+  }
+}
+
+export class Paragraph extends shapes.Container<Line> {
+  toString(): string {
+    return joinLines(this.elements);
   }
 }
 
@@ -262,4 +283,40 @@ export function joinLines(lines: Line[]): string {
   var visible_line = line.replace(/[\x00-\x1F]/g, '');
   var normalized_line = unorm.nfkc(visible_line);
   return normalized_line;
+}
+
+/**
+Paragraphs.
+
+Paragraphs are distinguished by an unusual first line. This initial line is
+unusual compared to preceding lines, as well as subsequent lines.
+
+If paragraphs are very short, it can be hard to distinguish which are the start
+lines and which are the end lines simply by shape, since paragraphs may have
+typical positive indentation, or have hanging indentation.
+
+
+Each Line keeps track of the container it belongs to, so that we can measure
+offsets later.
+
+*/
+export function detectParagraphs(lines: Line[], min_indent = 5, min_gap = 5): Paragraph[] {
+  var paragraphs: Paragraph[] = [];
+  var currentParagraph = new Paragraph();
+  lines.forEach(currentLine => {
+    // new paragraphs can be distinguished by left offset
+    var median_offsetX = currentLine.container.medianLeftOffset;
+    var offsetX = currentLine.minX - currentLine.container.minX;
+    var diff_offsetX = Math.abs(median_offsetX - offsetX);
+    // or by vertical gaps
+    var dY = currentLine.minY - currentParagraph.maxY;
+    if (diff_offsetX > min_indent || dY > min_gap) {
+      paragraphs.push(currentParagraph);
+      currentParagraph = new Paragraph();
+    }
+    currentParagraph.push(currentLine);
+  });
+  // finish up
+  paragraphs.push(currentParagraph);
+  return paragraphs;
 }

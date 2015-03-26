@@ -5,6 +5,7 @@ var __extends = this.__extends || function (d, b) {
     d.prototype = new __();
 };
 var unorm = require('unorm');
+var Arrays = require('./Arrays');
 var shapes = require('./shapes');
 var Canvas = (function () {
     function Canvas(outerBounds) {
@@ -140,42 +141,61 @@ var TextSection = (function (_super) {
         _super.call(this, name);
         this.outerBounds = outerBounds;
     }
-    /**
-    Returns an array of Line instances; one for each line of text in the PDF.
-    A 'Section' (e.g., a column) of text can, by definition, be divided into
-    discrete lines, so this is a reasonable place to do line processing.
-  
-    `max_line_gap`: the maximum distance between lines before we consider the
-        next line a new paragraph.
-    */
-    TextSection.prototype.getLines = function (line_gap) {
-        var _this = this;
-        if (line_gap === void 0) { line_gap = -5; }
-        var lines = [];
-        var currentLine = new Line(this);
-        // var lastSpan: TextSpan = null;
-        this.elements.forEach(function (currentSpan) {
-            var dY = -1000;
-            if (currentLine.length > 0) {
-                // dY is the distance from bottom of the current (active) line to the
-                // top of the next span (this should come out negative if the span is
-                // on the same line as the last one)
-                dY = currentSpan.minY - currentLine.maxY;
-            }
-            if (dY > line_gap) {
-                // if the new span does not vertically overlap with the previous one
-                // at all, we consider it a new line
+    Object.defineProperty(TextSection.prototype, "lines", {
+        /**
+        Returns an array of Line instances; one for each line of text in the PDF.
+        A 'Section' (e.g., a column) of text can, by definition, be divided into
+        discrete lines, so this is a reasonable place to do line processing.
+      
+        `max_line_gap`: the maximum distance between lines before we consider the
+            next line a new paragraph.
+        */
+        get: function () {
+            var _this = this;
+            var line_gap = -5;
+            if (this._lines === undefined) {
+                var lines = [];
+                var currentLine = new Line(this);
+                this.elements.forEach(function (currentSpan) {
+                    var dY = -1000;
+                    if (currentLine.length > 0) {
+                        // dY is the distance from bottom of the current (active) line to the
+                        // top of the next span (this should come out negative if the span is
+                        // on the same line as the last one)
+                        dY = currentSpan.minY - currentLine.maxY;
+                    }
+                    if (dY > line_gap) {
+                        // if the new span does not vertically overlap with the previous one
+                        // at all, we consider it a new line
+                        lines.push(currentLine);
+                        // lastLine = currentLine;
+                        currentLine = new Line(_this);
+                    }
+                    // otherwise it's a span on the same line
+                    currentLine.push(currentSpan);
+                });
+                // finish up
                 lines.push(currentLine);
-                // lastLine = currentLine;
-                currentLine = new Line(_this);
+                // get medianLeftOffset(): number {
+                // offsets will all be non-negative
+                var offsets = lines.map(function (line) { return line.minX - _this.minX; });
+                var median_offset = Arrays.median(offsets);
+                // set cached values
+                this._lines = lines;
+                this._medianLeftOffset = median_offset;
             }
-            // otherwise it's a span on the same line
-            currentLine.push(currentSpan);
-        });
-        // finish up
-        lines.push(currentLine);
-        return lines;
-    };
+            return this._lines;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(TextSection.prototype, "medianLeftOffset", {
+        get: function () {
+            return this._medianLeftOffset;
+        },
+        enumerable: true,
+        configurable: true
+    });
     TextSection.prototype.toJSON = function () {
         return {
             // native properties
@@ -183,7 +203,7 @@ var TextSection = (function (_super) {
             elements: this.elements,
             outerBounds: this.outerBounds,
             // getters
-            lines: this.getLines(),
+            lines: this.lines,
         };
     };
     return TextSection;
@@ -229,6 +249,17 @@ var Line = (function (_super) {
     return Line;
 })(shapes.Container);
 exports.Line = Line;
+var Paragraph = (function (_super) {
+    __extends(Paragraph, _super);
+    function Paragraph() {
+        _super.apply(this, arguments);
+    }
+    Paragraph.prototype.toString = function () {
+        return joinLines(this.elements);
+    };
+    return Paragraph;
+})(shapes.Container);
+exports.Paragraph = Paragraph;
 /**
 If a line ends with a hyphen, we remove the hyphen and join it to
 the next line directly; otherwise, join them with a space.
@@ -257,3 +288,41 @@ function joinLines(lines) {
     return normalized_line;
 }
 exports.joinLines = joinLines;
+/**
+Paragraphs.
+
+Paragraphs are distinguished by an unusual first line. This initial line is
+unusual compared to preceding lines, as well as subsequent lines.
+
+If paragraphs are very short, it can be hard to distinguish which are the start
+lines and which are the end lines simply by shape, since paragraphs may have
+typical positive indentation, or have hanging indentation.
+
+
+Each Line keeps track of the container it belongs to, so that we can measure
+offsets later.
+
+*/
+function detectParagraphs(lines, min_indent, min_gap) {
+    if (min_indent === void 0) { min_indent = 5; }
+    if (min_gap === void 0) { min_gap = 5; }
+    var paragraphs = [];
+    var currentParagraph = new Paragraph();
+    lines.forEach(function (currentLine) {
+        // new paragraphs can be distinguished by left offset
+        var median_offsetX = currentLine.container.medianLeftOffset;
+        var offsetX = currentLine.minX - currentLine.container.minX;
+        var diff_offsetX = Math.abs(median_offsetX - offsetX);
+        // or by vertical gaps
+        var dY = currentLine.minY - currentParagraph.maxY;
+        if (diff_offsetX > min_indent || dY > min_gap) {
+            paragraphs.push(currentParagraph);
+            currentParagraph = new Paragraph();
+        }
+        currentParagraph.push(currentLine);
+    });
+    // finish up
+    paragraphs.push(currentParagraph);
+    return paragraphs;
+}
+exports.detectParagraphs = detectParagraphs;
