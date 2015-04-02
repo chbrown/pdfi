@@ -29,6 +29,21 @@ export function median(xs: number[]): number {
   return xs[middle | 0];
 }
 
+/**
+Returns an array of numbers that is (q + 1)-long (it includes the endpoints).
+*/
+export function quantile(xs: number[], q: number): number[] {
+  xs.sort((a, b) => a - b);
+  var length = xs.length;
+  var step = length / q;
+  var quantile: number[] = [];
+  for (var sample = 0; sample < length; sample += step) {
+    quantile.push(xs[sample | 0]);
+  }
+  quantile.push(xs[length - 1]);
+  return quantile;
+}
+
 export function mean(xs: number[]): number {
   return sum(xs) / xs.length;
 }

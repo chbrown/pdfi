@@ -29,6 +29,21 @@ function median(xs) {
     return xs[middle | 0];
 }
 exports.median = median;
+/**
+Returns an array of numbers that is (q + 1)-long (it includes the endpoints).
+*/
+function quantile(xs, q) {
+    xs.sort(function (a, b) { return a - b; });
+    var length = xs.length;
+    var step = length / q;
+    var quantile = [];
+    for (var sample = 0; sample < length; sample += step) {
+        quantile.push(xs[sample | 0]);
+    }
+    quantile.push(xs[length - 1]);
+    return quantile;
+}
+exports.quantile = quantile;
 function mean(xs) {
     return sum(xs) / xs.length;
 }
