@@ -3,21 +3,19 @@ import lexing = require('lexing');
 import logger = require('loge');
 var Token = lexing.Token;
 
+import Arrays = require('../Arrays');
+
 function parseHex(hexadecimal: string): number {
   return parseInt(hexadecimal, 16);
 }
 
-function mkString(charCodes: number[]): string {
-  return String.fromCharCode.apply(null, charCodes);
-}
-
-function parseHexstring(hexstring: string, charWidth: number): string {
+function parseHexstring(hexstring: string, byteLength: number): string {
   var charCodes: number[] = [];
-  for (var i = 0; i < hexstring.length; i += charWidth) {
-    var charHexadecimal = hexstring.slice(i, i + charWidth);
+  for (var i = 0; i < hexstring.length; i += byteLength) {
+    var charHexadecimal = hexstring.slice(i, i + byteLength);
     charCodes.push(parseHex(charHexadecimal));
   }
-  return mkString(charCodes);
+  return Arrays.mkString(charCodes);
 }
 
 var default_rules: lexing.RegexRule<any>[] = [
@@ -92,32 +90,58 @@ var combiner_rules: lexing.CombinerRule<any, any>[] = [
   }],
 ];
 
-export class CMapParser {
+type Range = [number, number];
+
+/**
+Holds a mapping from in-PDF character codes to native Javascript Unicode strings.
+*/
+export class CMap {
+  constructor(public codeSpaces: Range[] = [], public mapping: string[] = []) { }
+
+  /**
+  0xFF -> 1
+  0xFFFF -> 2
+  0xFFFFFF -> 3
+  0xFFFFFFFF -> 4
+  */
+  get byteLength(): number {
+    var maxCharCode = Arrays.max(this.codeSpaces.map(codeSpace => codeSpace[1]))
+    // return Math.ceil(Math.log2(maxCharCode) / 8);
+    return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
+  }
+
+  addCodeSpace(start: number, end: number): void {
+    this.codeSpaces.push([start, end]);
+  }
+  addRangeOffset(start: number, end: number, offset: number): void {
+    for (var i = 0; (start + i) <= end; i++) {
+      this.mapping[start + i] = Arrays.mkString([offset + i]);
+    }
+  }
+  addRangeArray(start: number, end: number, array: string[]): void {
+    for (var i = 0; (start + i) <= end; i++) {
+      this.mapping[start + i] = array[i];
+    }
+  }
+  addChar(from: number, to: string): void {
+    this.mapping[from] = to;
+  }
+
+  static parseStringIterable(string_iterable: lexing.StringIterable): CMap {
+    var parser = new CMapParser();
+    return parser.parse(string_iterable);
+  }
+}
+
+class CMapParser {
   tokenizer = new lexing.Tokenizer(default_rules);
   combiner = new lexing.Combiner(combiner_rules);
 
-  /**
-  Returns a mapping from in-PDF character codes to native Javascript Unicode strings
-  */
-  parse(iterable: lexing.StringIterable): string[] {
+  parse(iterable: lexing.StringIterable): CMap {
     var token_iterator = this.tokenizer.map(iterable);
     var combined_iterator = this.combiner.map(token_iterator);
 
-    var mapping: string[] = [];
-
-    var applyBFRangeOffset = (start: number, end: number, offset: number) => {
-      for (var i = 0; (start + i) <= end; i++) {
-        mapping[start + i] = mkString([offset + i]);
-      }
-    };
-    var applyBFRangeArray = (start: number, end: number, array: string[]) => {
-      for (var i = 0; (start + i) <= end; i++) {
-        mapping[start + i] = array[i];
-      }
-    };
-    var applyBFChar = (from: number, to: string) => {
-      mapping[from] = to;
-    };
+    var cmap = new CMap();
 
     while (1) {
       var token = combined_iterator.next();
@@ -129,6 +153,7 @@ export class CMapParser {
         token.value.forEach(tuple => {
           var start = parseHex(tuple[0]);
           var end = parseHex(tuple[1]);
+          cmap.addCodeSpace(start, end);
         });
       }
       else if (token.name === 'BFRANGES') {
@@ -137,12 +162,13 @@ export class CMapParser {
           var end = parseHex(triple[1]);
           var arg = triple[2];
           if (Array.isArray(arg)) {
+            // arg is an array of bytes
             var array = arg.map(item => parseHexstring(item, 4));
-            applyBFRangeArray(start, end, array);
+            cmap.addRangeArray(start, end, array);
           }
           else {
             var offset = parseHex(arg);
-            applyBFRangeOffset(start, end, offset);
+            cmap.addRangeOffset(start, end, offset);
           }
         });
       }
@@ -150,11 +176,11 @@ export class CMapParser {
         token.value.forEach(tuple => {
           var from = parseHex(tuple[0]);
           var to = parseHexstring(tuple[1], 4);
-          applyBFChar(from, to);
+          cmap.addChar(from, to);
         });
       }
     }
 
-    return mapping;
+    return cmap;
   }
 }

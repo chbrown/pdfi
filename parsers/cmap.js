@@ -1,19 +1,17 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
 var Token = lexing.Token;
+var Arrays = require('../Arrays');
 function parseHex(hexadecimal) {
     return parseInt(hexadecimal, 16);
 }
-function mkString(charCodes) {
-    return String.fromCharCode.apply(null, charCodes);
-}
-function parseHexstring(hexstring, charWidth) {
+function parseHexstring(hexstring, byteLength) {
     var charCodes = [];
-    for (var i = 0; i < hexstring.length; i += charWidth) {
-        var charHexadecimal = hexstring.slice(i, i + charWidth);
+    for (var i = 0; i < hexstring.length; i += byteLength) {
+        var charHexadecimal = hexstring.slice(i, i + byteLength);
         charCodes.push(parseHex(charHexadecimal));
     }
-    return mkString(charCodes);
+    return Arrays.mkString(charCodes);
 }
 var default_rules = [
     [/^$/, function (match) { return Token('EOF'); }],
@@ -76,31 +74,63 @@ var combiner_rules = [
         return Token('BFCHARS', bfchars);
     }],
 ];
+/**
+Holds a mapping from in-PDF character codes to native Javascript Unicode strings.
+*/
+var CMap = (function () {
+    function CMap(codeSpaces, mapping) {
+        if (codeSpaces === void 0) { codeSpaces = []; }
+        if (mapping === void 0) { mapping = []; }
+        this.codeSpaces = codeSpaces;
+        this.mapping = mapping;
+    }
+    Object.defineProperty(CMap.prototype, "byteLength", {
+        /**
+        0xFF -> 1
+        0xFFFF -> 2
+        0xFFFFFF -> 3
+        0xFFFFFFFF -> 4
+        */
+        get: function () {
+            var maxCharCode = Arrays.max(this.codeSpaces.map(function (codeSpace) { return codeSpace[1]; }));
+            // return Math.ceil(Math.log2(maxCharCode) / 8);
+            return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    CMap.prototype.addCodeSpace = function (start, end) {
+        this.codeSpaces.push([start, end]);
+    };
+    CMap.prototype.addRangeOffset = function (start, end, offset) {
+        for (var i = 0; (start + i) <= end; i++) {
+            this.mapping[start + i] = Arrays.mkString([offset + i]);
+        }
+    };
+    CMap.prototype.addRangeArray = function (start, end, array) {
+        for (var i = 0; (start + i) <= end; i++) {
+            this.mapping[start + i] = array[i];
+        }
+    };
+    CMap.prototype.addChar = function (from, to) {
+        this.mapping[from] = to;
+    };
+    CMap.parseStringIterable = function (string_iterable) {
+        var parser = new CMapParser();
+        return parser.parse(string_iterable);
+    };
+    return CMap;
+})();
+exports.CMap = CMap;
 var CMapParser = (function () {
     function CMapParser() {
         this.tokenizer = new lexing.Tokenizer(default_rules);
         this.combiner = new lexing.Combiner(combiner_rules);
     }
-    /**
-    Returns a mapping from in-PDF character codes to native Javascript Unicode strings
-    */
     CMapParser.prototype.parse = function (iterable) {
         var token_iterator = this.tokenizer.map(iterable);
         var combined_iterator = this.combiner.map(token_iterator);
-        var mapping = [];
-        var applyBFRangeOffset = function (start, end, offset) {
-            for (var i = 0; (start + i) <= end; i++) {
-                mapping[start + i] = mkString([offset + i]);
-            }
-        };
-        var applyBFRangeArray = function (start, end, array) {
-            for (var i = 0; (start + i) <= end; i++) {
-                mapping[start + i] = array[i];
-            }
-        };
-        var applyBFChar = function (from, to) {
-            mapping[from] = to;
-        };
+        var cmap = new CMap();
         while (1) {
             var token = combined_iterator.next();
             if (token.name === 'EOF') {
@@ -110,6 +140,7 @@ var CMapParser = (function () {
                 token.value.forEach(function (tuple) {
                     var start = parseHex(tuple[0]);
                     var end = parseHex(tuple[1]);
+                    cmap.addCodeSpace(start, end);
                 });
             }
             else if (token.name === 'BFRANGES') {
@@ -118,12 +149,13 @@ var CMapParser = (function () {
                     var end = parseHex(triple[1]);
                     var arg = triple[2];
                     if (Array.isArray(arg)) {
+                        // arg is an array of bytes
                         var array = arg.map(function (item) { return parseHexstring(item, 4); });
-                        applyBFRangeArray(start, end, array);
+                        cmap.addRangeArray(start, end, array);
                     }
                     else {
                         var offset = parseHex(arg);
-                        applyBFRangeOffset(start, end, offset);
+                        cmap.addRangeOffset(start, end, offset);
                     }
                 });
             }
@@ -131,12 +163,11 @@ var CMapParser = (function () {
                 token.value.forEach(function (tuple) {
                     var from = parseHex(tuple[0]);
                     var to = parseHexstring(tuple[1], 4);
-                    applyBFChar(from, to);
+                    cmap.addChar(from, to);
                 });
             }
         }
-        return mapping;
+        return cmap;
     };
     return CMapParser;
 })();
-exports.CMapParser = CMapParser;
