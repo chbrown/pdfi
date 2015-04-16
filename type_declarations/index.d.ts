@@ -5,6 +5,9 @@
 /// <reference path="../node_modules/lexing/lexing.d.ts" />
 /// <reference path="../node_modules/visible/visible.d.ts" />
 
+// some external packages
+/// <reference path="unorm.d.ts" />
+
 // my own external packages
 /// <reference path="loge.d.ts" />
 
