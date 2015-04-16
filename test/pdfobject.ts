@@ -3,7 +3,7 @@ import assert = require('assert');
 import PDF = require('../PDF');
 
 function check(input: string, expected_output: any, start?: string) {
-  var pdf = new PDF();
+  var pdf = new PDF(null);
   var output = pdf.parseString(input, start);
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
@@ -11,16 +11,16 @@ function check(input: string, expected_output: any, start?: string) {
   assert.deepEqual(output, expected_output, message);
 }
 
-describe('pdfobject parser: general objects', function() {
+describe('pdfobject parser: general objects', () => {
 
-  it('should parse short binary string', function() {
+  it('should parse short binary string', () => {
     var input = `<ea68d4>`;
     // var output = ['ea', '68', 'd4'].map(function(pair) { return parseInt(pair, 16) }
     var output = [234, 104, 212];
     check(input, output);
   });
 
-  it('should parse dictionary object with indirect references', function() {
+  it('should parse dictionary object with indirect references', () => {
     var input = `<<
 /Size 369
 /Info 339 0 R
@@ -47,7 +47,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse simple dictionary object', function() {
+  it('should parse simple dictionary object', () => {
     var input = `<<
 /Size 369
 /Info 339
@@ -65,7 +65,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse real dictionary object', function() {
+  it('should parse real dictionary object', () => {
     var input = `<< /Author (Kenneth Ward Church) /CreationDate (D:20020326140046-05'00') /ModDate (D:20020403103951-05'00') /Title (Char align: A Program for Aligning Parallel Texts at the Character Level) >>`;
     var output = {
       Author: 'Kenneth Ward Church',
@@ -76,7 +76,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse real dictionary object #2', function() {
+  it('should parse real dictionary object #2', () => {
     var input = `<< /Contents [ 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R 22 0 R 23 0 R 24 0 R ] /CropBox [ 0 0 612 792 ] /MediaBox [ 0 0 612 792 ] /Parent 5 0 R /Resources << /Font << /F0 25 0 R /F1 26 0 R /F2 27 0 R >> /ProcSet 28 0 R /XObject << /Im1 29 0 R >> >> /Rotate 0 /Thumb 30 0 R /Type /Page >>`;
     var output = {
       Contents: [
@@ -110,7 +110,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse nested dictionary object', function() {
+  it('should parse nested dictionary object', () => {
     var input = `<<
 /Fields [ ]
 /DR << /Font << /ZaDb 316 0 R /Helv 317 0 R >> /Encoding << /PDFDocEncoding 318 0 R >> >>
@@ -141,7 +141,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse array of names', function() {
+  it('should parse array of names', () => {
     var input = `[
 /PDF /Text /ImageB
 ]`;
@@ -149,7 +149,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse array of references', function() {
+  it('should parse array of references', () => {
     var input = `[
 4 0 R 6 0 R 8 0 R 10 0 R
 ]`;
@@ -162,7 +162,7 @@ describe('pdfobject parser: general objects', function() {
     check(input, output);
   });
 
-  it('should parse an indirect object', function() {
+  it('should parse an indirect object', () => {
     var input = `4 0 obj
   << /Length 81 >>
 endobj`;
@@ -176,13 +176,13 @@ endobj`;
     check(input, output, 'INDIRECT_OBJECT');
   });
 
-  it('should parse a list of booleans', function() {
+  it('should parse a list of booleans', () => {
     var input = `[true false true true ]`;
     var output = [ true, false, true, true, ];
     check(input, output);
   });
 
-  it('should parse a stream', function() {
+  it('should parse a stream', () => {
     var input = `<< /Length 25 >>
 stream
 hello there
@@ -200,9 +200,9 @@ i am a stream`),
 
 });
 
-describe('pdfobject parser: xref', function() {
+describe('pdfobject parser: xref', () => {
 
-  it('short xref with trailing newline', function() {
+  it('short xref with trailing newline', () => {
     var input = `xref
 0 2
 0000000000 65535 f\r
@@ -225,7 +225,7 @@ describe('pdfobject parser: xref', function() {
     check(input, output, 'XREF_ONLY');
   });
 
-  it('another xref with trailing newline', function() {
+  it('another xref with trailing newline', () => {
     var input = `xref
 100 3
 0000000197 00000 n\r
@@ -253,7 +253,7 @@ describe('pdfobject parser: xref', function() {
     check(input, output, 'XREF_ONLY');
   });
 
-  it('xref from PDF32000_2008.pdf Section 7.5.4 EXAMPLE 2', function() {
+  it('xref from PDF32000_2008.pdf Section 7.5.4 EXAMPLE 2', () => {
     var input = `xref
 0 6
 0000000003 65535 f\r
@@ -304,7 +304,7 @@ describe('pdfobject parser: xref', function() {
     check(input, output, 'XREF_ONLY');
   });
 
-  it('xref from PDF32000_2008.pdf Section 7.5.4 EXAMPLE 3', function() {
+  it('xref from PDF32000_2008.pdf Section 7.5.4 EXAMPLE 3', () => {
     var input = `xref
 0 1
 0000000000 65535 f\r

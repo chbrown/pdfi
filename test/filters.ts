@@ -3,7 +3,7 @@ import assert = require('assert');
 
 import decoders = require('../filters/decoders');
 
-describe('pdf filters/decoders: ASCII85Decode', function() {
+describe('pdf filters/decoders: ASCII85Decode', () => {
 
   it('should decode an ascii string', function() {
     var output = decoders.ASCII85Decode(new Buffer('87cURD]j7BEbo80'));

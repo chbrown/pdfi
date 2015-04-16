@@ -2,7 +2,7 @@
 var assert = require('assert');
 var PDF = require('../PDF');
 function check(input, expected_output, start) {
-    var pdf = new PDF();
+    var pdf = new PDF(null);
     var output = pdf.parseString(input, start);
     var message = "parse result does not match expected output.\n      parse(\"" + input + "\") => " + JSON.stringify(output) + "\n      but should == " + JSON.stringify(expected_output);
     assert.deepEqual(output, expected_output, message);
@@ -183,14 +183,12 @@ describe('pdfobject parser: xref', function () {
                 offset: 197,
                 generation_number: 0,
                 in_use: true
-            },
-            {
+            }, {
                 object_number: 101,
                 offset: 556,
                 generation_number: 0,
                 in_use: true
-            },
-            {
+            }, {
                 object_number: 102,
                 offset: 1000023,
                 generation_number: 0,
