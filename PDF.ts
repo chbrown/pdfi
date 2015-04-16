@@ -187,20 +187,19 @@ class PDF {
 
   /**
   Returns one string (one line) for each paragraph.
+
+  Reduces all the PDF's pages to a single array of Lines. Each Line keeps
+  track of the container it belongs to, so that we can measure offsets
+  later.
   */
-  getParagraphs(section_names: string[], min_indent = 5): string[] {
-    // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
-    // track of the container it belongs to, so that we can measure offsets
-    // later.
+  getDocument(section_names: string[]): drawing.Document {
     var lines = Arrays.flatMap(this.pages, page => {
-      var sections = page.renderCanvas().getSections();
+      var sections = page.renderCanvas().getLineContainers();
       var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
       var selected_sections_lines = Arrays.flatMap(selected_sections, section => section.lines);
       return selected_sections_lines;
     });
-
-    var paragraphs = drawing.detectParagraphs(lines, min_indent);
-    return paragraphs.map(paragraph => paragraph.toString());
+    return new drawing.Document(lines);
   }
 
   /**

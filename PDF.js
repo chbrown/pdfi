@@ -188,20 +188,19 @@ var PDF = (function () {
     });
     /**
     Returns one string (one line) for each paragraph.
+  
+    Reduces all the PDF's pages to a single array of Lines. Each Line keeps
+    track of the container it belongs to, so that we can measure offsets
+    later.
     */
-    PDF.prototype.getParagraphs = function (section_names, min_indent) {
-        if (min_indent === void 0) { min_indent = 5; }
-        // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
-        // track of the container it belongs to, so that we can measure offsets
-        // later.
+    PDF.prototype.getDocument = function (section_names) {
         var lines = Arrays.flatMap(this.pages, function (page) {
-            var sections = page.renderCanvas().getSections();
+            var sections = page.renderCanvas().getLineContainers();
             var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
             var selected_sections_lines = Arrays.flatMap(selected_sections, function (section) { return section.lines; });
             return selected_sections_lines;
         });
-        var paragraphs = drawing.detectParagraphs(lines, min_indent);
-        return paragraphs.map(function (paragraph) { return paragraph.toString(); });
+        return new drawing.Document(lines);
     };
     /**
     Resolves a potential IndirectReference to the target object.
