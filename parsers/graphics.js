@@ -113,6 +113,11 @@ var operator_aliases = {
     // incomplete: BI, ID, EI
     // XObjects
     'Do': 'drawObject',
+    // Marked content
+    // incomplete: MP, DP
+    'BMC': 'beginMarkedContent',
+    'BDC': 'beginMarkedContentWithDictionary',
+    'EMC': 'endMarkedContent',
 };
 var Color = (function () {
     function Color() {
@@ -321,7 +326,7 @@ var DrawingContext = (function () {
         var font_point = new shapes.Point(0, this.textState.fontSize);
         return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
     };
-    DrawingContext.prototype._renderGlyphs = function (charCodes) {
+    DrawingContext.prototype._renderGlyphs = function (bytes) {
         var font = this.Resources.getFont(this.textState.fontName);
         // the Font instance handles most of the character code resolution
         if (font === null) {
@@ -329,8 +334,8 @@ var DrawingContext = (function () {
         }
         var origin = this.getTextPosition();
         var fontSize = this.getTextSize();
-        var string = font.decodeString(charCodes);
-        var width_units = font.measureString(charCodes);
+        var string = font.decodeString(bytes);
+        var width_units = font.measureString(bytes);
         var nchars = string.length;
         var nspaces = countSpaces(string);
         // adjust the text matrix accordingly (but not the text line matrix)
@@ -348,8 +353,8 @@ var DrawingContext = (function () {
             // each item is either a string (character code array) or a number
             if (Array.isArray(item)) {
                 // if it's a character array, convert it to a unicode string and render it
-                var charCodes = item;
-                _this._renderGlyphs(charCodes);
+                var bytes = item;
+                _this._renderGlyphs(bytes);
             }
             else if (typeof item === 'number') {
                 // negative numbers indicate forward (rightward) movement. if it's a
@@ -381,7 +386,7 @@ var DrawingContext = (function () {
             logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject is too deep; depth = " + (this.depth + 1) + ")");
         }
         else if (XObjectStream.Subtype == 'Form') {
-            logger.debug("Drawing XObject: " + name);
+            logger.silly("Drawing XObject: " + name);
             // a) push state
             this.pushGraphicsState();
             // b) concatenate the dictionary.Matrix
@@ -398,7 +403,7 @@ var DrawingContext = (function () {
             this.popGraphicsState();
         }
         else {
-            logger.warn("Ignoring \"" + name + " Do\" command (embedded XObject has Subtype \"" + XObjectStream.Subtype + "\")");
+            logger.silly("Ignoring \"" + name + " Do\" command (embedded XObject has Subtype \"" + XObjectStream.Subtype + "\")");
         }
     };
     // ---------------------------------------------------------------------------
@@ -834,7 +839,10 @@ var DrawingContext = (function () {
     /**
     > `string Tj`: Show a text string.
   
-    string is a list of character codes, potentially larger than 256
+    `string` is a list of bytes (most often, character codes), each in the range
+    [0, 256). Because parsing hex strings depends on the current font, we cannot
+    resolve the bytes into character codes until rendered in the context of a
+    textState.
     */
     DrawingContext.prototype.showString = function (string) {
         this._renderGlyphs(string);
@@ -878,6 +886,26 @@ var DrawingContext = (function () {
         this.setWordSpacing(wordSpace); // Tw
         this.setCharSpacing(charSpace); // Tc
         this.newLineAndShowString(string); // '
+    };
+    // ---------------------------------------------------------------------------
+    // Marked content (BMC, BDC, EMC)
+    /**
+    > `tag BMC`: Begin a marked-content sequence terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence.
+    */
+    DrawingContext.prototype.beginMarkedContent = function (tag) {
+        logger.silly("Ignoring beginMarkedContent(" + tag + ") operation");
+    };
+    /**
+    > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
+    */
+    DrawingContext.prototype.beginMarkedContentWithDictionary = function (tag, dictionary) {
+        logger.silly("Ignoring beginMarkedContentWithDictionary(" + tag + ", " + dictionary + ") operation");
+    };
+    /**
+    > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
+    */
+    DrawingContext.prototype.endMarkedContent = function () {
+        logger.silly("Ignoring endMarkedContent() operation");
     };
     return DrawingContext;
 })();

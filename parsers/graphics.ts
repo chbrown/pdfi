@@ -113,7 +113,10 @@ var operator_aliases = {
   // XObjects
   'Do': 'drawObject',
   // Marked content
-    // incomplete: MP, DP, BMC, BDC, EMC
+    // incomplete: MP, DP
+  'BMC': 'beginMarkedContent',
+  'BDC': 'beginMarkedContentWithDictionary',
+  'EMC': 'endMarkedContent',
   // Compatibility
     // incomplete: BX, EX
 };
@@ -315,7 +318,7 @@ export class DrawingContext {
     return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
   }
 
-  private _renderGlyphs(charCodes: number[]) {
+  private _renderGlyphs(bytes: number[]) {
     var font = this.Resources.getFont(this.textState.fontName);
     // the Font instance handles most of the character code resolution
     if (font === null) {
@@ -324,8 +327,8 @@ export class DrawingContext {
     var origin = this.getTextPosition();
     var fontSize = this.getTextSize();
 
-    var string = font.decodeString(charCodes);
-    var width_units = font.measureString(charCodes);
+    var string = font.decodeString(bytes);
+    var width_units = font.measureString(bytes);
     var nchars = string.length;
     var nspaces = countSpaces(string);
 
@@ -345,8 +348,8 @@ export class DrawingContext {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        var charCodes = <number[]>item;
-        this._renderGlyphs(charCodes);
+        var bytes = <number[]>item;
+        this._renderGlyphs(bytes);
       }
       else if (typeof item === 'number') {
         // negative numbers indicate forward (rightward) movement. if it's a
@@ -380,7 +383,7 @@ export class DrawingContext {
       logger.warn(`Ignoring "${name} Do" command (embedded XObject is too deep; depth = ${this.depth + 1})`);
     }
     else if (XObjectStream.Subtype == 'Form') {
-      logger.debug(`Drawing XObject: ${name}`);
+      logger.silly(`Drawing XObject: ${name}`);
 
       // a) push state
       this.pushGraphicsState();
@@ -398,7 +401,7 @@ export class DrawingContext {
       this.popGraphicsState();
     }
     else {
-      logger.warn(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);
+      logger.silly(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);
     }
   }
 
@@ -841,7 +844,10 @@ export class DrawingContext {
   /**
   > `string Tj`: Show a text string.
 
-  string is a list of character codes, potentially larger than 256
+  `string` is a list of bytes (most often, character codes), each in the range
+  [0, 256). Because parsing hex strings depends on the current font, we cannot
+  resolve the bytes into character codes until rendered in the context of a
+  textState.
   */
   showString(string: number[]) {
     this._renderGlyphs(string);
@@ -885,5 +891,25 @@ export class DrawingContext {
     this.setWordSpacing(wordSpace); // Tw
     this.setCharSpacing(charSpace); // Tc
     this.newLineAndShowString(string); // '
+  }
+  // ---------------------------------------------------------------------------
+  // Marked content (BMC, BDC, EMC)
+  /**
+  > `tag BMC`: Begin a marked-content sequence terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence.
+  */
+  beginMarkedContent(tag: string) {
+    logger.silly(`Ignoring beginMarkedContent(${tag}) operation`);
+  }
+  /**
+  > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
+  */
+  beginMarkedContentWithDictionary(tag: string, dictionary: any) {
+    logger.silly(`Ignoring beginMarkedContentWithDictionary(${tag}, ${dictionary}) operation`);
+  }
+  /**
+  > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
+  */
+  endMarkedContent() {
+    logger.silly(`Ignoring endMarkedContent() operation`);
   }
 }
