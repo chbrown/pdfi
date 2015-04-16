@@ -1,3 +1,5 @@
+import Arrays = require('./Arrays');
+
 export class Point {
   constructor(public x: number, public y: number) { }
   clone(): Point {
@@ -49,6 +51,13 @@ export class Rectangle {
     return this.maxY - this.minY;
   }
 
+  toString(digits = 0): string {
+    // var size_string = `(${this.dX.toFixed(digits)}x${this.dY.toFixed(digits)})`;
+    // return `${point_string} ${size_string}`;
+    // [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
+    return `[${this.minX.toFixed(digits)}, ${this.minY.toFixed(digits)}, ${this.maxX.toFixed(digits)}, ${this.maxY.toFixed(digits)}]`;
+  }
+
   /**
   Returns true if this fully contains the other rectangle.
 
@@ -64,11 +73,32 @@ export class Container<T extends Rectangle> extends Rectangle {
   protected elements: T[] = [];
   constructor(elements: T[] = []) {
     super(Infinity, Infinity, -Infinity, -Infinity);
-    elements.forEach(element => this.push(element));
+    this.pushElements(elements);
   }
 
   get length(): number {
     return this.elements.length;
+  }
+
+  private _medianElementLeftOffset: number;
+  /**
+  Returns the median distance between this container's left (inner) bound and
+  the left bound of its elements.
+
+  This is useful when we want to determine whether a given line is atypical
+  within its specific container.
+
+  Cached as `this._medianElementLeftOffset`.
+  */
+  get medianElementLeftOffset(): number {
+    if (this._medianElementLeftOffset === undefined) {
+      // leftOffsets will all be non-negative by definition; `this.minX` is the
+      // the minimum minX of all of its elements. In other words:
+      // `element.minX >= this.minX` for each `element` in `this.elements`
+      var leftOffsets = this.elements.map(element => element.minX - this.minX);
+      this._medianElementLeftOffset = Arrays.median(leftOffsets);
+    }
+    return this._medianElementLeftOffset;
   }
 
   /**
@@ -83,6 +113,12 @@ export class Container<T extends Rectangle> extends Rectangle {
     this.minY = Math.min(this.minY, element.minY);
     this.maxX = Math.max(this.maxX, element.maxX);
     this.maxY = Math.max(this.maxY, element.maxY);
+  }
+  /**
+  TODO: optimize this by using PointArray (plain `push()` incurs a lot of function calls).
+  */
+  pushElements(elements: T[]): void {
+    elements.forEach(element => this.push(element));
   }
 }
 

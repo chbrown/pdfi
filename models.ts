@@ -2,6 +2,8 @@
 import logger = require('loge');
 import lexing = require('lexing');
 
+var afm = require('afm');
+
 import Arrays = require('./Arrays');
 import PDF = require('./PDF');
 import pdfdom = require('./pdfdom');
@@ -11,6 +13,7 @@ import decoders = require('./filters/decoders');
 import drawing = require('./drawing');
 import shapes = require('./shapes');
 import FontMetrics = require('./font/FontMetrics');
+import encoding_Mapping = require('./encoding/Mapping');
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -21,17 +24,6 @@ var glyphlist: {[index: string]: string} = require('./encoding/glyphlist');
 Most of the classes in this module are wrappers for typed objects in a PDF,
 where the object's Type indicates useful ways it may be processed.
 */
-
-interface CharacterSpecification {
-  char: string;
-  glyphname: string;
-  std: number;
-  mac: number;
-  win: number;
-  pdf: number;
-}
-
-var latin_charset: CharacterSpecification[] = require('./encoding/latin_charset');
 
 export class IndirectReference {
   constructor(public object_number: number, public generation_number: number) { }
@@ -110,7 +102,7 @@ export class Pages extends Model {
   at the leaves of the pages tree.
   */
   getLeaves(): Page[] {
-    var PageGroups: Page[][] = this.Kids.map(Kid => {
+    return Arrays.flatMap(this.Kids, Kid => {
       // return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
       if (Kid instanceof Pages) {
         return Kid.getLeaves();
@@ -120,8 +112,6 @@ export class Pages extends Model {
         return [Kid];
       }
     });
-    // flatten Page[][] into Page[]
-    return Array.prototype.concat.apply([], PageGroups);
   }
 
   toJSON() {
@@ -269,7 +259,8 @@ export class ContentStream extends Model {
       }
       else {
         var message = `Could not find decoder named "${filter}" to fully decode stream`;
-        logger.error(message);
+        // logger.error(message);
+        throw new Error(message);
       }
     });
     // TODO: delete the dictionary['Filter'] field?
@@ -340,24 +331,33 @@ export class Resources extends Model {
     var cached_font = this._cached_fonts[name];
     if (cached_font === undefined) {
       var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-      var Font_model = (name in Font_dictionary) ? new Font(this._pdf, Font_dictionary[name]) : null;
-      // See Table 110 – Font types:
-      //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
-      if (Font_model.object['Type'] === 'Font') {
-        if (Font_model.object['Subtype'] === 'Type0') {
-          Font_model = new Type0Font(this._pdf, Font_model.object);
+      if (name in Font_dictionary) {
+        var Font_model = new Font(this._pdf, Font_dictionary[name]);
+        // See Table 110 – Font types:
+        //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+        if (Font_model.object['Type'] === 'Font') {
+          if (Font_model.object['Subtype'] === 'Type0') {
+            Font_model = new Type0Font(this._pdf, Font_model.object);
+          }
+          else if (Font_model.object['Subtype'] === 'Type1') {
+            Font_model = new Type1Font(this._pdf, Font_model.object);
+          }
+          else if (Font_model.object['Subtype'] === 'TrueType') {
+            // apparently TrueType and Type 1 fonts are pretty much the same.
+            Font_model = new Type1Font(this._pdf, Font_model.object);
+          }
+          else if (Font_model.object['Subtype'] === 'Type3') {
+            // And Type 3 isn't too far off, either
+            Font_model = new Type1Font(this._pdf, Font_model.object);
+          }
+          // TODO: add the other types of fonts
         }
-        else if (Font_model.object['Subtype'] === 'Type1') {
-          Font_model = new Type1Font(this._pdf, Font_model.object);
-        }
-        else if (Font_model.object['Subtype'] === 'TrueType') {
-        // apparently TrueType and Type 1 fonts are pretty much the same.
-          Font_model = new Type1Font(this._pdf, Font_model.object);
-        }
+        Font_model.Name = name;
+        cached_font = this._cached_fonts[name] = Font_model;
       }
-      Font_model.Name = name;
-      // TODO: add the other types of fonts
-      cached_font = this._cached_fonts[name] = Font_model;
+      else {
+        cached_font = this._cached_fonts[name] = null;
+      }
     }
     return cached_font;
   }
@@ -390,11 +390,11 @@ material purposes (and is not necessary for any).
 
 # Cached objects
 
-* `_charCodeMapping: string[]` is a cached mapping from in-PDF character codes to native
+* `_encodingMapping: encoding_Mapping` is a cached mapping from in-PDF character codes to native
   Javascript (unicode) strings.
 */
 export class Font extends Model {
-  private _charCodeMapping: string[];
+  private _encodingMapping: encoding_Mapping;
   public Name: string;
 
   get Subtype(): string {
@@ -406,31 +406,40 @@ export class Font extends Model {
   }
 
   /**
-  Cached as `_charCodeMapping`.
+  Cached as `_encodingMapping`.
 
   We need the Font's Encoding (not always specified) to read its Differences,
   which we use to map character codes into the glyph name (which can then easily
   be mapped to the unicode string representation of that glyph).
   */
-  get charCodeMapping(): string[] {
+  get encodingMapping(): encoding_Mapping {
     // initialize if needed
-    if (this._charCodeMapping === undefined) {
+    if (this._encodingMapping === undefined) {
       // try the ToUnicode object first
       if (this.object['ToUnicode']) {
-        this._charCodeMapping = new ToUnicode(this._pdf, this.object['ToUnicode']).Mapping;
+        var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
+        var string_iterable = lexing.StringIterator.fromBuffer(ToUnicode.buffer, 'ascii');
+        var cMap = cmap.CMap.parseStringIterable(string_iterable);
+        this._encodingMapping = encoding_Mapping.fromCMap(cMap);
       }
       // No luck? Try the Encoding dictionary
       else if (this.object['Encoding']) {
-        this._charCodeMapping = new Encoding(this._pdf, this.object['Encoding']).Mapping;
+        var Encoding = new Model(this._pdf, this.object['Encoding']);
+        // var BaseEncoding = Encoding.object['BaseEncoding']; // TODO: use this value
+        this._encodingMapping = encoding_Mapping.fromLatinCharset('std');
+        var Differences = Encoding.object['Differences'];
+        if (Differences && Differences.length > 0) {
+          this._encodingMapping.applyDifferences(Differences);
+        }
       }
       else {
         // Neither Encoding nor ToUnicode are specified; that's bad!
-        logger.warn(`Could not find any character code mapping for font; using default mapping`);
+        logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default mapping`);
         // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-        this._charCodeMapping = Encoding.getDefaultMapping('std');
+        this._encodingMapping = encoding_Mapping.fromLatinCharset('std');
       }
     }
-    return this._charCodeMapping;
+    return this._encodingMapping;
   }
 
   /**
@@ -446,9 +455,9 @@ export class Font extends Model {
   be resolved to a string (unless the `skipMissing` argument is set to `true`,
   in which case, it simply skips those characters.
   */
-  decodeString(charCodes: number[], skipMissing = false): string {
-    return charCodes.map(charCode => {
-      var string = this.charCodeMapping[charCode];
+  decodeString(bytes: number[], skipMissing = false): string {
+    return this.encodingMapping.decodeCharCodes(bytes).map(charCode => {
+      var string = this.encodingMapping.decodeCharacter(charCode);
       if (string === undefined) {
         logger.error(`[Font=${this.Name}] Could not decode character code: ${charCode}`)
         if (skipMissing) {
@@ -464,7 +473,7 @@ export class Font extends Model {
   This should be overridden by subclasses to return a total width, in text units
   (usually somewhere in the range of 250-750 for each character/glyph).
   */
-  measureString(charCodes: number[]): number {
+  measureString(bytes: number[]): number {
     throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.Subtype}, Name: ${this.Name})`);
   }
 
@@ -505,7 +514,7 @@ Type 1 Font (See PDF32000_2008.pdf:9.6.2, Table 111)
 * `LastChar?: integer`
 * `Widths?: array`
   The PDF spec actually recommends that `Widths` be an indirect reference.
-* `FontDescriptor?: array`
+* `FontDescriptor?`
 
 These four fields are optional for the Core14 ("standard 14") fonts, but are
 not precluded for the Core14 fonts. In fact, PDF 1.5 suggests that even the
@@ -537,27 +546,12 @@ export class Type1Font extends Font {
   private _widthMapping: {[index: string]: number};
   private _defaultWidth: number;
 
-  get FirstChar(): number {
-    return this.object['FirstChar'];
-  }
-  get LastChar(): number {
-    return this.object['LastChar'];
-  }
-  get Widths(): number[] {
-    var model = new Model(this._pdf, this.object['Widths']);
-    return <number[]>model.object;
-  }
-  get FontDescriptor(): any {
-    var model = new Model(this._pdf, this.object['FontDescriptor']);
-    return model.object;
-  }
-
-  measureString(charCodes: number[]): number {
+  measureString(bytes: number[]): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return charCodes.reduce((sum, charCode) => {
-      var string = this.charCodeMapping[charCode];
+    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
+      var string = this.encodingMapping.decodeCharacter(charCode);
       var width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
       return sum + width;
     }, 0);
@@ -571,19 +565,27 @@ export class Type1Font extends Font {
   the BaseFont value is not one of the Core14 fonts, this will throw an Error.
   */
   private _initializeWidthMapping() {
-    logger.debug(`Type1Font[${this.Name}]#_initializeWidthMapping() called`);
+    // logger.debug(`Type1Font[${this.Name}]#_initializeWidthMapping() called`);
     // Try using the local Widths, etc., configuration first.
-    if (this.Widths) {
-      var FirstChar = this.FirstChar;
+    var Widths = <number[]>new Model(this._pdf, this.object['Widths']).object;
+    if (Widths) {
+      var FirstChar = <number>this.object['FirstChar'];
       // TODO: verify LastChar?
       this._widthMapping = {};
-      this.Widths.forEach((width, width_index) => {
+      Widths.forEach((width, width_index) => {
         var charCode = FirstChar + width_index;
-        var string = this.charCodeMapping[charCode];
+        var string = this.encodingMapping.decodeCharacter(charCode);
         this._widthMapping[string] = width;
       });
       // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
-      this._defaultWidth = this.FontDescriptor['MissingWidth'] || null;
+      var FontDescriptor = new Model(this._pdf, this.object['FontDescriptor']).object;
+      if (FontDescriptor && FontDescriptor['MissingWidth']) {
+        this._defaultWidth = FontDescriptor['MissingWidth'];
+      }
+      else {
+        logger.silly(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
+        this._defaultWidth = null;
+      }
     }
     // if Widths cannot be found, try to load BaseFont as a Core14 font.
     else if (FontMetrics.isCore14(this.BaseFont)) {
@@ -599,8 +601,16 @@ export class Type1Font extends Font {
       // width should never be referenced, but I'll set it here just in case.
       this._defaultWidth = 1000;
     }
+    else if (afm.names.indexOf(this.BaseFont) > -1) {
+      this._widthMapping = {};
+      afm.loadFontMetricsSync(this.BaseFont).forEach(charMetrics => {
+        var string = glyphlist[charMetrics.name];
+        this._widthMapping[string] = charMetrics.width;
+      });
+      this._defaultWidth = 1000;
+    }
     else {
-      throw new Error('Cannot initialize width mapping for non-Core14 Type 1 Font without "Widths" field');
+      throw new Error(`Font[${this.Name}] Cannot initialize width mapping for non-Core14 Type 1 Font without "Widths" field`);
     }
   }
 
@@ -639,16 +649,16 @@ export class Type0Font extends Font {
   }
 
   private _initializeWidthMapping() {
-    logger.debug(`Type0Font[${this.Name}]#_initializeWidthMapping() called`);
+    // logger.debug(`Type0Font[${this.Name}]#_initializeWidthMapping() called`);
     this._widthMapping = this.DescendantFont.getWidthMapping();
     this._defaultWidth = this.DescendantFont.getDefaultWidth();
   }
 
-  measureString(charCodes: number[]): number {
+  measureString(bytes: number[]): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return charCodes.reduce((sum, charCode) => {
+    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
       var width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
       return sum + width;
     }, 0);
@@ -766,91 +776,6 @@ export class Catalog extends Model {
       Names: this.Names,
       PageMode: this.PageMode,
       OpenAction: this.OpenAction,
-    };
-  }
-}
-
-/**
-interface Encoding {
-  Type: 'Encoding';
-  BaseEncoding: string;
-  Differences: Array<number | string>;
-}
-*/
-export class Encoding extends Model {
-  get BaseEncoding(): any {
-    return this.object['BaseEncoding'];
-  }
-  get Differences(): Array<number | string> {
-    return this.object['Differences'];
-  }
-
-  /**
-  Mapping returns an object mapping character codes to unicode strings.
-
-  If there are no `Differences` specified, return a default mapping.
-  */
-  get Mapping(): string[] {
-    var mapping = Encoding.getDefaultMapping('std');
-    var current_character_code = 0;
-    (this.Differences || []).forEach(difference => {
-      if (typeof difference === 'number') {
-        current_character_code = difference;
-      }
-      else {
-        // difference is a glyph name, but we want a mapping from character
-        // codes to native unicode strings, so we resolve the glyphname via the
-        // PDF standard glyphlist
-        // TODO: handle missing glyphnames
-        mapping[current_character_code++] = glyphlist[difference];
-      }
-    });
-    return mapping;
-  }
-
-  toJSON() {
-    return {
-      Type: 'Encoding',
-      BaseEncoding: this.BaseEncoding,
-      Differences: this.Differences,
-      Mapping: this.Mapping,
-    };
-  }
-
-  /**
-  This loads the character codes listed in encoding/latin_charset.json into
-  a (sparse?) Array of strings mapping indices (character codes) to unicode
-  strings (not glyphnames).
-
-  `base` should be one of 'std', 'mac', 'win', or 'pdf'
-  */
-  static getDefaultMapping(base: string): string[] {
-    var mapping: string[] = [];
-    latin_charset.forEach(charspec => {
-      var charCode: number = charspec[base];
-      if (charCode !== null) {
-        mapping[charspec[base]] = glyphlist[charspec.glyphname];
-      }
-    });
-    return mapping;
-  }
-
-  static isEncoding(object): boolean {
-    if (object === undefined || object === null) return false;
-    return object['Type'] === 'Encoding';
-  }
-}
-
-export class ToUnicode extends ContentStream {
-  get Mapping(): string[] {
-    var string_iterable = lexing.StringIterator.fromBuffer(this.buffer, 'ascii');
-    var parser = new cmap.CMapParser();
-    return parser.parse(string_iterable);
-  }
-
-  toJSON(): any {
-    return {
-      Mapping: this.Mapping,
     };
   }
 }

@@ -23,7 +23,7 @@ export class Canvas {
     var spans = this.spans.slice().sort((a, b) => a.minY - b.minY);
     // var boxes = this.spans.map(span => span.box).sort((a, b) => a.minY - b.minY);
     // the header starts as a page-wide sliver at the top of the highest span box
-    var header_minY = spans[0].minY;
+    var header_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
     var header_maxY = header_minY;
     // now we read glom through the following points until we hit one that's far
     // enough away, only shifting header.maxY as needed.
@@ -53,7 +53,7 @@ export class Canvas {
     var spans = this.spans.slice().sort((a, b) => b.maxY - a.maxY);
     // var boxes = this.spans.map(span => span.box).sort((a, b) => b.maxY - a.maxY);
     // default the footer to a box as high as the lowest span on the page.
-    var footer_minY = spans[0].minY;
+    var footer_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
     var footer_maxY = footer_minY;
     // now we read glom through each box from the bottom until we hit one that's far enough away
     // as we go through, we adjust ONLY footer.minY
@@ -81,7 +81,7 @@ export class Canvas {
   The spans collected in each section should be in reading order (we're
   currently assuming that the natural order is proper reading order).
   */
-  getSections(): TextSection[] {
+  getLineContainers(): NamedLineContainer[] {
     var header = this.getHeader();
     var footer = this.getFooter();
     // Excluding the header and footer, find a vertical split between the spans,
@@ -91,30 +91,38 @@ export class Canvas {
     var col1 = new shapes.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
     var col2 = new shapes.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
     // okay, we've got the bounding boxes, now we need to find the spans they contain
-    var sections = [
-      new TextSection('header', header),
-      new TextSection('footer', footer),
-      new TextSection('col1', col1),
-      new TextSection('col2', col2),
+    var named_page_sections = [
+      new NamedPageSection('header', header),
+      new NamedPageSection('footer', footer),
+      new NamedPageSection('col1', col1),
+      new NamedPageSection('col2', col2),
     ];
-    var outside_section = new TextSection('outside', this.outerBounds);
+    var outside_page_section = new NamedPageSection('outside', this.outerBounds);
 
     // now loop through the spans and put them in the appropriate rectangles
     this.spans.forEach(span => {
       var outside = true;
-      sections.forEach(section => {
+      named_page_sections.forEach(section => {
         if (section.outerBounds.containsRectangle(span)) {
           outside = false;
-          section.push(span)
+          section.textSpans.push(span)
         }
       });
       if (outside) {
-        outside_section.push(span);
+        outside_page_section.textSpans.push(span);
       }
     });
-    sections.push(outside_section);
+    named_page_sections.push(outside_page_section);
 
-    return sections;
+    return named_page_sections.map(named_page_section => {
+      return NamedLineContainer.fromTextSpans(named_page_section.name, named_page_section.textSpans);
+    });
+  }
+
+  getPartialDocument(section_names: string[]): Document {
+    var sections = this.getLineContainers().filter(section => section_names.indexOf(section.name) > -1)
+    var lines = Arrays.flatMap(sections, section => section.lines);
+    return new Document(lines);
   }
 
   addSpan(string: string, origin: shapes.Point, size: shapes.Size, fontSize: number, fontName: string) {
@@ -126,8 +134,8 @@ export class Canvas {
                                    canvas_origin.x + size.width,
                                    canvas_origin.y + size.height,
                                    fontSize);
-    var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-    span.details = `${rectangle_string} fontSize=${fontSize} fontName=${fontName}`;
+    // var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
+    span.details = `${span.toString(2)} fontSize=${fontSize} fontName=${fontName}`;
     this.spans.push(span);
   }
 
@@ -137,70 +145,54 @@ export class Canvas {
       spans: this.spans,
       outerBounds: this.outerBounds,
       // getters
-      sections: this.getSections(),
+      sections: this.getLineContainers(),
     };
   }
 }
 
-/**
-Could also be called "NamedTextContainer"
-*/
-export class TextSection extends shapes.NamedContainer<shapes.TextSpan> {
-  private _medianLeftOffset: number;
-  private _lines: Line[];
-  constructor(name: string, public outerBounds: shapes.Rectangle) { super(name) }
+export class NamedLineContainer extends shapes.NamedContainer<Line> {
+  constructor(name: string) { super(name) }
+
+  get lines(): Line[] {
+    return this.elements;
+  }
 
   /**
-  Returns an array of Line instances; one for each line of text in the PDF.
+  Groups the container's elements (TextSpans) into an array of Line instances;
+  one for each line of text in the PDF.
+
   A 'Section' (e.g., a column) of text can, by definition, be divided into
   discrete lines, so this is a reasonable place to do line processing.
 
-  `max_line_gap`: the maximum distance between lines before we consider the
-      next line a new paragraph.
+  * `line_gap` is the the maximum distance between lines before we consider the
+    next line a new paragraph.
   */
-  get lines(): Line[] {
-    var line_gap = -5;
-    if (this._lines === undefined) {
-      var lines: Line[] = [];
-      var currentLine: Line = new Line(this);
-
-      this.elements.forEach(currentSpan => {
-        var dY = -1000;
-        if (currentLine.length > 0) {
-          // dY is the distance from bottom of the current (active) line to the
-          // top of the next span (this should come out negative if the span is
-          // on the same line as the last one)
-          dY = currentSpan.minY - currentLine.maxY;
-        }
-        if (dY > line_gap) {
-          // if the new span does not vertically overlap with the previous one
-          // at all, we consider it a new line
-          lines.push(currentLine);
-          // lastLine = currentLine;
-          currentLine = new Line(this);
-        }
-        // otherwise it's a span on the same line
-        currentLine.push(currentSpan);
-      });
-
-      // finish up
-      lines.push(currentLine);
-
-      // get medianLeftOffset(): number {
-      // offsets will all be non-negative
-      var offsets = lines.map(line => line.minX - this.minX);
-      var median_offset = Arrays.median(offsets);
-
-      // set cached values
-      this._lines = lines;
-      this._medianLeftOffset = median_offset;
-    }
-
-    return this._lines;
-  }
-
-  get medianLeftOffset(): number {
-    return this._medianLeftOffset;
+  static fromTextSpans(name: string, textSpans: shapes.TextSpan[], line_gap = -5): NamedLineContainer {
+    var namedLineContainer = new NamedLineContainer(name);
+    var lines: Line[] = [];
+    var currentLine: Line = new Line(namedLineContainer);
+    textSpans.forEach(currentSpan => {
+      var dY = -1000;
+      if (currentLine.length > 0) {
+        // dY is the distance from bottom of the current (active) line to the
+        // top of the next span (this should come out negative if the span is
+        // on the same line as the last one)
+        dY = currentSpan.minY - currentLine.maxY;
+      }
+      if (dY > line_gap) {
+        // if the new span does not vertically overlap with the previous one
+        // at all, we consider it a new line
+        lines.push(currentLine);
+        currentLine = new Line(namedLineContainer);
+      }
+      // otherwise it's a span on the same line
+      currentLine.push(currentSpan);
+    });
+    // finish up
+    lines.push(currentLine);
+    // call pushElements here so that the mass insertion can be optimized
+    namedLineContainer.pushElements(lines);
+    return namedLineContainer;
   }
 
   toJSON() {
@@ -208,16 +200,40 @@ export class TextSection extends shapes.NamedContainer<shapes.TextSpan> {
       // native properties
       name: this.name,
       elements: this.elements,
-      outerBounds: this.outerBounds,
       // getters
-      lines: this.lines,
+      // lines: this.lines,
     };
   }
 }
 
+/**
+This is for the first pass of collecting all of the TextSpans that lie inside
+a bounding box.
+
+We don't need to know the bounding rectangle of the TextSpans, so we don't
+inherit from shapes.NamedContainer (which saves some time recalculating the spans).
+*/
+export class NamedPageSection {
+  constructor(public name: string,
+              public outerBounds: shapes.Rectangle,
+              public textSpans: shapes.TextSpan[] = []) { }
+}
+
 export class Line extends shapes.Container<shapes.TextSpan> {
-  constructor(public container: TextSection,
+  constructor(protected container: NamedLineContainer,
               elements: shapes.TextSpan[] = []) { super(elements) }
+
+  get textSpans(): shapes.TextSpan[] {
+    return this.elements;
+  }
+
+  get leftOffset(): number {
+    return this.minX - this.container.minX;
+  }
+
+  get containerMedianElementLeftOffset(): number {
+    return this.container.medianElementLeftOffset;
+  }
 
   toString(min_space_width = 1): string {
     var previousSpan: shapes.TextSpan = null;
@@ -233,7 +249,7 @@ export class Line extends shapes.Container<shapes.TextSpan> {
       previousSpan = currentSpan;
       // if it's far enough away (horizontally) from the last box, we add a space
       return (dX > min_space_width) ? (' ' + currentSpan.string) : currentSpan.string;
-    }).join('');
+    }).join('').trim();
   }
 
   toJSON() {
@@ -255,6 +271,132 @@ export class Paragraph extends shapes.Container<Line> {
   toString(): string {
     return joinLines(this.elements);
   }
+  toJSON() {
+    return {
+      string: this.toString(),
+    }
+  }
+}
+
+export class Document {
+  public normalFontSize: number;
+  public meanFontSize: number;
+  /**
+  `lines` should be only the content of the document (not from the header / footer)
+  */
+  constructor(private lines: Line[]) {
+    // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
+    // track of the container it belongs to, so that we can measure offsets
+    // later.
+    var fontSizes = Arrays.flatMap(this.lines, line => {
+      return line.textSpans.map(textSpan => textSpan.fontSize);
+    });
+    this.meanFontSize = Arrays.mean(fontSizes);
+    // use the 75% quartile (Arrays.quantile() returns the endpoints, too) as the normalFontSize
+    this.normalFontSize = Arrays.quantile(fontSizes, 4)[3];
+  }
+
+  getSections(): DocumentSection[] {
+    var sections: DocumentSection[] = [];
+    var currentSection = new DocumentSection();
+    this.lines.forEach(currentLine => {
+      var line_fontSize = Arrays.mean(currentLine.textSpans.map(textSpan => textSpan.fontSize));
+      // new sections can be distinguished by larger sizes
+      if (line_fontSize > (this.normalFontSize + 0.5)) {
+        // only start a new section if the current section has some content
+        if (currentSection.contentLines.length > 0) {
+          sections.push(currentSection);
+          currentSection = new DocumentSection();
+        }
+        currentSection.headerLines.push(currentLine);
+      }
+      else {
+        currentSection.contentLines.push(currentLine);
+      }
+    });
+    // flush final section
+    sections.push(currentSection);
+    return sections;
+  }
+
+  toJSON() {
+    return {
+      // native properties
+      lines: this.lines,
+      normalFontSize: this.normalFontSize,
+      meanFontSize: this.meanFontSize,
+      // getters
+      sections: this.getSections(),
+    };
+  }
+}
+/**
+Despite being an array, `headerLines` will most often be 1-long.
+*/
+export class DocumentSection  {
+  constructor(public headerLines: Line[] = [], public contentLines: Line[] = []) { }
+
+  get header(): string {
+    return this.headerLines.map(line => line.toString()).join('\n');
+  }
+  get content(): string {
+    return this.contentLines.map(line => line.toString()).join('\n');
+  }
+
+  /**
+  Paragraphs.
+
+  Paragraphs are distinguished by an unusual first line. This initial line is
+  unusual compared to preceding lines, as well as subsequent lines.
+
+  If paragraphs are very short, it can be hard to distinguish which are the start
+  lines and which are the end lines simply by shape, since paragraphs may have
+  normal positive indentation, or have hanging indentation.
+
+  Each Line keeps track of the container it belongs to, so that we can measure
+  offsets later.
+  */
+  getParagraphs(min_indent = 8, min_gap = 5): Paragraph[] {
+    // offsets will all be non-negative
+    // var leftOffsets = this.contentLines.map(line => line.minX - line.container.minX);
+    // var medianLeftOffset = Arrays.median(leftOffsets);
+    var paragraphs: Paragraph[] = [];
+    var currentParagraph = new Paragraph();
+    // we can't use currentParagraph.maxY because paragraphs may span multiple columns
+    var previousLine: Line = null;
+    this.contentLines.forEach(currentLine => {
+      // new paragraphs can be distinguished by left offset
+      var diff_offsetX = Math.abs(currentLine.containerMedianElementLeftOffset - currentLine.leftOffset);
+      // or by vertical gaps
+      var dY = -1000;
+      if (previousLine) {
+        dY = currentLine.minY - previousLine.maxY;
+      }
+      if (currentParagraph.length > 0 && ((diff_offsetX > min_indent) || (dY > min_gap))) {
+        paragraphs.push(currentParagraph);
+        currentParagraph = new Paragraph();
+      }
+      currentParagraph.push(currentLine);
+      previousLine = currentLine;
+    });
+    // finish up
+    paragraphs.push(currentParagraph);
+    return paragraphs;
+  }
+
+  toJSON() {
+    return {
+      // native properties
+      headerLines: this.headerLines,
+      contentLines: this.contentLines,
+      // getters
+      header: this.header,
+      content: this.content,
+      // getters
+      paragraphs: this.getParagraphs(),
+    };
+  }
+
 }
 
 /**
@@ -281,42 +423,16 @@ export function joinLines(lines: Line[]): string {
   var line = strings.join('').replace(/(\r\n|\r|\n|\t)/g, ' ').trim();
   // remove all character codes 0 through 31 (space is 32)
   var visible_line = line.replace(/[\x00-\x1F]/g, '');
-  var normalized_line = unorm.nfkc(visible_line);
-  return normalized_line;
-}
-
-/**
-Paragraphs.
-
-Paragraphs are distinguished by an unusual first line. This initial line is
-unusual compared to preceding lines, as well as subsequent lines.
-
-If paragraphs are very short, it can be hard to distinguish which are the start
-lines and which are the end lines simply by shape, since paragraphs may have
-typical positive indentation, or have hanging indentation.
-
-
-Each Line keeps track of the container it belongs to, so that we can measure
-offsets later.
-
-*/
-export function detectParagraphs(lines: Line[], min_indent = 5, min_gap = 5): Paragraph[] {
-  var paragraphs: Paragraph[] = [];
-  var currentParagraph = new Paragraph();
-  lines.forEach(currentLine => {
-    // new paragraphs can be distinguished by left offset
-    var median_offsetX = currentLine.container.medianLeftOffset;
-    var offsetX = currentLine.minX - currentLine.container.minX;
-    var diff_offsetX = Math.abs(median_offsetX - offsetX);
-    // or by vertical gaps
-    var dY = currentLine.minY - currentParagraph.maxY;
-    if (diff_offsetX > min_indent || dY > min_gap) {
-      paragraphs.push(currentParagraph);
-      currentParagraph = new Paragraph();
-    }
-    currentParagraph.push(currentLine);
-  });
-  // finish up
-  paragraphs.push(currentParagraph);
-  return paragraphs;
+  // TODO: reduce combining characters without this space->tab hack
+  // replace spaces temporarily
+  var protected_line = visible_line.replace(/ /g, '\t');
+  // replace spaces temporarily
+  var normalized_protected_line = unorm.nfkc(protected_line);
+  // collapse out the spaces generated for the combining characters
+  var collapsed_line = normalized_protected_line.replace(/ /g, '');
+  // change the space substitutes back into spaces
+  var normalized_line = collapsed_line.replace(/\t/g, ' ');
+  // and replacing the combining character pairs with precombined characters where possible
+  var canonical_line = unorm.nfc(normalized_line);
+  return canonical_line;
 }
