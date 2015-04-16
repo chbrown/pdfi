@@ -2,14 +2,9 @@
 
 ## Installation
 
-    npm install --save pdf
+    npm install --save pdfi
 
-    var pdf = require('pdf');
-
-
-## Development
-
-Maybe look into using flex+yacc along with Emscripten, instead of peg.js?
+    var pdfi = require('pdfi');
 
 
 ## Test
@@ -22,6 +17,7 @@ Run by calling `npm test` in the package's root directory.
 ## Documentation
 
 See general PDF documentation at [docs/pdf](http://chbrown.github.io/docs/pdf)
+
 
 
 ## License
