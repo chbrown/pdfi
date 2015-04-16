@@ -2,21 +2,9 @@
 import lexing = require('lexing');
 var Token = lexing.Token;
 
-type StackRule = lexing.RegexRule<any>;
+import Arrays = require('../Arrays');
 
-/**
-range(10, 4) => [0, 4, 8]
-range(12, 4) => [0, 4, 8]
-range( 0, 4) => []
-*/
-function range(max: number, step: number = 1): number[] {
-  var length = Math.ceil(max / step);
-  var indices = new Array<number>(length);
-  for (var i = 0; i < length; i++) {
-    indices[i] = i * step;
-  }
-  return indices;
-}
+type StackRule = lexing.RegexRule<any>;
 
 // reusable rules:
 var skip_whitespace_rule: StackRule = [/^\s+/, match => null ]; // skip over whitespace
@@ -25,8 +13,8 @@ var float_rule: StackRule = [/^-?\d*\.\d+/, match => Token('NUMBER', parseFloat(
 var int_rule: StackRule = [/^-?\d+/, match => Token('NUMBER', parseInt(match[0], 10)) ];
 var hexstring_rule: StackRule =  [/^<([A-Fa-f0-9 \r\n]*)>/, match => {
   var hexstring = match[1].replace(/\s+/g, '');
-  var charCodes = range(hexstring.length, 4).map(i => parseInt(hexstring.slice(i, i + 4), 16));
-  return Token('OPERAND', charCodes);
+  var bytes = Arrays.range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
+  return Token('BYTES', bytes);
 }];
 
 // less generic, still reusable:

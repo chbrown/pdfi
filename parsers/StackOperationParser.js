@@ -1,20 +1,7 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
 var Token = lexing.Token;
-/**
-range(10, 4) => [0, 4, 8]
-range(12, 4) => [0, 4, 8]
-range( 0, 4) => []
-*/
-function range(max, step) {
-    if (step === void 0) { step = 1; }
-    var length = Math.ceil(max / step);
-    var indices = new Array(length);
-    for (var i = 0; i < length; i++) {
-        indices[i] = i * step;
-    }
-    return indices;
-}
+var Arrays = require('../Arrays');
 // reusable rules:
 var skip_whitespace_rule = [/^\s+/, function (match) { return null; }]; // skip over whitespace
 var name_rule = [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) { return Token('NAME', match[1]); }]; // "/Im3" -> "Im3"
@@ -22,8 +9,8 @@ var float_rule = [/^-?\d*\.\d+/, function (match) { return Token('NUMBER', parse
 var int_rule = [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }];
 var hexstring_rule = [/^<([A-Fa-f0-9 \r\n]*)>/, function (match) {
     var hexstring = match[1].replace(/\s+/g, '');
-    var charCodes = range(hexstring.length, 4).map(function (i) { return parseInt(hexstring.slice(i, i + 4), 16); });
-    return Token('OPERAND', charCodes);
+    var bytes = Arrays.range(hexstring.length, 2).map(function (i) { return parseInt(hexstring.slice(i, i + 2), 16); });
+    return Token('BYTES', bytes);
 }];
 // less generic, still reusable:
 var start_string_rule = [/^\(/, function (match) {
