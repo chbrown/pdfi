@@ -2,6 +2,7 @@
 
 // self-declaring packages:
 /// <reference path="../node_modules/adts/adts.d.ts" />
+/// <reference path="../node_modules/afm/afm.d.ts" />
 /// <reference path="../node_modules/lexing/lexing.d.ts" />
 /// <reference path="../node_modules/visible/visible.d.ts" />
 
