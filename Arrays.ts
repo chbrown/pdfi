@@ -6,7 +6,7 @@ export function flatten<T>(arrays: T[][]): T[] {
 }
 
 export function flatMap<T, R>(elements: T[], callback: (element: T, index: number, array: T[]) => R[], thisArg?: any): R[] {
-  var arrays: R[][] = elements.map(callback, thisArg);
+  const arrays: R[][] = elements.map(callback, thisArg);
   return flatten(arrays);
 }
 
@@ -34,8 +34,8 @@ Returns an array of numbers that is (q + 1)-long (it includes the endpoints).
 */
 export function quantile(xs: number[], q: number): number[] {
   xs.sort((a, b) => a - b);
-  var length = xs.length;
-  var step = length / q;
+  const length = xs.length;
+  const step = length / q;
   var quantile: number[] = [];
   for (var sample = 0; sample < length; sample += step) {
     quantile.push(xs[sample | 0]);
@@ -66,7 +66,7 @@ range(12, 4) => [0, 4, 8]
 range( 0, 4) => []
 */
 export function range(max: number, step: number = 1): number[] {
-  var length = Math.ceil(max / step);
+  const length = Math.ceil(max / step);
   var indices = new Array<number>(length);
   for (var i = 0; i < length; i++) {
     indices[i] = i * step;
@@ -83,7 +83,7 @@ export function groups<T>(elements: T[], size: number): T[][] {
   var groups: T[][] = [];
   var index = 0;
   var offset = 0;
-  var length = elements.length;
+  const length = elements.length;
   while (offset < length) {
     groups[index] = elements.slice(offset, offset + size);
     index++;
