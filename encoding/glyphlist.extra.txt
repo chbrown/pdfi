@@ -1,0 +1,5 @@
+# From github.com/michal-h21/htfgen/additional-glyphlist.txt
+#   which is under the Apache License, Version 2.0
+angbracketleft;3008
+angbracketright;3009
+circlecopyrt;00A9

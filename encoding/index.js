@@ -2,7 +2,7 @@ var Arrays = require('../Arrays');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
-var glyphlist = require('./glyphlist');
+exports.glyphlist = require('./glyphlist');
 var latin_charset = require('./latin_charset');
 /**
 `bytes` should be Big-endian, e.g., [0xFF, 0x0F] is bigger than [0x0F, 0xFF]
@@ -42,7 +42,7 @@ var Mapping = (function () {
         latin_charset.forEach(function (charspec) {
             var charCode = charspec[base];
             if (charCode !== null) {
-                mapping[charspec[base]] = glyphlist[charspec.glyphname];
+                mapping[charspec[base]] = exports.glyphlist[charspec.glyphname];
             }
         });
         return new Mapping(mapping);
@@ -62,7 +62,7 @@ var Mapping = (function () {
                 // codes to native unicode strings, so we resolve the glyphname via the
                 // PDF standard glyphlist
                 // TODO: handle missing glyphnames
-                _this._mapping[current_character_code++] = glyphlist[difference];
+                _this._mapping[current_character_code++] = exports.glyphlist[difference];
             }
         });
     };
@@ -86,4 +86,4 @@ var Mapping = (function () {
     };
     return Mapping;
 })();
-module.exports = Mapping;
+exports.Mapping = Mapping;

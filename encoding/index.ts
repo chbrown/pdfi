@@ -7,7 +7,7 @@ import Arrays = require('../Arrays');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
-var glyphlist: {[index: string]: string} = require('./glyphlist');
+export var glyphlist: {[index: string]: string} = require('./glyphlist');
 
 interface CharacterSpecification {
   char: string;
@@ -35,12 +35,11 @@ function decodeNumber(bytes: number[]): number {
   return sum;
 }
 
-
 /**
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
-class Mapping {
+export class Mapping {
   constructor(private _mapping: string[] = [], private _characterByteLength = 1) { }
 
   /**
@@ -101,5 +100,3 @@ class Mapping {
     return this._mapping[charCode];
   }
 }
-
-export = Mapping;
