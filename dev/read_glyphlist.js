@@ -1,6 +1,3 @@
-var fs = require('fs');
-var path = require('path');
-
 /**
 Usage: `node read_glyphlist <glyphlist.txt >glyphlist.json
 
