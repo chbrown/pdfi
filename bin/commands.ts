@@ -1,5 +1,6 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import PDF = require('../PDF');
+import Arrays = require('../Arrays');
 import models = require('../models');
 import chalk = require('chalk');
 chalk.enabled = true; // dumb
@@ -32,9 +33,9 @@ function enhanceObject(pdf: PDF, object: any): any {
     return new models.Font(pdf, object);
   }
 
-  if (models.Encoding.isEncoding(object)) {
-    return new models.Encoding(pdf, object);
-  }
+  // if (models.Encoding.isEncoding(object)) {
+  //   return new models.Encoding(pdf, object);
+  // }
 
   stderr(`Could not enhance object`);
   return object;
@@ -94,11 +95,13 @@ export function dump(filename: string,
 export function extract(filename: string,
                         section_names: string[] = []) {
   var pdf = PDF.open(filename);
-
-  var paragraphs = pdf.getParagraphs(section_names);
-  stderr(`[${filename}] Extracted ${paragraphs.length} paragraphs`);
-
-  paragraphs.forEach((paragraph, index, pages) => {
-    process.stdout.write(`    ${paragraph}\n`);
+  var document = pdf.getDocument(['col1', 'col2']);
+  // stderr(`[${filename}] Extracted ${paragraphs.length} paragraphs`);
+  document.getSections().forEach(section => {
+    process.stdout.write(`#${section.header}\n`);
+    section.getParagraphs().forEach(paragraph => {
+      process.stdout.write(`    ${paragraph}\n`);
+      paragraph.toString()
+    });
   });
 }

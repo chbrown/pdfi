@@ -22,9 +22,9 @@ function enhanceObject(pdf, object) {
     if (models.Font.isFont(object)) {
         return new models.Font(pdf, object);
     }
-    if (models.Encoding.isEncoding(object)) {
-        return new models.Encoding(pdf, object);
-    }
+    // if (models.Encoding.isEncoding(object)) {
+    //   return new models.Encoding(pdf, object);
+    // }
     stderr("Could not enhance object");
     return object;
 }
@@ -76,10 +76,14 @@ exports.dump = dump;
 function extract(filename, section_names) {
     if (section_names === void 0) { section_names = []; }
     var pdf = PDF.open(filename);
-    var paragraphs = pdf.getParagraphs(section_names);
-    stderr("[" + filename + "] Extracted " + paragraphs.length + " paragraphs");
-    paragraphs.forEach(function (paragraph, index, pages) {
-        process.stdout.write("    " + paragraph + "\n");
+    var document = pdf.getDocument(['col1', 'col2']);
+    // stderr(`[${filename}] Extracted ${paragraphs.length} paragraphs`);
+    document.getSections().forEach(function (section) {
+        process.stdout.write("#" + section.header + "\n");
+        section.getParagraphs().forEach(function (paragraph) {
+            process.stdout.write("    " + paragraph + "\n");
+            paragraph.toString();
+        });
     });
 }
 exports.extract = extract;
