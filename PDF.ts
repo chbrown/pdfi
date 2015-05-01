@@ -153,11 +153,15 @@ class PDF {
   Reduces all the PDF's pages to a single array of Lines. Each Line keeps
   track of the container it belongs to, so that we can measure offsets
   later.
+
+  If `section_names` is empty, return all sections.
   */
-  getDocument(section_names: string[]): document.Document {
+  getDocument(section_names: string[] = []): document.Document {
     var lines = Arrays.flatMap(this.pages, page => {
       var sections = graphicsStream.DrawingContext.renderPage(page).getLineContainers();
-      var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
+      var selected_sections = sections.filter(section => {
+        return section_names.length === 0 || section_names.indexOf(section.name) > -1;
+      });
       var selected_sections_lines = Arrays.flatMap(selected_sections, section => section.lines);
       return selected_sections_lines;
     });
