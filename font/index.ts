@@ -33,8 +33,8 @@ export class Font extends Model {
     return this.object['Subtype'];
   }
 
-  get BaseFont(): string {
-    return this.object['BaseFont'];
+  get BaseFont(): any {
+    return new Model(this._pdf, this.object['BaseFont']).object;
   }
 
   /**

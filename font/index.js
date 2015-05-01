@@ -43,7 +43,7 @@ var Font = (function (_super) {
     });
     Object.defineProperty(Font.prototype, "BaseFont", {
         get: function () {
-            return this.object['BaseFont'];
+            return new models_1.Model(this._pdf, this.object['BaseFont']).object;
         },
         enumerable: true,
         configurable: true
