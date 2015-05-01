@@ -1,6 +1,6 @@
 declare module "loge" {
   interface Logger {
-    level: string;
+    level: number | string;
     silly(...args: any[]): void;
     debug(...args: any[]): void;
     info(...args: any[]): void;
