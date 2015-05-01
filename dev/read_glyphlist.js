@@ -11,13 +11,16 @@ process.stdin.on('readable', function() {
 });
 process.stdin.on('end', function() {
   var glyphs = {};
-  Buffer.concat(chunks).toString('ascii').split(/\r\n/).forEach(function(line) {
-    if (line[0] !== '#') {
-      var pair = line.split(';');
-      if (pair[0] !== undefined && pair[1] !== undefined) {
-        glyphs[pair[0]] = String.fromCharCode(parseInt(pair[1], 16));
-      }
-    }
+  Buffer.concat(chunks).toString('ascii').split(/\r?\n/).filter(function(line) {
+    var comment = line[0] === '#';
+    var empty = line.trim().length === 0;
+    return !comment && !empty;
+  }).forEach(function(line) {
+    var pair = line.split(';');
+    var glyphname = pair[0];
+    var alternatives = pair[1].split(',');
+    var charCodes = alternatives[0].split(' ').map(function(s) { return parseInt(s, 16); });
+    glyphs[glyphname] = String.fromCharCode.apply(null, charCodes);
   });
   process.stdout.write(JSON.stringify(glyphs, null, ' '));
 });
