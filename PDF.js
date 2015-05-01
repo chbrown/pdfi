@@ -5,7 +5,7 @@ var File = require('./File');
 var Arrays = require('./Arrays');
 var models = require('./models');
 var document = require('./graphics/document');
-var graphicsStream = require('./graphics/stream');
+var graphics = require('./graphics/index');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
 var PDF = (function () {
     function PDF(file) {
@@ -153,7 +153,7 @@ var PDF = (function () {
     PDF.prototype.getDocument = function (section_names) {
         if (section_names === void 0) { section_names = []; }
         var lines = Arrays.flatMap(this.pages, function (page) {
-            var sections = graphicsStream.DrawingContext.renderPage(page).getLineContainers();
+            var sections = graphics.renderPage(page).getLineContainers();
             var selected_sections = sections.filter(function (section) {
                 return section_names.length === 0 || section_names.indexOf(section.name) > -1;
             });
@@ -164,7 +164,7 @@ var PDF = (function () {
     };
     PDF.prototype.renderPage = function (page_index) {
         var page = this.pages[page_index];
-        return graphicsStream.DrawingContext.renderPage(page);
+        return graphics.renderPage(page);
     };
     /**
     Resolves a potential IndirectReference to the target object.

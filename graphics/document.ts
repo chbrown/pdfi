@@ -4,21 +4,18 @@ import lexing = require('lexing');
 import unorm = require('unorm');
 
 import Arrays = require('../Arrays');
-
 import models = require('./models');
+import {Rectangle} from './geometry';
+import {Canvas} from './canvas';
 
-export class DocumentCanvas {
-  // Eventually, this will render out other elements, too
-  public spans: models.TextSpan[] = [];
-
-  constructor(public outerBounds: models.Rectangle) { }
+export class DocumentCanvas extends Canvas {
 
   /**
   We define a header as the group of spans at the top separated from the rest
   of the text by at least `min_header_gap`, but which is at most
   `max_header_height` high.
   */
-  getHeader(max_header_height = 50, min_header_gap = 10): models.Rectangle {
+  getHeader(max_header_height = 50, min_header_gap = 10): Rectangle {
     // sort in ascending order. the sort occurs in-place but the map creates a
     // new array anyway (though it's shallow; the points are not copies)
     var spans = this.spans.slice().sort((a, b) => a.minY - b.minY);
@@ -42,14 +39,14 @@ export class DocumentCanvas {
         break;
       }
     }
-    return new models.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
+    return new Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
   }
 
   /**
   The footer can extend at most `max_footer_height` from the bottom of the page,
   and must have a gap of `min_footer_gap` between it and the rest of the text.
   */
-  getFooter(max_footer_height = 50, min_footer_gap = 10): models.Rectangle {
+  getFooter(max_footer_height = 50, min_footer_gap = 10): Rectangle {
     // sort in descending order -- lowest boxes first
     var spans = this.spans.slice().sort((a, b) => b.maxY - a.maxY);
     // var boxes = this.spans.map(span => span.box).sort((a, b) => b.maxY - a.maxY);
@@ -75,7 +72,7 @@ export class DocumentCanvas {
         break;
       }
     }
-    return new models.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
+    return new Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
   }
 
   /**
@@ -88,9 +85,9 @@ export class DocumentCanvas {
     // Excluding the header and footer, find a vertical split between the spans,
     // and return an Array of Rectangles bounding each column.
     // For now, split into two columns down the middle of the page.
-    var contents = new models.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
-    var col1 = new models.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-    var col2 = new models.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
+    var contents = new Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
+    var col1 = new Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
+    var col2 = new Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
     // okay, we've got the bounding boxes, now we need to find the spans they contain
     var named_page_sections = [
       new NamedPageSection('header', header),
@@ -124,20 +121,6 @@ export class DocumentCanvas {
     var sections = this.getLineContainers().filter(section => section_names.indexOf(section.name) > -1)
     var lines = Arrays.flatMap(sections, section => section.lines);
     return new Document(lines);
-  }
-
-  addSpan(string: string, origin: models.Point, size: models.Size, fontSize: number, fontName: string) {
-    // transform into origin at top left
-    var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
-    var span = new models.TextSpan(string,
-                                   canvas_origin.x,
-                                   canvas_origin.y,
-                                   canvas_origin.x + size.width,
-                                   canvas_origin.y + size.height,
-                                   fontSize);
-    // var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-    span.details = `${span.toString(2)} fontSize=${fontSize} fontName=${fontName}`;
-    this.spans.push(span);
   }
 
   toJSON() {
@@ -216,7 +199,7 @@ inherit from models.NamedContainer (which saves some time recalculating the span
 */
 export class NamedPageSection {
   constructor(public name: string,
-              public outerBounds: models.Rectangle,
+              public outerBounds: Rectangle,
               public textSpans: models.TextSpan[] = []) { }
 }
 

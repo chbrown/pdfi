@@ -10,7 +10,7 @@ import Arrays = require('./Arrays');
 import pdfdom = require('./pdfdom');
 import models = require('./models');
 import document = require('./graphics/document');
-import graphicsStream = require('./graphics/stream');
+import graphics = require('./graphics/index');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
 
@@ -158,7 +158,7 @@ class PDF {
   */
   getDocument(section_names: string[] = []): document.Document {
     var lines = Arrays.flatMap(this.pages, page => {
-      var sections = graphicsStream.DrawingContext.renderPage(page).getLineContainers();
+      var sections = graphics.renderPage(page).getLineContainers();
       var selected_sections = sections.filter(section => {
         return section_names.length === 0 || section_names.indexOf(section.name) > -1;
       });
@@ -170,7 +170,7 @@ class PDF {
 
   renderPage(page_index: number): document.DocumentCanvas {
     var page = this.pages[page_index];
-    return graphicsStream.DrawingContext.renderPage(page);
+    return graphics.renderPage(page);
   }
 
   /**

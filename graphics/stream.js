@@ -3,8 +3,9 @@ var logger = require('loge');
 var lexing = require('lexing');
 var font = require('../font/index');
 var parser_states = require('../parsers/states');
-var document = require('./document');
+var geometry_1 = require('./geometry');
 var models_1 = require('./models');
+var math_1 = require('./math');
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 (function (RenderingMode) {
     RenderingMode[RenderingMode["Fill"] = 0] = "Fill";
@@ -115,42 +116,6 @@ var operator_aliases = {
     'BDC': 'beginMarkedContentWithDictionary',
     'EMC': 'endMarkedContent',
 };
-/**
-> Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
-
-                 ⎡ a b 0 ⎤
-[a b c d e f] => ⎢ c d 0 ⎥
-                 ⎣ e f 1 ⎦
-
-*/
-/**
-returns a new 3x3 matrix representation
-
-See 8.3.4 for a shortcut for avoiding full matrix multiplications.
-*/
-function mat3mul(A, B) {
-    return [
-        (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]),
-        (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]),
-        (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]),
-        (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]),
-        (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]),
-        (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]),
-        (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]),
-        (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]),
-        (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
-    ];
-}
-function mat3add(A, B) {
-    return [
-        A[0] + B[0], A[1] + B[1], A[2] + B[2],
-        A[3] + B[3], A[4] + B[4], A[5] + B[5],
-        A[6] + B[6], A[7] + B[7], A[8] + B[8]
-    ];
-}
-var mat3ident = [1, 0, 0,
-    0, 1, 0,
-    0, 0, 1];
 function countSpaces(text) {
     var matches = text.match(/ /g);
     return matches ? matches.length : 0;
@@ -182,7 +147,7 @@ were in the constructor, but there are a lot of variables!
 */
 var GraphicsState = (function () {
     function GraphicsState() {
-        this.ctMatrix = mat3ident; // defaults to the identity matrix
+        this.ctMatrix = math_1.mat3ident; // defaults to the identity matrix
         this.strokeColor = new models_1.Color();
         this.fillColor = new models_1.Color();
     }
@@ -214,21 +179,6 @@ var DrawingContext = (function () {
         this.textState = new TextState();
         this._cached_fonts = {};
     }
-    /**
-    When we render a page, we specify a ContentStream as well as a Resources
-    dictionary. That Resources dictionary may contain XObject streams that are
-    embedded as `Do` operations in the main contents, as well as sub-Resources
-    in those XObjects.
-    */
-    DrawingContext.renderPage = function (page) {
-        var pageBox = new models_1.Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
-        var canvas = new document.DocumentCanvas(pageBox);
-        var contents_string = page.joinContents('\n');
-        var contents_string_iterable = new lexing.StringIterator(contents_string);
-        var context = new DrawingContext(page.Resources);
-        context.render(contents_string_iterable, canvas);
-        return canvas;
-    };
     DrawingContext.prototype.render = function (string_iterable, canvas) {
         var _this = this;
         this.canvas = canvas;
@@ -250,7 +200,7 @@ var DrawingContext = (function () {
             (this.textState.charSpacing * chars) +
             (this.textState.wordSpacing * spaces)) *
             (this.textState.horizontalScaling / 100.0);
-        this.textMatrix = mat3mul([1, 0, 0,
+        this.textMatrix = math_1.mat3mul([1, 0, 0,
             0, 1, 0,
             tx, 0, 1], this.textMatrix);
         return tx;
@@ -265,14 +215,14 @@ var DrawingContext = (function () {
         // TODO: optimize this final matrix multiplication; we only need two of the
         // entries, and we discard the rest, so we don't need to calculate them in
         // the first place.
-        var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-        var textRenderingMatrix = mat3mul(base, composedTransformation);
-        return new models_1.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+        var composedTransformation = math_1.mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var textRenderingMatrix = math_1.mat3mul(base, composedTransformation);
+        return new geometry_1.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
     };
     DrawingContext.prototype.getTextSize = function () {
         // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-        var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-        var font_point = new models_1.Point(0, this.textState.fontSize);
+        var mat = math_1.mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var font_point = new geometry_1.Point(0, this.textState.fontSize);
         return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
     };
     /**
@@ -316,7 +266,7 @@ var DrawingContext = (function () {
         // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
         var width = this.getTextPosition().x - origin.x;
         var height = Math.ceil(fontSize) | 0;
-        var size = new models_1.Size(width, height);
+        var size = new geometry_1.Size(width, height);
         this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
     };
     DrawingContext.prototype._renderTextArray = function (array) {
@@ -409,7 +359,7 @@ var DrawingContext = (function () {
     concatenating, apparently. Weird stuff happens if you replace.
     */
     DrawingContext.prototype.setCTM = function (a, b, c, d, e, f) {
-        var newCTMatrix = mat3mul([a, b, 0,
+        var newCTMatrix = math_1.mat3mul([a, b, 0,
             c, d, 0,
             e, f, 1], this.graphicsState.ctMatrix);
         // logger.info('ctMatrix = %j', newCTMatrix);
@@ -695,7 +645,7 @@ var DrawingContext = (function () {
     // Text objects (BT, ET)
     /** `BT` */
     DrawingContext.prototype.startTextBlock = function () {
-        this.textMatrix = this.textLineMatrix = mat3ident;
+        this.textMatrix = this.textLineMatrix = math_1.mat3ident;
     };
     /** `ET` */
     DrawingContext.prototype.endTextBlock = function () {
@@ -770,7 +720,7 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.adjustCurrentPosition = function (x, y) {
         // y is usually 0, and never positive in normal text.
-        var newTextMatrix = mat3mul([1, 0, 0,
+        var newTextMatrix = math_1.mat3mul([1, 0, 0,
             0, 1, 0,
             x, y, 1], this.textLineMatrix);
         this.textMatrix = this.textLineMatrix = newTextMatrix;

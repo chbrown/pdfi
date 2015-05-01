@@ -7,11 +7,12 @@ var __extends = this.__extends || function (d, b) {
 var unorm = require('unorm');
 var Arrays = require('../Arrays');
 var models = require('./models');
-var DocumentCanvas = (function () {
-    function DocumentCanvas(outerBounds) {
-        this.outerBounds = outerBounds;
-        // Eventually, this will render out other elements, too
-        this.spans = [];
+var geometry_1 = require('./geometry');
+var canvas_1 = require('./canvas');
+var DocumentCanvas = (function (_super) {
+    __extends(DocumentCanvas, _super);
+    function DocumentCanvas() {
+        _super.apply(this, arguments);
     }
     /**
     We define a header as the group of spans at the top separated from the rest
@@ -44,7 +45,7 @@ var DocumentCanvas = (function () {
                 break;
             }
         }
-        return new models.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
+        return new geometry_1.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
     };
     /**
     The footer can extend at most `max_footer_height` from the bottom of the page,
@@ -78,7 +79,7 @@ var DocumentCanvas = (function () {
                 break;
             }
         }
-        return new models.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
+        return new geometry_1.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
     };
     /**
     The spans collected in each section should be in reading order (we're
@@ -90,9 +91,9 @@ var DocumentCanvas = (function () {
         // Excluding the header and footer, find a vertical split between the spans,
         // and return an Array of Rectangles bounding each column.
         // For now, split into two columns down the middle of the page.
-        var contents = new models.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
-        var col1 = new models.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-        var col2 = new models.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
+        var contents = new geometry_1.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
+        var col1 = new geometry_1.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
+        var col2 = new geometry_1.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
         // okay, we've got the bounding boxes, now we need to find the spans they contain
         var named_page_sections = [
             new NamedPageSection('header', header),
@@ -124,14 +125,6 @@ var DocumentCanvas = (function () {
         var lines = Arrays.flatMap(sections, function (section) { return section.lines; });
         return new Document(lines);
     };
-    DocumentCanvas.prototype.addSpan = function (string, origin, size, fontSize, fontName) {
-        // transform into origin at top left
-        var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY);
-        var span = new models.TextSpan(string, canvas_origin.x, canvas_origin.y, canvas_origin.x + size.width, canvas_origin.y + size.height, fontSize);
-        // var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-        span.details = span.toString(2) + " fontSize=" + fontSize + " fontName=" + fontName;
-        this.spans.push(span);
-    };
     DocumentCanvas.prototype.toJSON = function () {
         return {
             // native properties
@@ -142,7 +135,7 @@ var DocumentCanvas = (function () {
         };
     };
     return DocumentCanvas;
-})();
+})(canvas_1.Canvas);
 exports.DocumentCanvas = DocumentCanvas;
 var NamedLineContainer = (function (_super) {
     __extends(NamedLineContainer, _super);

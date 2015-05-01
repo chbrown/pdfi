@@ -7,8 +7,10 @@ import font = require('../font/index');
 import models = require('../models');
 import parser_states = require('../parsers/states');
 
-import document = require('./document');
-import {Point, Size, Rectangle, Color, GrayColor, RGBColor, CMYKColor} from './models';
+import {Canvas} from './canvas';
+import {Point, Size, Rectangle} from './geometry';
+import {Color, GrayColor, RGBColor, CMYKColor} from './models';
+import {mat3mul, mat3ident} from './math';
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
@@ -123,44 +125,6 @@ var operator_aliases = {
     // incomplete: BX, EX
 };
 
-/**
-> Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
-
-                 ⎡ a b 0 ⎤
-[a b c d e f] => ⎢ c d 0 ⎥
-                 ⎣ e f 1 ⎦
-
-*/
-
-/**
-returns a new 3x3 matrix representation
-
-See 8.3.4 for a shortcut for avoiding full matrix multiplications.
-*/
-function mat3mul(A: number[], B: number[]): number[] {
-  return [
-    (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]),
-    (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]),
-    (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]),
-    (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]),
-    (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]),
-    (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]),
-    (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]),
-    (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]),
-    (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
-  ];
-}
-function mat3add(A: number[], B: number[]): number[] {
-  return [
-    A[0] + B[0], A[1] + B[1], A[2] + B[2],
-    A[3] + B[3], A[4] + B[4], A[5] + B[5],
-    A[6] + B[6], A[7] + B[7], A[8] + B[8]
-  ];
-}
-var mat3ident = [1, 0, 0,
-                 0, 1, 0,
-                 0, 0, 1];
-
 function countSpaces(text: string): number {
   var matches = text.match(/ /g);
   return matches ? matches.length : 0;
@@ -221,7 +185,7 @@ class TextState {
 }
 
 export class DrawingContext {
-  canvas: document.DocumentCanvas;
+  canvas: Canvas;
   stateStack: GraphicsState[] = [];
   // the textState persists across BT and ET markers, and can be modified anywhere
   textState: TextState = new TextState();
@@ -233,26 +197,7 @@ export class DrawingContext {
               public graphicsState: GraphicsState = new GraphicsState(),
               public depth = 0) { }
 
-  /**
-  When we render a page, we specify a ContentStream as well as a Resources
-  dictionary. That Resources dictionary may contain XObject streams that are
-  embedded as `Do` operations in the main contents, as well as sub-Resources
-  in those XObjects.
-  */
-  static renderPage(page: models.Page): document.DocumentCanvas {
-    var pageBox = new Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
-    var canvas = new document.DocumentCanvas(pageBox);
-
-    var contents_string = page.joinContents('\n');
-    var contents_string_iterable = new lexing.StringIterator(contents_string);
-
-    var context = new DrawingContext(page.Resources);
-    context.render(contents_string_iterable, canvas);
-
-    return canvas;
-  }
-
-  render(string_iterable: lexing.StringIterable, canvas: document.DocumentCanvas): void {
+  render(string_iterable: lexing.StringIterable, canvas: Canvas): void {
     this.canvas = canvas;
 
     var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
