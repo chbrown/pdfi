@@ -24,11 +24,11 @@ encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
 var Mapping = (function () {
-    function Mapping(_mapping, _characterByteLength) {
-        if (_mapping === void 0) { _mapping = []; }
-        if (_characterByteLength === void 0) { _characterByteLength = 1; }
-        this._mapping = _mapping;
-        this._characterByteLength = _characterByteLength;
+    function Mapping(mapping, characterByteLength) {
+        if (mapping === void 0) { mapping = []; }
+        if (characterByteLength === void 0) { characterByteLength = 1; }
+        this.mapping = mapping;
+        this.characterByteLength = characterByteLength;
     }
     /**
     This loads the character codes listed in ./latin_charset.json into
@@ -62,7 +62,7 @@ var Mapping = (function () {
                 // codes to native unicode strings, so we resolve the glyphname via the
                 // PDF standard glyphlist
                 // TODO: handle missing glyphnames
-                _this._mapping[current_character_code++] = exports.glyphlist[difference];
+                _this.mapping[current_character_code++] = exports.glyphlist[difference];
             }
         });
     };
@@ -72,7 +72,7 @@ var Mapping = (function () {
     `bytes` should all be in the range: 0 ≤ byte < 256
     */
     Mapping.prototype.decodeCharCodes = function (bytes) {
-        return Arrays.groups(bytes, this._characterByteLength).map(decodeNumber);
+        return Arrays.groups(bytes, this.characterByteLength).map(decodeNumber);
     };
     /**
     Returns a native (unicode) Javascript string representing the given character
@@ -82,7 +82,7 @@ var Mapping = (function () {
     BaseFont fields.
     */
     Mapping.prototype.decodeCharacter = function (charCode) {
-        return this._mapping[charCode];
+        return this.mapping[charCode];
     };
     return Mapping;
 })();

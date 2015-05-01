@@ -40,7 +40,7 @@ encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
 export class Mapping {
-  constructor(private _mapping: string[] = [], private _characterByteLength = 1) { }
+  constructor(private mapping: string[] = [], private characterByteLength = 1) { }
 
   /**
   This loads the character codes listed in ./latin_charset.json into
@@ -75,7 +75,7 @@ export class Mapping {
         // codes to native unicode strings, so we resolve the glyphname via the
         // PDF standard glyphlist
         // TODO: handle missing glyphnames
-        this._mapping[current_character_code++] = glyphlist[difference];
+        this.mapping[current_character_code++] = glyphlist[difference];
       }
     });
   }
@@ -86,7 +86,7 @@ export class Mapping {
   `bytes` should all be in the range: 0 ≤ byte < 256
   */
   decodeCharCodes(bytes: number[]): number[] {
-    return Arrays.groups(bytes, this._characterByteLength).map(decodeNumber);
+    return Arrays.groups(bytes, this.characterByteLength).map(decodeNumber);
   }
 
   /**
@@ -97,6 +97,6 @@ export class Mapping {
   BaseFont fields.
   */
   decodeCharacter(charCode: number): string {
-    return this._mapping[charCode];
+    return this.mapping[charCode];
   }
 }
