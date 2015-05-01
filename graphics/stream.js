@@ -1,14 +1,10 @@
-var __extends = this.__extends || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
 /// <reference path="../type_declarations/index.d.ts" />
 var logger = require('loge');
 var lexing = require('lexing');
-var StackOperationParser = require('./StackOperationParser');
-var shapes = require('../shapes');
+var font = require('../font/index');
+var parser_states = require('../parsers/states');
+var document = require('./document');
+var models_1 = require('./models');
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 (function (RenderingMode) {
     RenderingMode[RenderingMode["Fill"] = 0] = "Fill";
@@ -119,68 +115,6 @@ var operator_aliases = {
     'BDC': 'beginMarkedContentWithDictionary',
     'EMC': 'endMarkedContent',
 };
-var Color = (function () {
-    function Color() {
-    }
-    Color.prototype.clone = function () {
-        return new Color();
-    };
-    Color.prototype.toString = function () {
-        return 'none';
-    };
-    return Color;
-})();
-exports.Color = Color;
-var RGBColor = (function (_super) {
-    __extends(RGBColor, _super);
-    function RGBColor(r, g, b) {
-        _super.call(this);
-        this.r = r;
-        this.g = g;
-        this.b = b;
-    }
-    RGBColor.prototype.clone = function () {
-        return new RGBColor(this.r, this.g, this.b);
-    };
-    RGBColor.prototype.toString = function () {
-        return "rgb(" + this.r + ", " + this.g + ", " + this.b + ")";
-    };
-    return RGBColor;
-})(Color);
-exports.RGBColor = RGBColor;
-var GrayColor = (function (_super) {
-    __extends(GrayColor, _super);
-    function GrayColor(alpha) {
-        _super.call(this);
-        this.alpha = alpha;
-    }
-    GrayColor.prototype.clone = function () {
-        return new GrayColor(this.alpha);
-    };
-    GrayColor.prototype.toString = function () {
-        return "rgb(" + this.alpha + ", " + this.alpha + ", " + this.alpha + ")";
-    };
-    return GrayColor;
-})(Color);
-exports.GrayColor = GrayColor;
-var CMYKColor = (function (_super) {
-    __extends(CMYKColor, _super);
-    function CMYKColor(c, m, y, k) {
-        _super.call(this);
-        this.c = c;
-        this.m = m;
-        this.y = y;
-        this.k = k;
-    }
-    CMYKColor.prototype.clone = function () {
-        return new CMYKColor(this.c, this.m, this.y, this.k);
-    };
-    CMYKColor.prototype.toString = function () {
-        return "cmyk(" + this.c + ", " + this.m + ", " + this.y + ", " + this.k + ")";
-    };
-    return CMYKColor;
-})(Color);
-exports.CMYKColor = CMYKColor;
 /**
 > Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
 
@@ -209,18 +143,14 @@ function mat3mul(A, B) {
 }
 function mat3add(A, B) {
     return [
-        A[0] + B[0],
-        A[1] + B[1],
-        A[2] + B[2],
-        A[3] + B[3],
-        A[4] + B[4],
-        A[5] + B[5],
-        A[6] + B[6],
-        A[7] + B[7],
-        A[8] + B[8]
+        A[0] + B[0], A[1] + B[1], A[2] + B[2],
+        A[3] + B[3], A[4] + B[4], A[5] + B[5],
+        A[6] + B[6], A[7] + B[7], A[8] + B[8]
     ];
 }
-var mat3ident = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+var mat3ident = [1, 0, 0,
+    0, 1, 0,
+    0, 0, 1];
 function countSpaces(text) {
     var matches = text.match(/ /g);
     return matches ? matches.length : 0;
@@ -253,8 +183,8 @@ were in the constructor, but there are a lot of variables!
 var GraphicsState = (function () {
     function GraphicsState() {
         this.ctMatrix = mat3ident; // defaults to the identity matrix
-        this.strokeColor = new Color();
-        this.fillColor = new Color();
+        this.strokeColor = new models_1.Color();
+        this.fillColor = new models_1.Color();
     }
     GraphicsState.prototype.clone = function () {
         return clone(this, new GraphicsState());
@@ -282,52 +212,94 @@ var DrawingContext = (function () {
         this.stateStack = [];
         // the textState persists across BT and ET markers, and can be modified anywhere
         this.textState = new TextState();
+        this._cached_fonts = {};
     }
+    /**
+    When we render a page, we specify a ContentStream as well as a Resources
+    dictionary. That Resources dictionary may contain XObject streams that are
+    embedded as `Do` operations in the main contents, as well as sub-Resources
+    in those XObjects.
+    */
+    DrawingContext.renderPage = function (page) {
+        var pageBox = new models_1.Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
+        var canvas = new document.DocumentCanvas(pageBox);
+        var contents_string = page.joinContents('\n');
+        var contents_string_iterable = new lexing.StringIterator(contents_string);
+        var context = new DrawingContext(page.Resources);
+        context.render(contents_string_iterable, canvas);
+        return canvas;
+    };
     DrawingContext.prototype.render = function (string_iterable, canvas) {
+        var _this = this;
         this.canvas = canvas;
-        var stack_operation_iterator = new StackOperationParser().map(string_iterable);
-        while (1) {
-            var token = stack_operation_iterator.next();
-            // token.name: operator name; token.value: Array of operands
-            if (token.name === 'EOF') {
-                break;
-            }
-            var operator_alias = operator_aliases[token.name];
-            var operation = this[operator_alias];
-            if (operation) {
-                operation.apply(this, token.value);
+        var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
+        operations.forEach(function (operation) {
+            var operator_alias = operator_aliases[operation.operator];
+            var operationFunction = _this[operator_alias];
+            if (operationFunction) {
+                operationFunction.apply(_this, operation.operands);
             }
             else {
-                logger.warn("Ignoring unimplemented operator \"" + token.name + "\" [" + token.value.join(', ') + "]");
+                logger.warn("Ignoring unimplemented operator \"" + operation.operator + "\" [" + operation.operands.join(', ') + "]");
             }
-        }
+        });
     };
     DrawingContext.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
         // width_units is positive, but we want to move forward, so tx should be positive too
-        var tx = (((width_units / 1000) * this.textState.fontSize) + (this.textState.charSpacing * chars) + (this.textState.wordSpacing * spaces)) * (this.textState.horizontalScaling / 100.0);
-        this.textMatrix = mat3mul([1, 0, 0, 0, 1, 0, tx, 0, 1], this.textMatrix);
+        var tx = (((width_units / 1000) * this.textState.fontSize) +
+            (this.textState.charSpacing * chars) +
+            (this.textState.wordSpacing * spaces)) *
+            (this.textState.horizontalScaling / 100.0);
+        this.textMatrix = mat3mul([1, 0, 0,
+            0, 1, 0,
+            tx, 0, 1], this.textMatrix);
         return tx;
     };
     DrawingContext.prototype.getTextPosition = function () {
         var fs = this.textState.fontSize;
         var fsh = fs * (this.textState.horizontalScaling / 100.0);
         var rise = this.textState.rise;
-        var base = [fsh, 0, 0, 0, fs, 0, 0, rise, 1];
+        var base = [fsh, 0, 0,
+            0, fs, 0,
+            0, rise, 1];
         // TODO: optimize this final matrix multiplication; we only need two of the
         // entries, and we discard the rest, so we don't need to calculate them in
         // the first place.
         var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
         var textRenderingMatrix = mat3mul(base, composedTransformation);
-        return new shapes.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+        return new models_1.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
     };
     DrawingContext.prototype.getTextSize = function () {
         // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
         var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-        var font_point = new shapes.Point(0, this.textState.fontSize);
+        var font_point = new models_1.Point(0, this.textState.fontSize);
         return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
     };
+    /**
+    Retrieve a Font instance from the Resources' Font dictionary.
+  
+    Returns null if the dictionary has no `name` key.
+  
+    Caches Fonts (which is pretty hot when rendering a page),
+    even missing ones (as null).
+    */
+    DrawingContext.prototype.getFont = function (name) {
+        var cached_font = this._cached_fonts[name];
+        if (cached_font === undefined) {
+            var Font_model = this.Resources.getFontModel(name);
+            if (Font_model.object !== undefined) {
+                var TypedFont_model = font.Font.fromModel(Font_model);
+                TypedFont_model.Name = name;
+                cached_font = this._cached_fonts[name] = TypedFont_model;
+            }
+            else {
+                cached_font = this._cached_fonts[name] = null;
+            }
+        }
+        return cached_font;
+    };
     DrawingContext.prototype._renderGlyphs = function (bytes) {
-        var font = this.Resources.getFont(this.textState.fontName);
+        var font = this.getFont(this.textState.fontName);
         // the Font instance handles most of the character code resolution
         if (font === null) {
             throw new Error("Cannot find font \"" + this.textState.fontName + "\" in Resources");
@@ -344,7 +316,7 @@ var DrawingContext = (function () {
         // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
         var width = this.getTextPosition().x - origin.x;
         var height = Math.ceil(fontSize) | 0;
-        var size = new shapes.Size(width, height);
+        var size = new models_1.Size(width, height);
         this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
     };
     DrawingContext.prototype._renderTextArray = function (array) {
@@ -437,7 +409,9 @@ var DrawingContext = (function () {
     concatenating, apparently. Weird stuff happens if you replace.
     */
     DrawingContext.prototype.setCTM = function (a, b, c, d, e, f) {
-        var newCTMatrix = mat3mul([a, b, 0, c, d, 0, e, f, 1], this.graphicsState.ctMatrix);
+        var newCTMatrix = mat3mul([a, b, 0,
+            c, d, 0,
+            e, f, 1], this.graphicsState.ctMatrix);
         // logger.info('ctMatrix = %j', newCTMatrix);
         this.graphicsState.ctMatrix = newCTMatrix;
     };
@@ -671,37 +645,37 @@ var DrawingContext = (function () {
     and 1.0 (white).
     */
     DrawingContext.prototype.setStrokeGray = function (gray) {
-        this.graphicsState.strokeColor = new GrayColor(gray);
+        this.graphicsState.strokeColor = new models_1.GrayColor(gray);
     };
     /**
     `gray g`: Same as G but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillGray = function (gray) {
-        this.graphicsState.fillColor = new GrayColor(gray);
+        this.graphicsState.fillColor = new models_1.GrayColor(gray);
     };
     /**
     `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
     */
     DrawingContext.prototype.setStrokeColor = function (r, g, b) {
-        this.graphicsState.strokeColor = new RGBColor(r, g, b);
+        this.graphicsState.strokeColor = new models_1.RGBColor(r, g, b);
     };
     /**
     `r g b rg`: Same as RG but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillColor = function (r, g, b) {
-        this.graphicsState.fillColor = new RGBColor(r, g, b);
+        this.graphicsState.fillColor = new models_1.RGBColor(r, g, b);
     };
     /**
     > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
     */
     DrawingContext.prototype.setStrokeCMYK = function (c, m, y, k) {
-        this.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
+        this.graphicsState.strokeColor = new models_1.CMYKColor(c, m, y, k);
     };
     /**
     > `c m y k k`: Same as K but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillCMYK = function (c, m, y, k) {
-        this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
+        this.graphicsState.fillColor = new models_1.CMYKColor(c, m, y, k);
     };
     // ---------------------------------------------------------------------------
     // Clipping Path Operators (W, W*)
@@ -796,7 +770,9 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.adjustCurrentPosition = function (x, y) {
         // y is usually 0, and never positive in normal text.
-        var newTextMatrix = mat3mul([1, 0, 0, 0, 1, 0, x, y, 1], this.textLineMatrix);
+        var newTextMatrix = mat3mul([1, 0, 0,
+            0, 1, 0,
+            x, y, 1], this.textLineMatrix);
         this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)
@@ -821,7 +797,9 @@ var DrawingContext = (function () {
     DrawingContext.prototype.setTextMatrix = function (a, b, c, d, e, f) {
         // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
         // e and f mark the x and y coordinates of the current position
-        var newTextMatrix = [a, b, 0, c, d, 0, e, f, 1];
+        var newTextMatrix = [a, b, 0,
+            c, d, 0,
+            e, f, 1];
         this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)

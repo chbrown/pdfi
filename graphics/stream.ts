@@ -3,10 +3,12 @@ import logger = require('loge');
 import chalk = require('chalk');
 import lexing = require('lexing');
 
-import StackOperationParser = require('./StackOperationParser');
+import font = require('../font/index');
 import models = require('../models');
-import drawing = require('../drawing');
-import shapes = require('../shapes');
+import parser_states = require('../parsers/states');
+
+import document = require('./document');
+import {Point, Size, Rectangle, Color, GrayColor, RGBColor, CMYKColor} from './models';
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
@@ -121,37 +123,6 @@ var operator_aliases = {
     // incomplete: BX, EX
 };
 
-export class Color {
-  clone(): Color { return new Color(); }
-  toString(): string {
-    return 'none';
-  }
-}
-
-export class RGBColor extends Color {
-  constructor(public r: number, public g: number, public b: number) { super() }
-  clone(): RGBColor { return new RGBColor(this.r, this.g, this.b); }
-  toString(): string {
-    return `rgb(${this.r}, ${this.g}, ${this.b})`;
-  }
-}
-
-export class GrayColor extends Color {
-  constructor(public alpha: number) { super() }
-  clone(): GrayColor { return new GrayColor(this.alpha); }
-  toString(): string {
-    return `rgb(${this.alpha}, ${this.alpha}, ${this.alpha})`;
-  }
-}
-
-export class CMYKColor extends Color {
-  constructor(public c: number, public m: number, public y: number, public k: number) { super() }
-  clone(): CMYKColor { return new CMYKColor(this.c, this.m, this.y, this.k); }
-  toString(): string {
-    return `cmyk(${this.c}, ${this.m}, ${this.y}, ${this.k})`;
-  }
-}
-
 /**
 > Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
 
@@ -250,7 +221,7 @@ class TextState {
 }
 
 export class DrawingContext {
-  canvas: drawing.Canvas;
+  canvas: document.DocumentCanvas;
   stateStack: GraphicsState[] = [];
   // the textState persists across BT and ET markers, and can be modified anywhere
   textState: TextState = new TextState();
@@ -262,25 +233,40 @@ export class DrawingContext {
               public graphicsState: GraphicsState = new GraphicsState(),
               public depth = 0) { }
 
-  render(string_iterable: lexing.StringIterable, canvas: drawing.Canvas): void {
-    this.canvas = canvas;
-    var stack_operation_iterator = new StackOperationParser().map(string_iterable);
-    while (1) {
-      var token = stack_operation_iterator.next();
-      // token.name: operator name; token.value: Array of operands
-      if (token.name === 'EOF') {
-        break;
-      }
+  /**
+  When we render a page, we specify a ContentStream as well as a Resources
+  dictionary. That Resources dictionary may contain XObject streams that are
+  embedded as `Do` operations in the main contents, as well as sub-Resources
+  in those XObjects.
+  */
+  static renderPage(page: models.Page): document.DocumentCanvas {
+    var pageBox = new Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
+    var canvas = new document.DocumentCanvas(pageBox);
 
-      var operator_alias = operator_aliases[token.name];
-      var operation = this[operator_alias];
-      if (operation) {
-        operation.apply(this, token.value);
+    var contents_string = page.joinContents('\n');
+    var contents_string_iterable = new lexing.StringIterator(contents_string);
+
+    var context = new DrawingContext(page.Resources);
+    context.render(contents_string_iterable, canvas);
+
+    return canvas;
+  }
+
+  render(string_iterable: lexing.StringIterable, canvas: document.DocumentCanvas): void {
+    this.canvas = canvas;
+
+    var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
+
+    operations.forEach(operation => {
+      var operator_alias = operator_aliases[operation.operator];
+      var operationFunction = this[operator_alias];
+      if (operationFunction) {
+        operationFunction.apply(this, operation.operands);
       }
       else {
-        logger.warn(`Ignoring unimplemented operator "${token.name}" [${token.value.join(', ')}]`);
+        logger.warn(`Ignoring unimplemented operator "${operation.operator}" [${operation.operands.join(', ')}]`);
       }
-    }
+    });
   }
 
   private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
@@ -295,7 +281,7 @@ export class DrawingContext {
     return tx;
   }
 
-  private getTextPosition(): shapes.Point {
+  private getTextPosition(): Point {
     var fs = this.textState.fontSize;
     var fsh = fs * (this.textState.horizontalScaling / 100.0);
     var rise = this.textState.rise;
@@ -308,18 +294,44 @@ export class DrawingContext {
     // the first place.
     var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
     var textRenderingMatrix = mat3mul(base, composedTransformation);
-    return new shapes.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
   }
 
   private getTextSize(): number {
     // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
     var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    var font_point = new shapes.Point(0, this.textState.fontSize);
+    var font_point = new Point(0, this.textState.fontSize);
     return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
   }
 
+  private _cached_fonts: {[index: string]: font.Font} = {};
+
+  /**
+  Retrieve a Font instance from the Resources' Font dictionary.
+
+  Returns null if the dictionary has no `name` key.
+
+  Caches Fonts (which is pretty hot when rendering a page),
+  even missing ones (as null).
+  */
+  private getFont(name: string): font.Font {
+    var cached_font = this._cached_fonts[name];
+    if (cached_font === undefined) {
+      var Font_model = this.Resources.getFontModel(name);
+      if (Font_model.object !== undefined) {
+        var TypedFont_model = font.Font.fromModel(Font_model);
+        TypedFont_model.Name = name;
+        cached_font = this._cached_fonts[name] = TypedFont_model;
+      }
+      else {
+        cached_font = this._cached_fonts[name] = null;
+      }
+    }
+    return cached_font;
+  }
+
   private _renderGlyphs(bytes: number[]) {
-    var font = this.Resources.getFont(this.textState.fontName);
+    var font = this.getFont(this.textState.fontName);
     // the Font instance handles most of the character code resolution
     if (font === null) {
       throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
@@ -338,7 +350,7 @@ export class DrawingContext {
     // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
     var width = this.getTextPosition().x - origin.x;
     var height = Math.ceil(fontSize) | 0;
-    var size = new shapes.Size(width, height);
+    var size = new Size(width, height);
 
     this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
   }

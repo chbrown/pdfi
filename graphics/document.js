@@ -5,10 +5,10 @@ var __extends = this.__extends || function (d, b) {
     d.prototype = new __();
 };
 var unorm = require('unorm');
-var Arrays = require('./Arrays');
-var shapes = require('./shapes');
-var Canvas = (function () {
-    function Canvas(outerBounds) {
+var Arrays = require('../Arrays');
+var models = require('./models');
+var DocumentCanvas = (function () {
+    function DocumentCanvas(outerBounds) {
         this.outerBounds = outerBounds;
         // Eventually, this will render out other elements, too
         this.spans = [];
@@ -18,7 +18,7 @@ var Canvas = (function () {
     of the text by at least `min_header_gap`, but which is at most
     `max_header_height` high.
     */
-    Canvas.prototype.getHeader = function (max_header_height, min_header_gap) {
+    DocumentCanvas.prototype.getHeader = function (max_header_height, min_header_gap) {
         if (max_header_height === void 0) { max_header_height = 50; }
         if (min_header_gap === void 0) { min_header_gap = 10; }
         // sort in ascending order. the sort occurs in-place but the map creates a
@@ -28,6 +28,8 @@ var Canvas = (function () {
         // the header starts as a page-wide sliver at the top of the highest span box
         var header_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
         var header_maxY = header_minY;
+        // now we read glom through the following points until we hit one that's far
+        // enough away, only shifting header.maxY as needed.
         for (var i = 0, next_lower_span; (next_lower_span = spans[i]); i++) {
             var dY = next_lower_span.minY - header_maxY;
             if (dY > min_header_gap) {
@@ -42,13 +44,13 @@ var Canvas = (function () {
                 break;
             }
         }
-        return new shapes.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
+        return new models.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
     };
     /**
     The footer can extend at most `max_footer_height` from the bottom of the page,
     and must have a gap of `min_footer_gap` between it and the rest of the text.
     */
-    Canvas.prototype.getFooter = function (max_footer_height, min_footer_gap) {
+    DocumentCanvas.prototype.getFooter = function (max_footer_height, min_footer_gap) {
         if (max_footer_height === void 0) { max_footer_height = 50; }
         if (min_footer_gap === void 0) { min_footer_gap = 10; }
         // sort in descending order -- lowest boxes first
@@ -57,11 +59,14 @@ var Canvas = (function () {
         // default the footer to a box as high as the lowest span on the page.
         var footer_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
         var footer_maxY = footer_minY;
+        // now we read glom through each box from the bottom until we hit one that's far enough away
+        // as we go through, we adjust ONLY footer.minY
         for (var i = 1, next_higher_span; (next_higher_span = spans[i]); i++) {
             // dY is the distance from the highest point on the current footer to the
             // bottom of the next highest rectangle on the page
             var dY = footer_minY - next_higher_span.maxY;
             if (dY > min_footer_gap) {
+                // okay, the text above is too far away to merge into the footer, we're done
                 break;
             }
             // set the new footer upper bound
@@ -73,21 +78,21 @@ var Canvas = (function () {
                 break;
             }
         }
-        return new shapes.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
+        return new models.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
     };
     /**
     The spans collected in each section should be in reading order (we're
     currently assuming that the natural order is proper reading order).
     */
-    Canvas.prototype.getLineContainers = function () {
+    DocumentCanvas.prototype.getLineContainers = function () {
         var header = this.getHeader();
         var footer = this.getFooter();
         // Excluding the header and footer, find a vertical split between the spans,
         // and return an Array of Rectangles bounding each column.
         // For now, split into two columns down the middle of the page.
-        var contents = new shapes.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
-        var col1 = new shapes.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-        var col2 = new shapes.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
+        var contents = new models.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
+        var col1 = new models.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
+        var col2 = new models.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
         // okay, we've got the bounding boxes, now we need to find the spans they contain
         var named_page_sections = [
             new NamedPageSection('header', header),
@@ -114,20 +119,20 @@ var Canvas = (function () {
             return NamedLineContainer.fromTextSpans(named_page_section.name, named_page_section.textSpans);
         });
     };
-    Canvas.prototype.getPartialDocument = function (section_names) {
+    DocumentCanvas.prototype.getPartialDocument = function (section_names) {
         var sections = this.getLineContainers().filter(function (section) { return section_names.indexOf(section.name) > -1; });
         var lines = Arrays.flatMap(sections, function (section) { return section.lines; });
         return new Document(lines);
     };
-    Canvas.prototype.addSpan = function (string, origin, size, fontSize, fontName) {
+    DocumentCanvas.prototype.addSpan = function (string, origin, size, fontSize, fontName) {
         // transform into origin at top left
         var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY);
-        var span = new shapes.TextSpan(string, canvas_origin.x, canvas_origin.y, canvas_origin.x + size.width, canvas_origin.y + size.height, fontSize);
+        var span = new models.TextSpan(string, canvas_origin.x, canvas_origin.y, canvas_origin.x + size.width, canvas_origin.y + size.height, fontSize);
         // var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-        span.details = "" + span.toString(2) + " fontSize=" + fontSize + " fontName=" + fontName;
+        span.details = span.toString(2) + " fontSize=" + fontSize + " fontName=" + fontName;
         this.spans.push(span);
     };
-    Canvas.prototype.toJSON = function () {
+    DocumentCanvas.prototype.toJSON = function () {
         return {
             // native properties
             spans: this.spans,
@@ -136,9 +141,9 @@ var Canvas = (function () {
             sections: this.getLineContainers(),
         };
     };
-    return Canvas;
+    return DocumentCanvas;
 })();
-exports.Canvas = Canvas;
+exports.DocumentCanvas = DocumentCanvas;
 var NamedLineContainer = (function (_super) {
     __extends(NamedLineContainer, _super);
     function NamedLineContainer(name) {
@@ -197,14 +202,14 @@ var NamedLineContainer = (function (_super) {
         };
     };
     return NamedLineContainer;
-})(shapes.NamedContainer);
+})(models.NamedContainer);
 exports.NamedLineContainer = NamedLineContainer;
 /**
 This is for the first pass of collecting all of the TextSpans that lie inside
 a bounding box.
 
 We don't need to know the bounding rectangle of the TextSpans, so we don't
-inherit from shapes.NamedContainer (which saves some time recalculating the spans).
+inherit from models.NamedContainer (which saves some time recalculating the spans).
 */
 var NamedPageSection = (function () {
     function NamedPageSection(name, outerBounds, textSpans) {
@@ -268,14 +273,14 @@ var Line = (function (_super) {
             maxY: this.maxY,
             minX: this.minX,
             minY: this.minY,
-            // elements: this.elements, // exclude shapes.Container#elements for the sake of brevity
+            // elements: this.elements, // exclude models.Container#elements for the sake of brevity
             // container: this.container, // exclude Line#container to avoid circularity
             // methods
             string: this.toString(),
         };
     };
     return Line;
-})(shapes.Container);
+})(models.Container);
 exports.Line = Line;
 var Paragraph = (function (_super) {
     __extends(Paragraph, _super);
@@ -291,7 +296,7 @@ var Paragraph = (function (_super) {
         };
     };
     return Paragraph;
-})(shapes.Container);
+})(models.Container);
 exports.Paragraph = Paragraph;
 var Document = (function () {
     /**

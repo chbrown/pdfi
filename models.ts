@@ -1,24 +1,19 @@
 /// <reference path="type_declarations/index.d.ts" />
 import logger = require('loge');
 import lexing = require('lexing');
-
-var afm = require('afm');
+var util = require('util-enhanced');
 
 import Arrays = require('./Arrays');
-import PDF = require('./PDF');
 import pdfdom = require('./pdfdom');
-import graphics = require('./parsers/graphics');
-import cmap = require('./parsers/cmap');
 import decoders = require('./filters/decoders');
-import drawing = require('./drawing');
-import shapes = require('./shapes');
-import FontMetrics = require('./font/FontMetrics');
-import encoding_Mapping = require('./encoding/Mapping');
 
 /**
-glyphlist is a mapping from PDF glyph names to unicode strings
+Importing PDF like `import PDF = require('./PDF')` introduces a breaking
+circular dependency.
 */
-var glyphlist: {[index: string]: string} = require('./encoding/glyphlist');
+interface PDF {
+  getObject(object_number: number, generation_number: number): pdfdom.PDFObject;
+}
 
 /**
 Most of the classes in this module are wrappers for typed objects in a PDF,
@@ -72,6 +67,14 @@ export class Model {
       this._resolved = true;
     }
     return this._object;
+  }
+
+  /**
+  This is an (icky?) hack to get around circular dependencies with subclasses
+  of Model.
+  */
+  asType<T extends Model>(ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
+    return new ctor(this._pdf, this.object);
   }
 
   toJSON() {
@@ -185,25 +188,6 @@ export class Page extends Model {
     return strings.join(separator);
   }
 
-  /**
-  When we render a page, we specify a ContentStream as well as a Resources
-  dictionary. That Resources dictionary may contain XObject streams that are
-  embedded as `Do` operations in the main contents, as well as sub-Resources
-  in those XObjects.
-  */
-  renderCanvas(): drawing.Canvas {
-    var pageBox = new shapes.Rectangle(this.MediaBox[0], this.MediaBox[1], this.MediaBox[2], this.MediaBox[3]);
-    var canvas = new drawing.Canvas(pageBox);
-
-    var contents_string = this.joinContents('\n');
-    var contents_string_iterable = new lexing.StringIterator(contents_string);
-
-    var context = new graphics.DrawingContext(this.Resources);
-    context.render(contents_string_iterable, canvas);
-
-    return canvas;
-  }
-
   toJSON() {
     return {
       Type: 'Page',
@@ -287,15 +271,12 @@ that field sometimes references objects or fonts in the `Resources` field,
 which in turns has a field, `XObject`, which is a mapping from names object
 names to nested streams of content. I'm pretty sure they're always streams.
 
-Despite being plural, the `Resources` field is always a single object, as far as I can tell.
+Despite being plural, the `Resources` field is always a single object,
+as far as I can tell.
 
 None of the fields are required.
-
-Caches Fonts (which is pretty hot when rendering a page)
 */
 export class Resources extends Model {
-  private _cached_fonts: {[index: string]: Font} = {};
-
   get ExtGState(): any {
     return this.object['ExtGState'];
   }
@@ -314,52 +295,19 @@ export class Resources extends Model {
   get Properties(): any {
     return this.object['Properties'];
   }
+  // get Font(): any {
+  //   return new Model(this._pdf, this.object['Font']).object;
+  // }
+  getFontModel(name: string): Model {
+    var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
+    var Font_object = Font_dictionary[name];
+    return new Model(this._pdf, Font_object);
+  }
 
   getXObject(name: string): ContentStream {
     var XObject_dictionary = new Model(this._pdf, this.object['XObject']).object;
     var object = XObject_dictionary[name];
     return object ? new ContentStream(this._pdf, object) : undefined;
-  }
-  /**
-  Retrieve a Font instance from the Resources' Font dictionary.
-
-  Returns null if the dictionary has no `name` key.
-
-  Caches fonts, even missing ones (as null).
-  */
-  getFont(name: string): Font {
-    var cached_font = this._cached_fonts[name];
-    if (cached_font === undefined) {
-      var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-      if (name in Font_dictionary) {
-        var Font_model = new Font(this._pdf, Font_dictionary[name]);
-        // See Table 110 – Font types:
-        //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
-        if (Font_model.object['Type'] === 'Font') {
-          if (Font_model.object['Subtype'] === 'Type0') {
-            Font_model = new Type0Font(this._pdf, Font_model.object);
-          }
-          else if (Font_model.object['Subtype'] === 'Type1') {
-            Font_model = new Type1Font(this._pdf, Font_model.object);
-          }
-          else if (Font_model.object['Subtype'] === 'TrueType') {
-            // apparently TrueType and Type 1 fonts are pretty much the same.
-            Font_model = new Type1Font(this._pdf, Font_model.object);
-          }
-          else if (Font_model.object['Subtype'] === 'Type3') {
-            // And Type 3 isn't too far off, either
-            Font_model = new Type1Font(this._pdf, Font_model.object);
-          }
-          // TODO: add the other types of fonts
-        }
-        Font_model.Name = name;
-        cached_font = this._cached_fonts[name] = Font_model;
-      }
-      else {
-        cached_font = this._cached_fonts[name] = null;
-      }
-    }
-    return cached_font;
   }
 
   toJSON() {
@@ -373,374 +321,6 @@ export class Resources extends Model {
       ProcSet: this.ProcSet,
       Properties: this.Properties,
     };
-  }
-}
-
-/**
-Font is a general, sometimes abstract (see Font#measureString), representation
-of a PDF Font of any Subtype.
-
-Some uses, which vary in their implementation based on the Type of the font,
-require creating a specific Font subclass, e.g., Type1Font().
-
-Beyond the `object` property, common to all Model instances, Font also has a
-`Name` field, which is populated when the Font is instantiated from within
-Resources#getFont(), for easier debugging. It should not be used for any
-material purposes (and is not necessary for any).
-
-# Cached objects
-
-* `_encodingMapping: encoding_Mapping` is a cached mapping from in-PDF character codes to native
-  Javascript (unicode) strings.
-*/
-export class Font extends Model {
-  private _encodingMapping: encoding_Mapping;
-  public Name: string;
-
-  get Subtype(): string {
-    return this.object['Subtype'];
-  }
-
-  get BaseFont(): string {
-    return this.object['BaseFont'];
-  }
-
-  /**
-  Cached as `_encodingMapping`.
-
-  We need the Font's Encoding (not always specified) to read its Differences,
-  which we use to map character codes into the glyph name (which can then easily
-  be mapped to the unicode string representation of that glyph).
-  */
-  get encodingMapping(): encoding_Mapping {
-    // initialize if needed
-    if (this._encodingMapping === undefined) {
-      // try the ToUnicode object first
-      if (this.object['ToUnicode']) {
-        var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
-        var string_iterable = lexing.StringIterator.fromBuffer(ToUnicode.buffer, 'ascii');
-        var cMap = cmap.CMap.parseStringIterable(string_iterable);
-        this._encodingMapping = encoding_Mapping.fromCMap(cMap);
-      }
-      // No luck? Try the Encoding dictionary
-      else if (this.object['Encoding']) {
-        var Encoding = new Model(this._pdf, this.object['Encoding']);
-        // var BaseEncoding = Encoding.object['BaseEncoding']; // TODO: use this value
-        this._encodingMapping = encoding_Mapping.fromLatinCharset('std');
-        var Differences = Encoding.object['Differences'];
-        if (Differences && Differences.length > 0) {
-          this._encodingMapping.applyDifferences(Differences);
-        }
-      }
-      else {
-        // Neither Encoding nor ToUnicode are specified; that's bad!
-        logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default mapping`);
-        // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-        this._encodingMapping = encoding_Mapping.fromLatinCharset('std');
-      }
-    }
-    return this._encodingMapping;
-  }
-
-  /**
-  Returns a native (unicode) Javascript string representing the given character
-  codes. These character codes may have nothing to do with Latin-1, directly,
-  but can be mapped to unicode via the Font dictionary's Encoding or ToUnicode
-  fields, and can be assigned widths via the Font dictionary's Widths or
-  BaseFont fields.
-
-  Uses a cached mapping via the charCodeMapping getter.
-
-  Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
-  be resolved to a string (unless the `skipMissing` argument is set to `true`,
-  in which case, it simply skips those characters.
-  */
-  decodeString(bytes: number[], skipMissing = false): string {
-    return this.encodingMapping.decodeCharCodes(bytes).map(charCode => {
-      var string = this.encodingMapping.decodeCharacter(charCode);
-      if (string === undefined) {
-        logger.error(`[Font=${this.Name}] Could not decode character code: ${charCode}`)
-        if (skipMissing) {
-          return '';
-        }
-        return '\\u{' + charCode.toString(16) + '}';
-      }
-      return string;
-    }).join('');
-  }
-
-  /**
-  This should be overridden by subclasses to return a total width, in text units
-  (usually somewhere in the range of 250-750 for each character/glyph).
-  */
-  measureString(bytes: number[]): number {
-    throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.Subtype}, Name: ${this.Name})`);
-  }
-
-  toJSON() {
-    return {
-      Type: 'Font',
-      Subtype: this.Subtype,
-      BaseFont: this.BaseFont,
-    };
-  }
-
-  static isFont(object): boolean {
-    if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font';
-  }
-}
-
-/**
-Type 1 Font (See PDF32000_2008.pdf:9.6.2, Table 111)
-
-## The basics
-
-* `Type: string = 'Font'`
-* `Subtype: string = 'Type1'`
-* `BaseFont: string`
-  This is required, but does not always name a Core14 font. From the spec:
-  > The PostScript name of the font. For Type 1 fonts, this is always the value
-  > of the FontName entry in the font program. The PostScript name of the font
-  > may be used to find the font program in the conforming reader or its
-  > environment
-* `Name?: string`
-  Obsolete. This is a relic of PDF 1.0, when it matched the key of this font in
-  the current Resources' `Font` dictionary.
-
-## Metrics for non-Core14 fonts
-
-* `FirstChar?: integer`
-* `LastChar?: integer`
-* `Widths?: array`
-  The PDF spec actually recommends that `Widths` be an indirect reference.
-* `FontDescriptor?`
-
-These four fields are optional for the Core14 ("standard 14") fonts, but are
-not precluded for the Core14 fonts. In fact, PDF 1.5 suggests that even the
-Core14 fonts specify these fields. They come in a package -- they "shall" all
-be present, or all be absent.
-
-## Resolving character codes
-
-* `Encoding?: string | dictionary`
-  Optional. From the spec:
-  > A specification of the font's character encoding if different from its built-in encoding. The value of Encoding shall be either the name of a predefined encoding (MacRomanEncoding, MacExpertEncoding, or WinAnsiEncoding) or an encoding dictionary that shall specify differences from the font's built-in encoding or from a specified predefined encoding.
-* `ToUnicode?: ContentStream`
-  Optional. From the spec:
-  > A stream containing a CMap file that maps character codes to Unicode values.
-
-# Cached objects
-
-* `_widthMapping: {[index: string]: number}`
-  A cached mapping from unicode strings to character widths (numbers). In the
-  case that `Widths`, etc., are defined, it'd be easier to map directly from
-  character codes, but since we might also have to load the widths from a Core14
-  font metrics file, unicode is the common denominator.
-* `_defaultWidth: number`
-  A cached number representing the default character width, when the character
-  code cannot be found in `_widthMapping`.
-
-*/
-export class Type1Font extends Font {
-  private _widthMapping: {[index: string]: number};
-  private _defaultWidth: number;
-
-  measureString(bytes: number[]): number {
-    if (this._widthMapping === undefined || this._defaultWidth === undefined) {
-      this._initializeWidthMapping();
-    }
-    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
-      var string = this.encodingMapping.decodeCharacter(charCode);
-      var width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
-      return sum + width;
-    }, 0);
-  }
-
-  /**
-  This may be able to determine character code widths directly from the Font
-  resource, but may have to load a FontMetrics instance for Core14 fonts.
-
-  If `Widths`, `FirstChar`, `LastChar`, and `FontDescriptor` are missing, and
-  the BaseFont value is not one of the Core14 fonts, this will throw an Error.
-  */
-  private _initializeWidthMapping() {
-    // logger.debug(`Type1Font[${this.Name}]#_initializeWidthMapping() called`);
-    // Try using the local Widths, etc., configuration first.
-    var Widths = <number[]>new Model(this._pdf, this.object['Widths']).object;
-    if (Widths) {
-      var FirstChar = <number>this.object['FirstChar'];
-      // TODO: verify LastChar?
-      this._widthMapping = {};
-      Widths.forEach((width, width_index) => {
-        var charCode = FirstChar + width_index;
-        var string = this.encodingMapping.decodeCharacter(charCode);
-        this._widthMapping[string] = width;
-      });
-      // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
-      var FontDescriptor = new Model(this._pdf, this.object['FontDescriptor']).object;
-      if (FontDescriptor && FontDescriptor['MissingWidth']) {
-        this._defaultWidth = FontDescriptor['MissingWidth'];
-      }
-      else {
-        logger.silly(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
-        this._defaultWidth = null;
-      }
-    }
-    // if Widths cannot be found, try to load BaseFont as a Core14 font.
-    else if (FontMetrics.isCore14(this.BaseFont)) {
-      var fontMetrics = FontMetrics.loadCore14(this.BaseFont);
-      this._widthMapping = {};
-      fontMetrics.characters.forEach(charMetrics => {
-        // charMetrics only specifies the glyphname and the default character
-        // code; we need to express the mapping in terms of the font's
-        var string = glyphlist[charMetrics.name];
-        this._widthMapping[string] = charMetrics.width;
-      });
-      // As far as I can tell, in the case of the Core14 fonts, the default
-      // width should never be referenced, but I'll set it here just in case.
-      this._defaultWidth = 1000;
-    }
-    else if (afm.names.indexOf(this.BaseFont) > -1) {
-      this._widthMapping = {};
-      afm.loadFontMetricsSync(this.BaseFont).forEach(charMetrics => {
-        var string = glyphlist[charMetrics.name];
-        this._widthMapping[string] = charMetrics.width;
-      });
-      this._defaultWidth = 1000;
-    }
-    else {
-      throw new Error(`Font[${this.Name}] Cannot initialize width mapping for non-Core14 Type 1 Font without "Widths" field`);
-    }
-  }
-
-  static isType1Font(object): boolean {
-    if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font' && object['Subtype'] === 'Type1';
-  }
-}
-
-/**
-Composite font (PDF32000_2008.pdf:9.7)
-
-* `Type: string = 'Font'`
-* `Subtype: string = 'Type0'`
-* `DescendantFonts: Array`
-
-# Cached objects
-
-* `_widthMapping: number[]`
-  A cached mapping from charCodes to character widths.
-* `_defaultWidth: number`
-  A cached number representing the default character width, when the character
-  code cannot be found in `_widthMapping`.
-*/
-export class Type0Font extends Font {
-  private _widthMapping: number[];
-  private _defaultWidth: number;
-
-  /**
-  > DescendantFonts: array (Required): A one-element array specifying the
-  > CIDFont dictionary that is the descendant of this Type 0 font.
-  */
-  get DescendantFont(): CIDFont {
-    var array = new Model(this._pdf, this.object['DescendantFonts']).object;
-    return new CIDFont(this._pdf, array[0]);
-  }
-
-  private _initializeWidthMapping() {
-    // logger.debug(`Type0Font[${this.Name}]#_initializeWidthMapping() called`);
-    this._widthMapping = this.DescendantFont.getWidthMapping();
-    this._defaultWidth = this.DescendantFont.getDefaultWidth();
-  }
-
-  measureString(bytes: number[]): number {
-    if (this._widthMapping === undefined || this._defaultWidth === undefined) {
-      this._initializeWidthMapping();
-    }
-    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
-      var width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
-      return sum + width;
-    }, 0);
-  }
-
-  static isType0Font(object): boolean {
-    if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font' && object['Subtype'] === 'Type0';
-  }
-}
-
-/**
-CIDFonts (PDF32000_2008.pdf:9.7.4)
-
-Goes well with Type 0 fonts.
-
-> Type: 'Font'
-> Subtype: 'CIDFontType0' or 'CIDFontType2'
-> CIDSystemInfo: dictionary (Required)
-> DW: integer (Optional) The default width for glyphs in the CIDFont. Default
-    value: 1000 (defined in user units).
-> W: array (Optional) A description of the widths for the glyphs in the CIDFont.
-    The array's elements have a variable format that can specify individual
-    widths for consecutive CIDs or one width for a range of CIDs. Default
-    value: none (the DW value shall be used for all glyphs).
-
-*/
-class CIDFont extends Font {
-  get CIDSystemInfo(): string {
-    return this.object['CIDSystemInfo'];
-  }
-
-  get W(): Array<number | number[]> {
-    var model = new Model(this._pdf, this.object['W']);
-    return <Array<number | number[]>>model.object;
-  }
-
-  getDefaultWidth(): number {
-    return this.object['DW'];
-  }
-
-  /**
-  The W array allows the definition of widths for individual CIDs. The elements
-  of the array shall be organized in groups of two or three, where each group
-  shall be in one of these two formats:
-  1. `c [w1 w2 ... wn]`: `c` shall be an integer specifying a starting CID
-    value; it shall be followed by an array of `n` numbers that shall specify
-    the widths for n consecutive CIDs, starting with `c`.
-  2. `c_first c_last w`: define the same width, `w`, for all CIDs in the range
-    `c_first` to `c_last` (inclusive).
-  */
-  getWidthMapping(): number[] {
-    var mapping: number[] = [];
-    var addConsecutive = (starting_cid_value: number, widths: number[]) => {
-      widths.forEach((width, width_offset) => {
-        mapping[starting_cid_value + width_offset] = width;
-      });
-    };
-    var addRange = (c_first: number, c_last: number, width: number) => {
-      for (var cid = c_first; cid <= c_last; cid++) {
-        mapping[cid] = width;
-      }
-    };
-    var cid_widths = (this.W || []);
-    var index = 0;
-    var length = cid_widths.length;
-    while (index < length) {
-      if (Array.isArray(cid_widths[index + 1])) {
-        var starting_cid_value = <number>cid_widths[index];
-        var widths = <number[]>cid_widths[index + 1];
-        addConsecutive(starting_cid_value, widths);
-        index += 2;
-      }
-      else {
-        var c_first = <number>cid_widths[index];
-        var c_last = <number>cid_widths[index + 1];
-        var width = <number>cid_widths[index + 2];
-        addRange(c_first, c_last, width);
-        index += 3;
-      }
-    }
-    return mapping;
   }
 }
 
@@ -776,6 +356,42 @@ export class Catalog extends Model {
       Names: this.Names,
       PageMode: this.PageMode,
       OpenAction: this.OpenAction,
+    };
+  }
+}
+
+/**
+The Trailer is not a typical extension of models.Model, because it is not
+backed by a single PDFObject, but by a collection of PDFObjects.
+*/
+export class Trailer {
+  constructor(private _pdf: PDF, private _object: any = {}) { }
+
+  /**
+  The PDF's trailers are read from newer to older. The newer trailers' values
+  should be preferred, so we merge the older trailers under the newer ones.
+  */
+  merge(object: any): void {
+    this._object = util.extend(object, this._object);
+  }
+
+  get Size(): number {
+    return this._object['Size'];
+  }
+
+  get Root(): Catalog {
+    return new Catalog(this._pdf, this._object['Root']);
+  }
+
+  get Info(): any {
+    return new Model(this._pdf, this._object['Info']).object;
+  }
+
+  toJSON() {
+    return {
+      Size: this.Size,
+      Root: this.Root,
+      Info: this.Info,
     };
   }
 }

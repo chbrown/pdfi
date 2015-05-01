@@ -4,56 +4,9 @@ var lexing = require('lexing');
 var File = require('./File');
 var Arrays = require('./Arrays');
 var models = require('./models');
-var drawing = require('./drawing');
+var document = require('./graphics/document');
+var graphicsStream = require('./graphics/stream');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
-var util = require('util-enhanced');
-/**
-The Trailer is not a typical models.Model, because it is not backed by a single
-PDFObject, but by a collection of them.
-*/
-var Trailer = (function () {
-    function Trailer(_pdf, _object) {
-        if (_object === void 0) { _object = {}; }
-        this._pdf = _pdf;
-        this._object = _object;
-    }
-    /**
-    The PDF's trailers are read from newer to older. The newer trailers' values
-    should be preferred, so we merge the older trailers under the newer ones.
-    */
-    Trailer.prototype.merge = function (object) {
-        this._object = util.extend(object, this._object);
-    };
-    Object.defineProperty(Trailer.prototype, "Size", {
-        get: function () {
-            return this._object['Size'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Trailer.prototype, "Root", {
-        get: function () {
-            return new models.Catalog(this._pdf, this._object['Root']);
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Trailer.prototype, "Info", {
-        get: function () {
-            return new models.Model(this._pdf, this._object['Info']).object;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Trailer.prototype.toJSON = function () {
-        return {
-            Size: this.Size,
-            Root: this.Root,
-            Info: this.Info,
-        };
-    };
-    return Trailer;
-})();
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
@@ -82,7 +35,7 @@ var PDF = (function () {
             throw new Error('Could not find "startxref" marker in file');
         }
         var next_xref_position = this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
-        this._trailer = new Trailer(this);
+        this._trailer = new models.Trailer(this);
         while (next_xref_position) {
             // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
             var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
@@ -141,14 +94,16 @@ var PDF = (function () {
     */
     PDF.prototype.findCrossReference = function (object_number, generation_number) {
         for (var i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
-            if (cross_reference.in_use && cross_reference.object_number === object_number && cross_reference.generation_number === generation_number) {
+            if (cross_reference.in_use &&
+                cross_reference.object_number === object_number &&
+                cross_reference.generation_number === generation_number) {
                 return cross_reference;
             }
         }
         throw new Error("Could not find a cross reference for " + object_number + ":" + generation_number);
     };
     PDF.prototype.getObject = function (object_number, generation_number) {
-        var object_id = "" + object_number + ":" + generation_number;
+        var object_id = object_number + ":" + generation_number;
         if (!(object_id in this._objects)) {
             this._objects[object_id] = this._readObject(object_number, generation_number);
         }
@@ -195,12 +150,16 @@ var PDF = (function () {
     */
     PDF.prototype.getDocument = function (section_names) {
         var lines = Arrays.flatMap(this.pages, function (page) {
-            var sections = page.renderCanvas().getLineContainers();
+            var sections = graphicsStream.DrawingContext.renderPage(page).getLineContainers();
             var selected_sections = sections.filter(function (section) { return section_names.indexOf(section.name) > -1; });
             var selected_sections_lines = Arrays.flatMap(selected_sections, function (section) { return section.lines; });
             return selected_sections_lines;
         });
-        return new drawing.Document(lines);
+        return new document.Document(lines);
+    };
+    PDF.prototype.renderPage = function (page_index) {
+        var page = this.pages[page_index];
+        return graphicsStream.DrawingContext.renderPage(page);
     };
     /**
     Resolves a potential IndirectReference to the target object.

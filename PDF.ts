@@ -9,51 +9,13 @@ import File = require('./File');
 import Arrays = require('./Arrays');
 import pdfdom = require('./pdfdom');
 import models = require('./models');
-import drawing = require('./drawing');
+import document = require('./graphics/document');
+import graphicsStream = require('./graphics/stream');
 
 import PDFObjectParser = require('./parsers/PDFObjectParser');
-import graphics = require('./parsers/graphics');
-
-var util = require('util-enhanced');
-
-/**
-The Trailer is not a typical models.Model, because it is not backed by a single
-PDFObject, but by a collection of them.
-*/
-class Trailer {
-  constructor(private _pdf: PDF, private _object: any = {}) { }
-
-  /**
-  The PDF's trailers are read from newer to older. The newer trailers' values
-  should be preferred, so we merge the older trailers under the newer ones.
-  */
-  merge(object: any): void {
-    this._object = util.extend(object, this._object);
-  }
-
-  get Size(): number {
-    return this._object['Size'];
-  }
-
-  get Root(): models.Catalog {
-    return new models.Catalog(this._pdf, this._object['Root']);
-  }
-
-  get Info(): any {
-    return new models.Model(this._pdf, this._object['Info']).object;
-  }
-
-  toJSON() {
-    return {
-      Size: this.Size,
-      Root: this.Root,
-      Info: this.Info,
-    };
-  }
-}
 
 class PDF {
-  private _trailer: Trailer;
+  private _trailer: models.Trailer;
   private _cross_references: pdfdom.CrossReference[] = [];
   // _objects is a cache of PDF objects indexed by
   // "${object_number}:${generation_number}" identifiers
@@ -80,7 +42,7 @@ class PDF {
     }
     var next_xref_position = <number>this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
 
-    this._trailer = new Trailer(this)
+    this._trailer = new models.Trailer(this)
     while (next_xref_position) { // !== null
       // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
       var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
@@ -108,7 +70,7 @@ class PDF {
   the document (or maybe just those in the cross references section that
   immediately follows the trailer?)
   */
-  get trailer(): Trailer {
+  get trailer(): models.Trailer {
     if (this._trailer === undefined) {
       this.readTrailers();
     }
@@ -192,14 +154,19 @@ class PDF {
   track of the container it belongs to, so that we can measure offsets
   later.
   */
-  getDocument(section_names: string[]): drawing.Document {
+  getDocument(section_names: string[]): document.Document {
     var lines = Arrays.flatMap(this.pages, page => {
-      var sections = page.renderCanvas().getLineContainers();
+      var sections = graphicsStream.DrawingContext.renderPage(page).getLineContainers();
       var selected_sections = sections.filter(section => section_names.indexOf(section.name) > -1);
       var selected_sections_lines = Arrays.flatMap(selected_sections, section => section.lines);
       return selected_sections_lines;
     });
-    return new drawing.Document(lines);
+    return new document.Document(lines);
+  }
+
+  renderPage(page_index: number): document.DocumentCanvas {
+    var page = this.pages[page_index];
+    return graphicsStream.DrawingContext.renderPage(page);
   }
 
   /**

@@ -1,23 +1,24 @@
-/// <reference path="type_declarations/index.d.ts" />
+/// <reference path="../type_declarations/index.d.ts" />
 import logger = require('loge');
 import lexing = require('lexing');
-var unorm = require('unorm');
+import unorm = require('unorm');
 
-import Arrays = require('./Arrays');
-import shapes = require('./shapes');
+import Arrays = require('../Arrays');
 
-export class Canvas {
+import models = require('./models');
+
+export class DocumentCanvas {
   // Eventually, this will render out other elements, too
-  public spans: shapes.TextSpan[] = [];
+  public spans: models.TextSpan[] = [];
 
-  constructor(public outerBounds: shapes.Rectangle) { }
+  constructor(public outerBounds: models.Rectangle) { }
 
   /**
   We define a header as the group of spans at the top separated from the rest
   of the text by at least `min_header_gap`, but which is at most
   `max_header_height` high.
   */
-  getHeader(max_header_height = 50, min_header_gap = 10): shapes.Rectangle {
+  getHeader(max_header_height = 50, min_header_gap = 10): models.Rectangle {
     // sort in ascending order. the sort occurs in-place but the map creates a
     // new array anyway (though it's shallow; the points are not copies)
     var spans = this.spans.slice().sort((a, b) => a.minY - b.minY);
@@ -27,7 +28,7 @@ export class Canvas {
     var header_maxY = header_minY;
     // now we read glom through the following points until we hit one that's far
     // enough away, only shifting header.maxY as needed.
-    for (var i = 0, next_lower_span: shapes.TextSpan; (next_lower_span = spans[i]); i++) {
+    for (var i = 0, next_lower_span: models.TextSpan; (next_lower_span = spans[i]); i++) {
       var dY = next_lower_span.minY - header_maxY;
       if (dY > min_header_gap) {
         break;
@@ -41,14 +42,14 @@ export class Canvas {
         break;
       }
     }
-    return new shapes.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
+    return new models.Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
   }
 
   /**
   The footer can extend at most `max_footer_height` from the bottom of the page,
   and must have a gap of `min_footer_gap` between it and the rest of the text.
   */
-  getFooter(max_footer_height = 50, min_footer_gap = 10): shapes.Rectangle {
+  getFooter(max_footer_height = 50, min_footer_gap = 10): models.Rectangle {
     // sort in descending order -- lowest boxes first
     var spans = this.spans.slice().sort((a, b) => b.maxY - a.maxY);
     // var boxes = this.spans.map(span => span.box).sort((a, b) => b.maxY - a.maxY);
@@ -57,7 +58,7 @@ export class Canvas {
     var footer_maxY = footer_minY;
     // now we read glom through each box from the bottom until we hit one that's far enough away
     // as we go through, we adjust ONLY footer.minY
-    for (var i = 1, next_higher_span: shapes.TextSpan; (next_higher_span = spans[i]); i++) {
+    for (var i = 1, next_higher_span: models.TextSpan; (next_higher_span = spans[i]); i++) {
       // dY is the distance from the highest point on the current footer to the
       // bottom of the next highest rectangle on the page
       var dY = footer_minY - next_higher_span.maxY;
@@ -74,7 +75,7 @@ export class Canvas {
         break;
       }
     }
-    return new shapes.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
+    return new models.Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
   }
 
   /**
@@ -87,9 +88,9 @@ export class Canvas {
     // Excluding the header and footer, find a vertical split between the spans,
     // and return an Array of Rectangles bounding each column.
     // For now, split into two columns down the middle of the page.
-    var contents = new shapes.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
-    var col1 = new shapes.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-    var col2 = new shapes.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
+    var contents = new models.Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
+    var col1 = new models.Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
+    var col2 = new models.Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
     // okay, we've got the bounding boxes, now we need to find the spans they contain
     var named_page_sections = [
       new NamedPageSection('header', header),
@@ -125,10 +126,10 @@ export class Canvas {
     return new Document(lines);
   }
 
-  addSpan(string: string, origin: shapes.Point, size: shapes.Size, fontSize: number, fontName: string) {
+  addSpan(string: string, origin: models.Point, size: models.Size, fontSize: number, fontName: string) {
     // transform into origin at top left
     var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
-    var span = new shapes.TextSpan(string,
+    var span = new models.TextSpan(string,
                                    canvas_origin.x,
                                    canvas_origin.y,
                                    canvas_origin.x + size.width,
@@ -150,7 +151,7 @@ export class Canvas {
   }
 }
 
-export class NamedLineContainer extends shapes.NamedContainer<Line> {
+export class NamedLineContainer extends models.NamedContainer<Line> {
   constructor(name: string) { super(name) }
 
   get lines(): Line[] {
@@ -167,7 +168,7 @@ export class NamedLineContainer extends shapes.NamedContainer<Line> {
   * `line_gap` is the the maximum distance between lines before we consider the
     next line a new paragraph.
   */
-  static fromTextSpans(name: string, textSpans: shapes.TextSpan[], line_gap = -5): NamedLineContainer {
+  static fromTextSpans(name: string, textSpans: models.TextSpan[], line_gap = -5): NamedLineContainer {
     var namedLineContainer = new NamedLineContainer(name);
     var lines: Line[] = [];
     var currentLine: Line = new Line(namedLineContainer);
@@ -211,19 +212,19 @@ This is for the first pass of collecting all of the TextSpans that lie inside
 a bounding box.
 
 We don't need to know the bounding rectangle of the TextSpans, so we don't
-inherit from shapes.NamedContainer (which saves some time recalculating the spans).
+inherit from models.NamedContainer (which saves some time recalculating the spans).
 */
 export class NamedPageSection {
   constructor(public name: string,
-              public outerBounds: shapes.Rectangle,
-              public textSpans: shapes.TextSpan[] = []) { }
+              public outerBounds: models.Rectangle,
+              public textSpans: models.TextSpan[] = []) { }
 }
 
-export class Line extends shapes.Container<shapes.TextSpan> {
+export class Line extends models.Container<models.TextSpan> {
   constructor(protected container: NamedLineContainer,
-              elements: shapes.TextSpan[] = []) { super(elements) }
+              elements: models.TextSpan[] = []) { super(elements) }
 
-  get textSpans(): shapes.TextSpan[] {
+  get textSpans(): models.TextSpan[] {
     return this.elements;
   }
 
@@ -236,7 +237,7 @@ export class Line extends shapes.Container<shapes.TextSpan> {
   }
 
   toString(min_space_width = 1): string {
-    var previousSpan: shapes.TextSpan = null;
+    var previousSpan: models.TextSpan = null;
     return this.elements.map(currentSpan => {
       // presumably all the spans have approximately the same Y values
       // dX measures the distance between the right bound of the previous span
@@ -259,7 +260,7 @@ export class Line extends shapes.Container<shapes.TextSpan> {
       maxY: this.maxY,
       minX: this.minX,
       minY: this.minY,
-      // elements: this.elements, // exclude shapes.Container#elements for the sake of brevity
+      // elements: this.elements, // exclude models.Container#elements for the sake of brevity
       // container: this.container, // exclude Line#container to avoid circularity
       // methods
       string: this.toString(),
@@ -267,7 +268,7 @@ export class Line extends shapes.Container<shapes.TextSpan> {
   }
 }
 
-export class Paragraph extends shapes.Container<Line> {
+export class Paragraph extends models.Container<Line> {
   toString(): string {
     return joinLines(this.elements);
   }
