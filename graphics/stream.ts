@@ -9,7 +9,7 @@ import parser_states = require('../parsers/states');
 
 import {Canvas} from './canvas';
 import {Point, Size, Rectangle} from './geometry';
-import {Color, GrayColor, RGBColor, CMYKColor} from './models';
+import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 import {mat3mul, mat3ident} from './math';
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106

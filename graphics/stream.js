@@ -4,7 +4,7 @@ var lexing = require('lexing');
 var font = require('../font/index');
 var parser_states = require('../parsers/states');
 var geometry_1 = require('./geometry');
-var models_1 = require('./models');
+var color_1 = require('./color');
 var math_1 = require('./math');
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 (function (RenderingMode) {
@@ -148,8 +148,8 @@ were in the constructor, but there are a lot of variables!
 var GraphicsState = (function () {
     function GraphicsState() {
         this.ctMatrix = math_1.mat3ident; // defaults to the identity matrix
-        this.strokeColor = new models_1.Color();
-        this.fillColor = new models_1.Color();
+        this.strokeColor = new color_1.Color();
+        this.fillColor = new color_1.Color();
     }
     GraphicsState.prototype.clone = function () {
         return clone(this, new GraphicsState());
@@ -595,37 +595,37 @@ var DrawingContext = (function () {
     and 1.0 (white).
     */
     DrawingContext.prototype.setStrokeGray = function (gray) {
-        this.graphicsState.strokeColor = new models_1.GrayColor(gray);
+        this.graphicsState.strokeColor = new color_1.GrayColor(gray);
     };
     /**
     `gray g`: Same as G but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillGray = function (gray) {
-        this.graphicsState.fillColor = new models_1.GrayColor(gray);
+        this.graphicsState.fillColor = new color_1.GrayColor(gray);
     };
     /**
     `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
     */
     DrawingContext.prototype.setStrokeColor = function (r, g, b) {
-        this.graphicsState.strokeColor = new models_1.RGBColor(r, g, b);
+        this.graphicsState.strokeColor = new color_1.RGBColor(r, g, b);
     };
     /**
     `r g b rg`: Same as RG but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillColor = function (r, g, b) {
-        this.graphicsState.fillColor = new models_1.RGBColor(r, g, b);
+        this.graphicsState.fillColor = new color_1.RGBColor(r, g, b);
     };
     /**
     > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
     */
     DrawingContext.prototype.setStrokeCMYK = function (c, m, y, k) {
-        this.graphicsState.strokeColor = new models_1.CMYKColor(c, m, y, k);
+        this.graphicsState.strokeColor = new color_1.CMYKColor(c, m, y, k);
     };
     /**
     > `c m y k k`: Same as K but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillCMYK = function (c, m, y, k) {
-        this.graphicsState.fillColor = new models_1.CMYKColor(c, m, y, k);
+        this.graphicsState.fillColor = new color_1.CMYKColor(c, m, y, k);
     };
     // ---------------------------------------------------------------------------
     // Clipping Path Operators (W, W*)
