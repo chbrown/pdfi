@@ -18,7 +18,6 @@
     "async": "*",
     "chalk": "*",
     "jison": "*",
-    "js-yaml": "*",
     "lexing": "*",
     "lodash": "*",
     "loge": "*",
