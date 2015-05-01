@@ -110,7 +110,7 @@ token combiner with some clever zero-width Token('START', 'STACK') markers,
 and Token('END', 'STACK') following all operator matches.
 */
 class StackOperationParser {
-  tokenizer = new lexing.Tokenizer(default_rules, state_rules);
+  tokenizer = new lexing.Tokenizer(default_rules, state_rules, 1024);
   combiner = new lexing.Combiner<any>([
     // lexing.CombinerRule<any, any>[]
     ['STRING', tokens => Token('OPERAND', tokens.map(token => token.value)) ],
