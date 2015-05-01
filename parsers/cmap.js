@@ -1,7 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
-var Token = lexing.Token;
 var Arrays = require('../Arrays');
+var Rule = lexing.MachineRule;
+var Token = lexing.Token;
 function parseHex(hexadecimal) {
     return parseInt(hexadecimal, 16);
 }
@@ -16,21 +17,25 @@ function parseHexstring(hexstring, byteLength) {
 var default_rules = [
     [/^$/, function (match) { return Token('EOF'); }],
     [/^\s+/, function (match) { return null; }],
+    // sections delimiters:
     [/^beginbfrange/, function (match) { return Token('START', 'BFRANGE'); }],
     [/^endbfrange/, function (match) { return Token('END', 'BFRANGE'); }],
     [/^begincodespacerange/, function (match) { return Token('START', 'CODESPACERANGE'); }],
     [/^endcodespacerange/, function (match) { return Token('END', 'CODESPACERANGE'); }],
     [/^beginbfchar/, function (match) { return Token('START', 'BFCHAR'); }],
     [/^endbfchar/, function (match) { return Token('END', 'BFCHAR'); }],
+    // other complex types
     [/^<</, function (match) { return Token('START', 'DICTIONARY'); }],
     [/^>>/, function (match) { return Token('END', 'DICTIONARY'); }],
     [/^\(/, function (match) { return Token('START', 'STRING'); }],
     [/^\)/, function (match) { return Token('END', 'STRING'); }],
     [/^\[/, function (match) { return Token('START', 'ARRAY'); }],
     [/^\]/, function (match) { return Token('END', 'ARRAY'); }],
+    // atomic types
     [/^<([A-Fa-f0-9 ]+)>/, function (match) {
-        return Token('HEXSTRING', match[1].replace(/ /g, ''));
-    }],
+            return Token('HEXSTRING', match[1].replace(/ /g, ''));
+        }],
+    // the rest of this we pretty much ignore
     [/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, function (match) { return Token('NAME', match[1]); }],
     [/^\w+/, function (match) { return Token('COMMAND', match[0]); }],
     [/^-?\d+/, function (match) { return Token('NUMBER', parseInt(match[0], 10)); }],
@@ -38,44 +43,53 @@ var default_rules = [
 ];
 var combiner_rules = [
     ['ARRAY', function (tokens) {
-        return Token('ARRAY', tokens.map(function (token) { return token.value; }));
-    }],
+            return Token('ARRAY', tokens.map(function (token) { return token.value; }));
+        }],
     ['STRING', function (tokens) {
-        return Token('STRING', tokens.map(function (token) { return token.value; }).join(''));
-    }],
+            return Token('STRING', tokens.map(function (token) { return token.value; }).join(''));
+        }],
     ['DICTIONARY', function (tokens) {
-        return Token('DICTIONARY', tokens.map(function (token) { return token.value; }).join(''));
-    }],
+            return Token('DICTIONARY', tokens.map(function (token) { return token.value; }).join(''));
+        }],
     ['CODESPACERANGE', function (tokens) {
-        // tokens: [HEX, HEX]+
-        var values = tokens.map(function (token) { return token.value; });
-        var codespaceranges = [];
-        for (var i = 0; i < values.length; i += 2) {
-            codespaceranges.push(values.slice(i, i + 2));
-        }
-        return Token('CODESPACERANGES', codespaceranges);
-    }],
+            // tokens: [HEX, HEX]+
+            var values = tokens.map(function (token) { return token.value; });
+            var codespaceranges = [];
+            for (var i = 0; i < values.length; i += 2) {
+                codespaceranges.push(values.slice(i, i + 2));
+            }
+            return Token('CODESPACERANGES', codespaceranges);
+        }],
+    // the typical BFRANGE looks like "<0000> <005E> <0020>"
+    // the other kind of BFRANGE looks like "<005F> <0061> [<00660066> <00660069> <00660066006C>]"
     ['BFRANGE', function (tokens) {
-        // tokens: [HEX, HEX, HEX | ARRAY<HEX>]+
-        var values = tokens.map(function (token) { return token.value; });
-        var bfranges = [];
-        for (var i = 0; i < values.length; i += 3) {
-            bfranges.push(values.slice(i, i + 3));
-        }
-        return Token('BFRANGES', bfranges);
-    }],
+            // tokens: [HEX, HEX, HEX | ARRAY<HEX>]+
+            var values = tokens.map(function (token) { return token.value; });
+            var bfranges = [];
+            for (var i = 0; i < values.length; i += 3) {
+                bfranges.push(values.slice(i, i + 3));
+            }
+            return Token('BFRANGES', bfranges);
+        }],
+    // not sure how to parse a bfchar like this one:
+    //    <0411><5168 fffd (fffd is repeated 32 times in total)>
+    // String.fromCharCode(parseInt('D840', 16), parseInt('DC3E', 16))
     ['BFCHAR', function (tokens) {
-        // tokens: [HEX, HEX]+
-        var values = tokens.map(function (token) { return token.value; });
-        var bfchars = [];
-        for (var i = 0; i < values.length; i += 2) {
-            bfchars.push(values.slice(i, i + 2));
-        }
-        return Token('BFCHARS', bfchars);
-    }],
+            // tokens: [HEX, HEX]+
+            var values = tokens.map(function (token) { return token.value; });
+            var bfchars = [];
+            for (var i = 0; i < values.length; i += 2) {
+                bfchars.push(values.slice(i, i + 2));
+            }
+            return Token('BFCHARS', bfchars);
+        }],
 ];
 /**
 Holds a mapping from in-PDF character codes to native Javascript Unicode strings.
+
+I'm not really sure how byteLength is determined.
+
+Critical pair: P13-1145.pdf (byteLength: 2) vs. P13-4012.pdf (byteLength: 1)
 */
 var CMap = (function () {
     function CMap(codeSpaces, mapping) {
@@ -83,22 +97,20 @@ var CMap = (function () {
         if (mapping === void 0) { mapping = []; }
         this.codeSpaces = codeSpaces;
         this.mapping = mapping;
+        this.byteLength = 1;
     }
-    Object.defineProperty(CMap.prototype, "byteLength", {
-        /**
-        0xFF -> 1
-        0xFFFF -> 2
-        0xFFFFFF -> 3
-        0xFFFFFFFF -> 4
-        */
-        get: function () {
-            var maxCharCode = Arrays.max(this.codeSpaces.map(function (codeSpace) { return codeSpace[1]; }));
-            // return Math.ceil(Math.log2(maxCharCode) / 8);
-            return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
-        },
-        enumerable: true,
-        configurable: true
-    });
+    // /**
+    // 0xFF -> 1
+    // 0xFFFF -> 2
+    // 0xFFFFFF -> 3
+    // 0xFFFFFFFF -> 4
+    // */
+    // get byteLength(): number {
+    //   var maxCharCode = Arrays.max(this.codeSpaces.map(codeSpace => codeSpace[1]))
+    //   // var maxCharCode = this.mapping.length;
+    //   // return Math.ceil(Math.log2(maxCharCode) / 8);
+    //   return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
+    // }
     CMap.prototype.addCodeSpace = function (start, end) {
         this.codeSpaces.push([start, end]);
     };
@@ -161,6 +173,7 @@ var CMapParser = (function () {
             }
             else if (token.name === 'BFCHARS') {
                 token.value.forEach(function (tuple) {
+                    cmap.byteLength = tuple[0].length / 2;
                     var from = parseHex(tuple[0]);
                     var to = parseHexstring(tuple[1], 4);
                     cmap.addChar(from, to);

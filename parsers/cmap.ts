@@ -1,9 +1,11 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import lexing = require('lexing');
 import logger = require('loge');
-var Token = lexing.Token;
 
 import Arrays = require('../Arrays');
+
+var Rule = lexing.MachineRule;
+var Token = lexing.Token;
 
 function parseHex(hexadecimal: string): number {
   return parseInt(hexadecimal, 16);
@@ -94,21 +96,27 @@ type Range = [number, number];
 
 /**
 Holds a mapping from in-PDF character codes to native Javascript Unicode strings.
+
+I'm not really sure how byteLength is determined.
+
+Critical pair: P13-1145.pdf (byteLength: 2) vs. P13-4012.pdf (byteLength: 1)
 */
 export class CMap {
+  byteLength: number = 1;
   constructor(public codeSpaces: Range[] = [], public mapping: string[] = []) { }
 
-  /**
-  0xFF -> 1
-  0xFFFF -> 2
-  0xFFFFFF -> 3
-  0xFFFFFFFF -> 4
-  */
-  get byteLength(): number {
-    var maxCharCode = Arrays.max(this.codeSpaces.map(codeSpace => codeSpace[1]))
-    // return Math.ceil(Math.log2(maxCharCode) / 8);
-    return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
-  }
+  // /**
+  // 0xFF -> 1
+  // 0xFFFF -> 2
+  // 0xFFFFFF -> 3
+  // 0xFFFFFFFF -> 4
+  // */
+  // get byteLength(): number {
+  //   var maxCharCode = Arrays.max(this.codeSpaces.map(codeSpace => codeSpace[1]))
+  //   // var maxCharCode = this.mapping.length;
+  //   // return Math.ceil(Math.log2(maxCharCode) / 8);
+  //   return Math.ceil((Math.log(maxCharCode) / Math.log(2)) / 8);
+  // }
 
   addCodeSpace(start: number, end: number): void {
     this.codeSpaces.push([start, end]);
@@ -174,6 +182,7 @@ class CMapParser {
       }
       else if (token.name === 'BFCHARS') {
         token.value.forEach(tuple => {
+          cmap.byteLength = tuple[0].length / 2;
           var from = parseHex(tuple[0]);
           var to = parseHexstring(tuple[1], 4);
           cmap.addChar(from, to);
