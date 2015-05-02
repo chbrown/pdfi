@@ -4,7 +4,6 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-var Arrays_1 = require('../Arrays');
 var geometry_1 = require('./geometry');
 var Container = (function (_super) {
     __extends(Container, _super);
@@ -21,30 +20,12 @@ var Container = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Container.prototype, "medianElementLeftOffset", {
-        /**
-        Returns the median distance between this container's left (inner) bound and
-        the left bound of its elements.
-      
-        This is useful when we want to determine whether a given line is atypical
-        within its specific container.
-      
-        Cached as `this._medianElementLeftOffset`.
-        */
-        get: function () {
-            var _this = this;
-            if (this._medianElementLeftOffset === undefined) {
-                // leftOffsets will all be non-negative by definition; `this.minX` is the
-                // the minimum minX of all of its elements. In other words:
-                // `element.minX >= this.minX` for each `element` in `this.elements`
-                var leftOffsets = this.elements.map(function (element) { return element.minX - _this.minX; });
-                this._medianElementLeftOffset = Arrays_1.median(leftOffsets);
-            }
-            return this._medianElementLeftOffset;
-        },
-        enumerable: true,
-        configurable: true
-    });
+    // set length(length: number) {
+    //   this.elements.length = length;
+    // }
+    Container.prototype.getElements = function () {
+        return this.elements;
+    };
     /**
     Add the given `element`, and extend to contain its Rectangle (if needed).
   
@@ -52,17 +33,26 @@ var Container = (function (_super) {
     */
     Container.prototype.push = function (element) {
         this.elements.push(element);
-        this.minX = Math.min(this.minX, element.minX);
-        this.minY = Math.min(this.minY, element.minY);
-        this.maxX = Math.max(this.maxX, element.maxX);
-        this.maxY = Math.max(this.maxY, element.maxY);
+        this.expandToContain(element);
     };
     /**
     TODO: optimize this by using PointArray (plain `push()` incurs a lot of function calls).
+  
+    This is a mutating method.
     */
     Container.prototype.pushElements = function (elements) {
         var _this = this;
         elements.forEach(function (element) { return _this.push(element); });
+    };
+    /**
+    Add all elements from `other` and expand the current bounds to contain `other`.
+  
+    This is a mutating method.
+    */
+    Container.prototype.merge = function (other) {
+        var _this = this;
+        other.elements.forEach(function (element) { return _this.push(element); });
+        this.expandToContain(other);
     };
     return Container;
 })(geometry_1.Rectangle);

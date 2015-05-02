@@ -1,4 +1,3 @@
-import {median} from '../Arrays';
 import {Rectangle} from './geometry';
 
 export class Container<T extends Rectangle> extends Rectangle {
@@ -11,26 +10,8 @@ export class Container<T extends Rectangle> extends Rectangle {
   get length(): number {
     return this.elements.length;
   }
-
-  private _medianElementLeftOffset: number;
-  /**
-  Returns the median distance between this container's left (inner) bound and
-  the left bound of its elements.
-
-  This is useful when we want to determine whether a given line is atypical
-  within its specific container.
-
-  Cached as `this._medianElementLeftOffset`.
-  */
-  get medianElementLeftOffset(): number {
-    if (this._medianElementLeftOffset === undefined) {
-      // leftOffsets will all be non-negative by definition; `this.minX` is the
-      // the minimum minX of all of its elements. In other words:
-      // `element.minX >= this.minX` for each `element` in `this.elements`
-      var leftOffsets = this.elements.map(element => element.minX - this.minX);
-      this._medianElementLeftOffset = median(leftOffsets);
-    }
-    return this._medianElementLeftOffset;
+  getElements(): T[] {
+    return this.elements;
   }
 
   /**
@@ -40,17 +21,25 @@ export class Container<T extends Rectangle> extends Rectangle {
   */
   push(element: T): void {
     this.elements.push(element);
-
-    this.minX = Math.min(this.minX, element.minX);
-    this.minY = Math.min(this.minY, element.minY);
-    this.maxX = Math.max(this.maxX, element.maxX);
-    this.maxY = Math.max(this.maxY, element.maxY);
+    this.expandToContain(element);
   }
   /**
   TODO: optimize this by using PointArray (plain `push()` incurs a lot of function calls).
+
+  This is a mutating method.
   */
   pushElements(elements: T[]): void {
     elements.forEach(element => this.push(element));
+  }
+
+  /**
+  Add all elements from `other` and expand the current bounds to contain `other`.
+
+  This is a mutating method.
+  */
+  merge(other: Container<T>): void {
+    other.elements.forEach(element => this.push(element));
+    this.expandToContain(other);
   }
 }
 
