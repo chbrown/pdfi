@@ -7,36 +7,10 @@ import font = require('../font/index');
 import models = require('../models');
 import parser_states = require('../parsers/states');
 
-import {Canvas} from './canvas';
+import {DrawingContext, CanvasDrawingContext, RenderingMode, LineCapStyle, LineJoinStyle} from './context';
 import {Point, Size, Rectangle} from './geometry';
 import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 import {mat3mul, mat3ident} from './math';
-
-// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
-export enum RenderingMode {
-  Fill = 0,
-  Stroke = 1,
-  FillThenStroke = 2,
-  None = 3,
-  FillClipping = 4,
-  StrokeClipping = 5,
-  FillThenStrokeClipping = 6,
-  NoneClipping = 7,
-}
-
-// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
-export enum LineCapStyle {
-  Butt = 0,
-  Round = 1,
-  ProjectingSquare = 2,
-}
-
-// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
-export enum LineJoinStyle {
-  Miter = 0,
-  Round = 1,
-  Bevel = 2,
-}
 
 var operator_aliases = {
   // General graphics state
@@ -125,80 +99,40 @@ var operator_aliases = {
     // incomplete: BX, EX
 };
 
-function countSpaces(text: string): number {
-  var matches = text.match(/ /g);
-  return matches ? matches.length : 0;
-}
+export class ContentStreamReader {
+  private context: DrawingContext;
+  private _cached_fonts: {[index: string]: font.Font} = {};
+  constructor(public Resources: models.Resources, public depth = 0) { }
 
-function clone(source: any, target: any = {}): any {
-  for (var key in source) {
-    if (source.hasOwnProperty(key)) {
-      if (source[key] === null || source[key] === undefined) {
-        target[key] = source[key];
-      }
-      else if (source[key].clone) {
-        target[key] = source[key].clone();
-      }
-      else if (Array.isArray(source[key])) {
-        target[key] = source[key].slice();
+  /**
+  Retrieve a Font instance from the Resources' Font dictionary.
+
+  Returns null if the dictionary has no `name` key.
+
+  Caches Fonts (which is pretty hot when rendering a page),
+  even missing ones (as null).
+  */
+  private getFont(): font.Font {
+    var name = this.context.textState.fontName;
+    var cached_font = this._cached_fonts[name];
+    if (cached_font === undefined) {
+      var Font_model = this.Resources.getFontModel(name);
+      if (Font_model.object !== undefined) {
+        var TypedFont_model = font.Font.fromModel(Font_model);
+        TypedFont_model.Name = name;
+        cached_font = this._cached_fonts[name] = TypedFont_model;
       }
       else {
-        target[key] = source[key];
+        cached_font = this._cached_fonts[name] = null;
+        // missing font -- will induce an error down the line pretty quickly
+        throw new Error(`Cannot find font "${name}" in Resources`);
       }
     }
+    return cached_font;
   }
-  return target;
-}
 
-/**
-We need to be able to clone it since we need a copy when we process a
-`pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
-were in the constructor, but there are a lot of variables!
-*/
-class GraphicsState {
-  public ctMatrix: number[] = mat3ident; // defaults to the identity matrix
-  public strokeColor: Color = new Color();
-  public fillColor: Color = new Color();
-  public lineWidth: number;
-  public lineCap: LineCapStyle;
-  public lineJoin: LineJoinStyle;
-  public miterLimit: number;
-  public dashArray: number[];
-  public dashPhase: number;
-  public renderingIntent: string; // not sure if it's actually this type?
-  public flatnessTolerance: number;
-
-  clone(): GraphicsState {
-    return clone(this, new GraphicsState());
-  }
-}
-
-class TextState {
-  charSpacing: number = 0;
-  wordSpacing: number = 0;
-  horizontalScaling: number = 100;
-  leading: number = 0;
-  fontName: string;
-  fontSize: number;
-  renderingMode: RenderingMode = 0;
-  rise: number = 0;
-}
-
-export class DrawingContext {
-  canvas: Canvas;
-  stateStack: GraphicsState[] = [];
-  // the textState persists across BT and ET markers, and can be modified anywhere
-  textState: TextState = new TextState();
-  // the textMatrix and textLineMatrix do not persist between distinct BT ... ET blocks
-  textMatrix: number[];
-  textLineMatrix: number[];
-
-  constructor(public Resources: models.Resources,
-              public graphicsState: GraphicsState = new GraphicsState(),
-              public depth = 0) { }
-
-  render(string_iterable: lexing.StringIterable, canvas: Canvas): void {
-    this.canvas = canvas;
+  render(string_iterable: lexing.StringIterable, context: DrawingContext): void {
+    this.context = context;
 
     var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
 
@@ -214,168 +148,20 @@ export class DrawingContext {
     });
   }
 
-  private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
-    // width_units is positive, but we want to move forward, so tx should be positive too
-    var tx = (((width_units / 1000) * this.textState.fontSize) +
-        (this.textState.charSpacing * chars) +
-        (this.textState.wordSpacing * spaces)) *
-      (this.textState.horizontalScaling / 100.0);
-    this.textMatrix = mat3mul([  1, 0, 0,
-                                 0, 1, 0,
-                                tx, 0, 1], this.textMatrix);
-    return tx;
-  }
-
-  private getTextPosition(): Point {
-    var fs = this.textState.fontSize;
-    var fsh = fs * (this.textState.horizontalScaling / 100.0);
-    var rise = this.textState.rise;
-    var base = [fsh,    0, 0,
-                  0,   fs, 0,
-                  0, rise, 1];
-
-    // TODO: optimize this final matrix multiplication; we only need two of the
-    // entries, and we discard the rest, so we don't need to calculate them in
-    // the first place.
-    var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    var textRenderingMatrix = mat3mul(base, composedTransformation);
-    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
-  }
-
-  private getTextSize(): number {
-    // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-    var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    var font_point = new Point(0, this.textState.fontSize);
-    return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
-  }
-
-  private _cached_fonts: {[index: string]: font.Font} = {};
-
-  /**
-  Retrieve a Font instance from the Resources' Font dictionary.
-
-  Returns null if the dictionary has no `name` key.
-
-  Caches Fonts (which is pretty hot when rendering a page),
-  even missing ones (as null).
-  */
-  private getFont(name: string): font.Font {
-    var cached_font = this._cached_fonts[name];
-    if (cached_font === undefined) {
-      var Font_model = this.Resources.getFontModel(name);
-      if (Font_model.object !== undefined) {
-        var TypedFont_model = font.Font.fromModel(Font_model);
-        TypedFont_model.Name = name;
-        cached_font = this._cached_fonts[name] = TypedFont_model;
-      }
-      else {
-        cached_font = this._cached_fonts[name] = null;
-      }
-    }
-    return cached_font;
-  }
-
-  private _renderGlyphs(bytes: number[]) {
-    var font = this.getFont(this.textState.fontName);
-    // the Font instance handles most of the character code resolution
-    if (font === null) {
-      throw new Error(`Cannot find font "${this.textState.fontName}" in Resources`);
-    }
-    var origin = this.getTextPosition();
-    var fontSize = this.getTextSize();
-
-    var string = font.decodeString(bytes);
-    var width_units = font.measureString(bytes);
-    var nchars = string.length;
-    var nspaces = countSpaces(string);
-
-    // adjust the text matrix accordingly (but not the text line matrix)
-    // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
-    this.advanceTextMatrix(width_units, nchars, nspaces);
-    // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
-    var width = this.getTextPosition().x - origin.x;
-    var height = Math.ceil(fontSize) | 0;
-    var size = new Size(width, height);
-
-    this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
-  }
-
-  private _renderTextArray(array: Array<number[] | number>) {
-    array.forEach(item => {
-      // each item is either a string (character code array) or a number
-      if (Array.isArray(item)) {
-        // if it's a character array, convert it to a unicode string and render it
-        var bytes = <number[]>item;
-        this._renderGlyphs(bytes);
-      }
-      else if (typeof item === 'number') {
-        // negative numbers indicate forward (rightward) movement. if it's a
-        // very negative number, it's like inserting a space. otherwise, it
-        // only signifies a small manual spacing hack.
-        this.advanceTextMatrix(-item, 0, 0);
-      }
-      else {
-        throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
-      }
-    })
-  }
-
-  /**
-  When the Do operator is applied to a form XObject, a conforming reader shall perform the following tasks:
-  a) Saves the current graphics state, as if by invoking the q operator
-  b) Concatenates the matrix from the form dictionary’s Matrix entry with the current transformation matrix (CTM)
-  c) Clips according to the form dictionary’s BBox entry
-  d) Paints the graphics objects specified in the form’s content stream
-  e) Restores the saved graphics state, as if by invoking the Q operator
-  Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
-  */
-  private _drawObject(name: string) {
-    // create a nested drawing context and use that
-    var XObjectStream = this.Resources.getXObject(name);
-    if (XObjectStream === undefined) {
-      throw new Error(`Cannot draw undefined XObject: ${name}`);
-    }
-
-    if (this.depth > 3) {
-      logger.warn(`Ignoring "${name} Do" command (embedded XObject is too deep; depth = ${this.depth + 1})`);
-    }
-    else if (XObjectStream.Subtype == 'Form') {
-      logger.silly(`Drawing XObject: ${name}`);
-
-      // a) push state
-      this.pushGraphicsState();
-      // b) concatenate the dictionary.Matrix
-      if (XObjectStream.dictionary.Matrix) {
-        this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
-      }
-      // c) clip according to the dictionary.BBox value: meh
-      // d) paint the XObject's content stream
-      var stream_string = XObjectStream.buffer.toString('binary');
-      var stream_string_iterable = new lexing.StringIterator(stream_string);
-      var context = new DrawingContext(XObjectStream.Resources, this.graphicsState, this.depth + 1); // new GraphicsState()
-      context.render(stream_string_iterable, this.canvas);
-      // e) pop the graphics state
-      this.popGraphicsState();
-    }
-    else {
-      logger.silly(`Ignoring "${name} Do" command (embedded XObject has Subtype "${XObjectStream.Subtype}")`);
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Special graphics states (q, Q, cm)
   /**
   > `q`: Save the current graphics state on the graphics state stack (see 8.4.2).
   */
   pushGraphicsState() {
-    this.stateStack.push(this.graphicsState.clone());
+    this.context.stateStack.push(this.context.graphicsState.clone());
   }
   /**
   > `Q`: Restore the graphics state by removing the most recently saved state
   > from the stack and making it the current state (see 8.4.2).
   */
   popGraphicsState() {
-    this.graphicsState = this.stateStack.pop();
+    this.context.graphicsState = this.context.stateStack.pop();
   }
   /**
   > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -395,9 +181,9 @@ export class DrawingContext {
   setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
     var newCTMatrix = mat3mul([a, b, 0,
                                c, d, 0,
-                               e, f, 1], this.graphicsState.ctMatrix);
+                               e, f, 1], this.context.graphicsState.ctMatrix);
     // logger.info('ctMatrix = %j', newCTMatrix);
-    this.graphicsState.ctMatrix = newCTMatrix;
+    this.context.graphicsState.ctMatrix = newCTMatrix;
   }
   // ---------------------------------------------------------------------------
   // XObjects (Do)
@@ -407,9 +193,52 @@ export class DrawingContext {
   > associated value shall be a stream whose Type entry, if present, is XObject.
   > The effect of Do depends on the value of the XObject's Subtype entry, which
   > may be Image, Form, or PS.
+
+  When the Do operator is applied to a form XObject, a conforming reader shall perform the following tasks:
+  a) Saves the current graphics state, as if by invoking the q operator
+  b) Concatenates the matrix from the form dictionary’s Matrix entry with the current transformation matrix (CTM)
+  c) Clips according to the form dictionary’s BBox entry
+  d) Paints the graphics objects specified in the form’s content stream
+  e) Restores the saved graphics state, as if by invoking the Q operator
+  Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
   */
   drawObject(name: string) {
-    this._drawObject(name);
+    var XObjectStream = this.Resources.getXObject(name);
+    if (XObjectStream === undefined) {
+      throw new Error(`Cannot draw undefined XObject: ${name}`);
+    }
+
+    var object_depth = this.depth + 1;
+    if (object_depth >= 5) {
+      logger.warn(`Ignoring "${name} Do" command; embedded XObject is too deep; depth = ${object_depth}`);
+      return;
+    }
+
+    if (XObjectStream.Subtype !== 'Form') {
+      logger.silly(`Ignoring "${name} Do" command; embedded XObject has Subtype "${XObjectStream.Subtype}"`);
+      return;
+    }
+
+    logger.silly(`Drawing XObject: ${name}`);
+    // create a nested drawing context and use that
+
+    // a) copy the current state and push it on top of the state stack
+    this.pushGraphicsState();
+    // b) concatenate the dictionary.Matrix onto the graphics state
+    if (XObjectStream.dictionary.Matrix) {
+      this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
+    }
+    // c) clip according to the dictionary.BBox value
+    // ...meh, don't worry about that
+    // d) paint the XObject's content stream
+    var stream_string = XObjectStream.buffer.toString('binary');
+    var stream_string_iterable = new lexing.StringIterator(stream_string);
+    // var stream_string_iterable = lexing.StringIterator.fromBuffer(XObjectStream.buffer, 'binary');
+    var reader = new ContentStreamReader(XObjectStream.Resources, this.depth + 1);
+    reader.render(stream_string_iterable, this.context);
+    // e) pop the graphics state
+    this.popGraphicsState();
+
   }
   // ---------------------------------------------------------------------------
   // General graphics state (w, J, j, M, d, ri, i, gs)
@@ -417,39 +246,39 @@ export class DrawingContext {
   > `lineWidth w`: Set the line width in the graphics state.
   */
   setLineWidth(lineWidth: number) {
-    this.graphicsState.lineWidth = lineWidth;
+    this.context.graphicsState.lineWidth = lineWidth;
   }
   /**
   > `lineCap J`: Set the line cap style in the graphics state.
   */
   setLineCap(lineCap: LineCapStyle) {
-    this.graphicsState.lineCap = lineCap;
+    this.context.graphicsState.lineCap = lineCap;
   }
   /**
   > `lineJoin j`: Set the line join style in the graphics state.
   */
   setLineJoin(lineJoin: LineJoinStyle) {
-    this.graphicsState.lineJoin = lineJoin;
+    this.context.graphicsState.lineJoin = lineJoin;
   }
   /**
   > `miterLimit M`: Set the miter limit in the graphics state.
   */
   setMiterLimit(miterLimit: number) {
-    this.graphicsState.miterLimit = miterLimit;
+    this.context.graphicsState.miterLimit = miterLimit;
   }
   /**
   > `dashArray dashPhase d`: Set the line dash pattern in the graphics state.
   */
   setDashPattern(dashArray: number[], dashPhase: number) {
-    this.graphicsState.dashArray = dashArray;
-    this.graphicsState.dashPhase = dashPhase;
+    this.context.graphicsState.dashArray = dashArray;
+    this.context.graphicsState.dashPhase = dashPhase;
   }
   /**
   > `intent ri`: Set the colour rendering intent in the graphics state.
   > (PDF 1.1)
   */
   setRenderingIntent(intent: string) {
-    this.graphicsState.renderingIntent = intent;
+    this.context.graphicsState.renderingIntent = intent;
   }
   /**
   > `flatness i`: Set the flatness tolerance in the graphics state. flatness is
@@ -457,7 +286,7 @@ export class DrawingContext {
   > device's default flatness tolerance.
   */
   setFlatnessTolerance(flatness: number) {
-    this.graphicsState.flatnessTolerance = flatness;
+    this.context.graphicsState.flatnessTolerance = flatness;
   }
   /**
   > `dictName gs`: Set the specified parameters in the graphics state.
@@ -629,37 +458,37 @@ export class DrawingContext {
   and 1.0 (white).
   */
   setStrokeGray(gray: number) {
-    this.graphicsState.strokeColor = new GrayColor(gray);
+    this.context.graphicsState.strokeColor = new GrayColor(gray);
   }
   /**
   `gray g`: Same as G but used for nonstroking operations.
   */
   setFillGray(gray: number) {
-    this.graphicsState.fillColor = new GrayColor(gray);
+    this.context.graphicsState.fillColor = new GrayColor(gray);
   }
   /**
   `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
   */
   setStrokeColor(r: number, g: number, b: number) {
-    this.graphicsState.strokeColor = new RGBColor(r, g, b);
+    this.context.graphicsState.strokeColor = new RGBColor(r, g, b);
   }
   /**
   `r g b rg`: Same as RG but used for nonstroking operations.
   */
   setFillColor(r: number, g: number, b: number) {
-    this.graphicsState.fillColor = new RGBColor(r, g, b);
+    this.context.graphicsState.fillColor = new RGBColor(r, g, b);
   }
   /**
   > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
   */
   setStrokeCMYK(c: number, m: number, y: number, k: number) {
-    this.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
+    this.context.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
   }
   /**
   > `c m y k k`: Same as K but used for nonstroking operations.
   */
   setFillCMYK(c: number, m: number, y: number, k: number) {
-    this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
+    this.context.graphicsState.fillColor = new CMYKColor(c, m, y, k);
   }
   // ---------------------------------------------------------------------------
   // Clipping Path Operators (W, W*)
@@ -679,11 +508,11 @@ export class DrawingContext {
   // Text objects (BT, ET)
   /** `BT` */
   startTextBlock() {
-    this.textMatrix = this.textLineMatrix = mat3ident;
+    this.context.textMatrix = this.context.textLineMatrix = mat3ident;
   }
   /** `ET` */
   endTextBlock() {
-    this.textMatrix = this.textLineMatrix = null;
+    this.context.textMatrix = this.context.textLineMatrix = null;
   }
   // ---------------------------------------------------------------------------
   // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
@@ -693,7 +522,7 @@ export class DrawingContext {
   > be used by the Tj, TJ, and ' operators. Initial value: 0.
   */
   setCharSpacing(charSpace: number) {
-    this.textState.charSpacing = charSpace;
+    this.context.textState.charSpacing = charSpace;
   }
   /**
   > `wordSpace Tw`: Set the word spacing, Tw, to wordSpace, which shall be a
@@ -701,7 +530,7 @@ export class DrawingContext {
   > by the Tj, TJ, and ' operators. Initial value: 0.
   */
   setWordSpacing(wordSpace: number) {
-    this.textState.wordSpacing = wordSpace;
+    this.context.textState.wordSpacing = wordSpace;
   }
   /**
   > `scale Tz`: Set the horizontal scaling, Th, to (scale ÷ 100). scale shall
@@ -709,7 +538,7 @@ export class DrawingContext {
   > 100 (normal width).
   */
   setHorizontalScale(scale: number) { // a percentage
-    this.textState.horizontalScaling = scale;
+    this.context.textState.horizontalScaling = scale;
   }
   /**
   > `leading TL`: Set the text leading, Tl, to leading, which shall be a number
@@ -717,7 +546,7 @@ export class DrawingContext {
   > the T*, ', and " operators. Initial value: 0.
   */
   setLeading(leading: number) {
-    this.textState.leading = leading;
+    this.context.textState.leading = leading;
   }
   /**
   > `font size Tf`: Set the text font, Tf, to font and the text font size,
@@ -728,21 +557,21 @@ export class DrawingContext {
   > shown.
   */
   setFont(font: string, size: number) {
-    this.textState.fontName = font;
-    this.textState.fontSize = size;
+    this.context.textState.fontName = font;
+    this.context.textState.fontSize = size;
   }
   /**
   > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
   > be an integer. Initial value: 0.
   */
   setRenderingMode(render: RenderingMode) {
-    this.textState.renderingMode = render;
+    this.context.textState.renderingMode = render;
   }
   /**
   > `rise Ts`: Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
   */
   setRise(rise: number) {
-    this.textState.rise = rise;
+    this.context.textState.rise = rise;
   }
   // ---------------------------------------------------------------------------
   // Text positioning operators (Td, TD, Tm, T*)
@@ -756,8 +585,8 @@ export class DrawingContext {
     // y is usually 0, and never positive in normal text.
     var newTextMatrix = mat3mul([1, 0, 0,
                                  0, 1, 0,
-                                 x, y, 1], this.textLineMatrix);
-    this.textMatrix = this.textLineMatrix = newTextMatrix;
+                                 x, y, 1], this.context.textLineMatrix);
+    this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -784,7 +613,7 @@ export class DrawingContext {
     var newTextMatrix = [a, b, 0,
                          c, d, 0,
                          e, f, 1];
-    this.textMatrix = this.textLineMatrix = newTextMatrix;
+    this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `T*`: Move to the start of the next line. This operator has the same effect
@@ -794,7 +623,7 @@ export class DrawingContext {
   > the y coordinate.
   */
   newLine() {
-    this.adjustCurrentPosition(0, -this.textState.leading);
+    this.adjustCurrentPosition(0, -this.context.textState.leading);
   }
   // ---------------------------------------------------------------------------
   // Text showing operators (Tj, TJ, ', ")
@@ -807,7 +636,7 @@ export class DrawingContext {
   textState.
   */
   showString(string: number[]) {
-    this._renderGlyphs(string);
+    this.context.drawGlyphs(string, this.getFont());
   }
   /**
   > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -826,7 +655,7 @@ export class DrawingContext {
   - small positive amounts equate to kerning hacks
   */
   showStrings(array: Array<number[] | number>) {
-    this._renderTextArray(array);
+    this.context.drawTextArray(array, this.getFont());
   }
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
