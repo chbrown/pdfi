@@ -82,6 +82,38 @@ var Rectangle = (function () {
         return "[" + this.minX.toFixed(digits) + ", " + this.minY.toFixed(digits) + ", " + this.maxX.toFixed(digits) + ", " + this.maxY.toFixed(digits) + "]";
     };
     /**
+    Measure the distance from this Rectangle to a different Rectangle, using the
+    nearest two corners. If there is any overlap in either the x-axis or y-axis
+    (including if two sides are exactly adjacent), it will return 0 for that
+    component. However, there is only true overlap if both components are 0.
+  
+    Returns a tuple: [x_axis_distance, y_axis_distance]
+    */
+    Rectangle.prototype.distance = function (other) {
+        // 1) measure x-axis displacement
+        var dx = 0; // default to the overlap case
+        if (other.maxX < this.minX) {
+            // other Rectangle is completely disjoint to the left
+            dx = this.minX - other.maxX;
+        }
+        else if (other.minX > this.maxX) {
+            // other Rectangle is completely disjoint to the right
+            dx = other.minX - this.maxX;
+        }
+        // 2) measure y-axis displacement
+        var dy = 0;
+        if (other.maxY < this.minY) {
+            // other Rectangle is completely disjoint above
+            dy = this.minY - other.maxY;
+        }
+        else if (other.minY > this.maxY) {
+            // other Rectangle is completely disjoint below
+            dy = other.minY - this.maxY;
+        }
+        // 3) return a tuple
+        return [dx, dy];
+    };
+    /**
     Returns true if this fully contains the other rectangle.
   
     The calculation is inclusive; i.e., this.containsRectangle(this) === true
@@ -89,6 +121,17 @@ var Rectangle = (function () {
     Rectangle.prototype.containsRectangle = function (other) {
         return (this.minX <= other.minX) && (this.minY <= other.minY) &&
             (this.maxX >= other.maxX) && (this.maxY >= other.maxY);
+    };
+    /**
+    Adjust the bounds to contain `other`.
+  
+    This is a mutating method.
+    */
+    Rectangle.prototype.expandToContain = function (other) {
+        this.minX = Math.min(this.minX, other.minX);
+        this.minY = Math.min(this.minY, other.minY);
+        this.maxX = Math.max(this.maxX, other.maxX);
+        this.maxY = Math.max(this.maxY, other.maxY);
     };
     return Rectangle;
 })();
