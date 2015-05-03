@@ -150,17 +150,18 @@ var PDF = (function () {
   
     If `section_names` is empty, return all sections.
     */
-    PDF.prototype.getDocument = function (section_names) {
-        if (section_names === void 0) { section_names = []; }
-        var lines = Arrays.flatMap(this.pages, function (page) {
-            var sections = graphics.renderPage(page).getLineContainers();
-            var selected_sections = sections.filter(function (section) {
-                return section_names.length === 0 || section_names.indexOf(section.name) > -1;
+    PDF.prototype.getDocument = function (minimumElementsPerLayoutComponent) {
+        if (minimumElementsPerLayoutComponent === void 0) { minimumElementsPerLayoutComponent = 2; }
+        var containers = Arrays.flatMap(this.pages, function (page) {
+            var documentCanvas = graphics.renderPage(page);
+            // autodetectLayout(): Container<TextSpan>[]
+            return documentCanvas.autodetectLayout().filter(function (container) {
+                return container.length >= minimumElementsPerLayoutComponent;
             });
-            var selected_sections_lines = Arrays.flatMap(selected_sections, function (section) { return section.lines; });
-            return selected_sections_lines;
         });
-        return new document.Document(lines);
+        // containers is now an array of basic Container<TextSpan>'s for the whole
+        // PDF, but now each TextSpan is also aware of its container
+        return document.documentFromContainers(containers);
     };
     PDF.prototype.renderPage = function (page_index) {
         var page = this.pages[page_index];

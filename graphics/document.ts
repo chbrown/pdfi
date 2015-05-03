@@ -4,383 +4,100 @@ import lexing = require('lexing');
 import unorm = require('unorm');
 
 import Arrays = require('../Arrays');
-import models = require('./models');
+import {Container, TextSpan} from './models';
 import {Rectangle} from './geometry';
 import {Canvas} from './canvas';
 
-export class DocumentCanvas extends Canvas {
-
-  /**
-  We define a header as the group of spans at the top separated from the rest
-  of the text by at least `min_header_gap`, but which is at most
-  `max_header_height` high.
-  */
-  getHeader(max_header_height = 50, min_header_gap = 10): Rectangle {
-    // sort in ascending order. the sort occurs in-place but the map creates a
-    // new array anyway (though it's shallow; the points are not copies)
-    var spans = this.spans.slice().sort((a, b) => a.minY - b.minY);
-    // var boxes = this.spans.map(span => span.box).sort((a, b) => a.minY - b.minY);
-    // the header starts as a page-wide sliver at the top of the highest span box
-    var header_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
-    var header_maxY = header_minY;
-    // now we read glom through the following points until we hit one that's far
-    // enough away, only shifting header.maxY as needed.
-    for (var i = 0, next_lower_span: models.TextSpan; (next_lower_span = spans[i]); i++) {
-      var dY = next_lower_span.minY - header_maxY;
-      if (dY > min_header_gap) {
-        break;
-      }
-      // set the new lower bound to the bottom of the newly added box
-      header_maxY = next_lower_span.maxY;
-      // if we've surpassed how high we decided the header can get, give up
-      if ((header_maxY - header_minY) > max_header_height) {
-        // set the header back to the default sliver at the top of the page
-        header_maxY = this.outerBounds.minY;
-        break;
-      }
+/**
+We can't throw out empty spans entirely, but we can keep them from affecting
+the bounds.
+*/
+export class TextSpanContainer extends Container<TextSpan> {
+  push(element: TextSpan): void {
+    this.elements.push(element);
+    // if (element.string.match(/\S/)) {
+    if (element.string.trim().length > 0) {
+      this.expandToContain(element);
     }
-    return new Rectangle(this.outerBounds.minX, this.outerBounds.minY, this.outerBounds.maxX, header_maxY);
   }
+}
 
-  /**
-  The footer can extend at most `max_footer_height` from the bottom of the page,
-  and must have a gap of `min_footer_gap` between it and the rest of the text.
-  */
-  getFooter(max_footer_height = 50, min_footer_gap = 10): Rectangle {
-    // sort in descending order -- lowest boxes first
-    var spans = this.spans.slice().sort((a, b) => b.maxY - a.maxY);
-    // var boxes = this.spans.map(span => span.box).sort((a, b) => b.maxY - a.maxY);
-    // default the footer to a box as high as the lowest span on the page.
-    var footer_minY = (spans.length > 0) ? spans[0].minY : this.outerBounds.minY;
-    var footer_maxY = footer_minY;
-    // now we read glom through each box from the bottom until we hit one that's far enough away
-    // as we go through, we adjust ONLY footer.minY
-    for (var i = 1, next_higher_span: models.TextSpan; (next_higher_span = spans[i]); i++) {
-      // dY is the distance from the highest point on the current footer to the
-      // bottom of the next highest rectangle on the page
-      var dY = footer_minY - next_higher_span.maxY;
-      if (dY > min_footer_gap) {
-        // okay, the text above is too far away to merge into the footer, we're done
-        break;
+/**
+Group contiguous elements into containers. Rough first pass.
+
+Reasonable (?) defaults are:
+  threshold_dx = 20
+  threshold_dy = 5
+*/
+function groupContiguousTextSpans(elements: TextSpan[],
+                                  threshold_dx: number,
+                                  threshold_dy: number): Container<TextSpan>[] {
+  var containers: TextSpanContainer[] = [];
+  var currentContainer: TextSpanContainer;
+  elements.forEach(element => {
+    var [dx, dy] = currentContainer ? currentContainer.distance(element) : [Infinity, Infinity];
+    // large dx / dy indicate that the current element is far from the
+    // currentContainer, meaning we should initialize a new container
+    if (dx > threshold_dx || dy > threshold_dy) {
+      // flush current container
+      if (currentContainer) {
+        containers.push(currentContainer);
       }
-      // set the new footer upper bound
-      footer_minY = next_higher_span.minY;
-      // if we've surpassed how high we decided the footer can get, give up
-      if ((footer_maxY - footer_minY) > max_footer_height) {
-        // set the footer back to the sliver at the bottom of the page
-        footer_minY = this.outerBounds.maxY;
-        break;
-      }
+      currentContainer = new TextSpanContainer();
     }
-    return new Rectangle(this.outerBounds.minX, footer_minY, this.outerBounds.maxX, this.outerBounds.maxY);
+    // TextSpan's optional `layoutContainer` field gets set here
+    element.layoutContainer = currentContainer;
+    currentContainer.push(element);
+  });
+  // flush final container if it exists --- if this.spans is empty,
+  // currentContainer will still be undefined
+  if (currentContainer) {
+    containers.push(currentContainer);
   }
+  return containers;
+}
 
-  /**
-  The spans collected in each section should be in reading order (we're
-  currently assuming that the natural order is proper reading order).
-  */
-  getLineContainers(): NamedLineContainer[] {
-    var header = this.getHeader();
-    var footer = this.getFooter();
-    // Excluding the header and footer, find a vertical split between the spans,
-    // and return an Array of Rectangles bounding each column.
-    // For now, split into two columns down the middle of the page.
-    var contents = new Rectangle(this.outerBounds.minX, header.maxY, this.outerBounds.maxX, footer.minY);
-    var col1 = new Rectangle(contents.minX, contents.minY, contents.midX, contents.maxY);
-    var col2 = new Rectangle(contents.midX, contents.minY, contents.maxX, contents.maxY);
-    // okay, we've got the bounding boxes, now we need to find the spans they contain
-    var named_page_sections = [
-      new NamedPageSection('header', header),
-      new NamedPageSection('footer', footer),
-      new NamedPageSection('col1', col1),
-      new NamedPageSection('col2', col2),
-    ];
-    var outside_page_section = new NamedPageSection('outside', this.outerBounds);
+/**
+Exhaustively merge proximal containers.
 
-    // now loop through the spans and put them in the appropriate rectangles
-    this.spans.forEach(span => {
-      var outside = true;
-      named_page_sections.forEach(section => {
-        if (section.outerBounds.containsRectangle(span)) {
-          outside = false;
-          section.textSpans.push(span)
+Mutates `containers` in-place.
+*/
+function mergeAdjoiningContainers<T extends Rectangle>(containers: Container<T>[],
+                                                       threshold_dx: number,
+                                                       threshold_dy: number): Container<T>[] {
+  var mergedContainers: Container<T>[] = [];
+  while (containers.length > 0) {
+    var currentContainer = containers.shift()
+    do {
+      var initialLength = containers.length;
+      // only look at subsequent containers (distance is transitive)
+      containers = containers.filter(otherContainer => {
+        var [dx, dy] = currentContainer.distance(otherContainer);
+        if (dx < threshold_dx && dy < threshold_dy) {
+          // okay, other container is close enough, merge it
+          currentContainer.merge(otherContainer);
+          // remove otherContainer from containers by returning false
+          return false;
         }
+        return true;
       });
-      if (outside) {
-        outside_page_section.textSpans.push(span);
-      }
-    });
-    named_page_sections.push(outside_page_section);
-
-    return named_page_sections.map(named_page_section => {
-      return NamedLineContainer.fromTextSpans(named_page_section.name, named_page_section.textSpans);
-    });
+      // only break out of the loop if there were no merges
+    } while (containers.length < initialLength);
+    mergedContainers.push(currentContainer);
   }
-
-  getPartialDocument(section_names: string[]): Document {
-    var sections = this.getLineContainers().filter(section => section_names.indexOf(section.name) > -1)
-    var lines = Arrays.flatMap(sections, section => section.lines);
-    return new Document(lines);
-  }
-
-  toJSON() {
-    return {
-      // native properties
-      spans: this.spans,
-      outerBounds: this.outerBounds,
-      // getters
-      sections: this.getLineContainers(),
-    };
-  }
-}
-
-export class NamedLineContainer extends models.NamedContainer<Line> {
-  constructor(name: string) { super(name) }
-
-  get lines(): Line[] {
-    return this.elements;
-  }
-
-  /**
-  Groups the container's elements (TextSpans) into an array of Line instances;
-  one for each line of text in the PDF.
-
-  A 'Section' (e.g., a column) of text can, by definition, be divided into
-  discrete lines, so this is a reasonable place to do line processing.
-
-  * `line_gap` is the the maximum distance between lines before we consider the
-    next line a new paragraph.
-  */
-  static fromTextSpans(name: string, textSpans: models.TextSpan[], line_gap = -5): NamedLineContainer {
-    var namedLineContainer = new NamedLineContainer(name);
-    var lines: Line[] = [];
-    var currentLine: Line = new Line(namedLineContainer);
-    textSpans.forEach(currentSpan => {
-      var dY = -1000;
-      if (currentLine.length > 0) {
-        // dY is the distance from bottom of the current (active) line to the
-        // top of the next span (this should come out negative if the span is
-        // on the same line as the last one)
-        dY = currentSpan.minY - currentLine.maxY;
-      }
-      if (dY > line_gap) {
-        // if the new span does not vertically overlap with the previous one
-        // at all, we consider it a new line
-        lines.push(currentLine);
-        currentLine = new Line(namedLineContainer);
-      }
-      // otherwise it's a span on the same line
-      currentLine.push(currentSpan);
-    });
-    // finish up
-    lines.push(currentLine);
-    // call pushElements here so that the mass insertion can be optimized
-    namedLineContainer.pushElements(lines);
-    return namedLineContainer;
-  }
-
-  toJSON() {
-    return {
-      // native properties
-      name: this.name,
-      elements: this.elements,
-      // getters
-      // lines: this.lines,
-    };
-  }
+  return mergedContainers;
 }
 
 /**
-This is for the first pass of collecting all of the TextSpans that lie inside
-a bounding box.
+Returns the median distance between this container's left (inner) bound and
+the left bound of its elements.
 
-We don't need to know the bounding rectangle of the TextSpans, so we don't
-inherit from models.NamedContainer (which saves some time recalculating the spans).
+This is useful when we want to determine whether a given line is atypical
+within its specific container.
 */
-export class NamedPageSection {
-  constructor(public name: string,
-              public outerBounds: Rectangle,
-              public textSpans: models.TextSpan[] = []) { }
-}
-
-export class Line extends models.Container<models.TextSpan> {
-  constructor(protected container: NamedLineContainer,
-              elements: models.TextSpan[] = []) { super(elements) }
-
-  get textSpans(): models.TextSpan[] {
-    return this.elements;
-  }
-
-  get leftOffset(): number {
-    return this.minX - this.container.minX;
-  }
-
-  get containerMedianElementLeftOffset(): number {
-    return this.container.medianElementLeftOffset;
-  }
-
-  toString(min_space_width = 1): string {
-    var previousSpan: models.TextSpan = null;
-    return this.elements.map(currentSpan => {
-      // presumably all the spans have approximately the same Y values
-      // dX measures the distance between the right bound of the previous span
-      // and the left bound of the current one. It may be negative.
-      var dX = -1000;
-      if (previousSpan) {
-        dX = currentSpan.minX - previousSpan.maxX;
-      }
-      // save the previous span for future reference
-      previousSpan = currentSpan;
-      // if it's far enough away (horizontally) from the last box, we add a space
-      return (dX > min_space_width) ? (' ' + currentSpan.string) : currentSpan.string;
-    }).join('').trim();
-  }
-
-  toJSON() {
-    return {
-      // native properties
-      maxX: this.maxX,
-      maxY: this.maxY,
-      minX: this.minX,
-      minY: this.minY,
-      // elements: this.elements, // exclude models.Container#elements for the sake of brevity
-      // container: this.container, // exclude Line#container to avoid circularity
-      // methods
-      string: this.toString(),
-    };
-  }
-}
-
-export class Paragraph extends models.Container<Line> {
-  toString(): string {
-    return joinLines(this.elements);
-  }
-  toJSON() {
-    return {
-      string: this.toString(),
-    }
-  }
-}
-
-export class Document {
-  public normalFontSize: number;
-  public meanFontSize: number;
-  /**
-  `lines` should be only the content of the document (not from the header / footer)
-  */
-  constructor(private lines: Line[]) {
-    // Reduce all the PDF's pages to a single array of Lines. Each Line keeps
-    // track of the container it belongs to, so that we can measure offsets
-    // later.
-    var fontSizes = Arrays.flatMap(this.lines, line => {
-      return line.textSpans.map(textSpan => textSpan.fontSize);
-    });
-    this.meanFontSize = Arrays.mean(fontSizes);
-    // use the 75% quartile (Arrays.quantile() returns the endpoints, too) as the normalFontSize
-    this.normalFontSize = Arrays.quantile(fontSizes, 4)[3];
-  }
-
-  getSections(): DocumentSection[] {
-    var sections: DocumentSection[] = [];
-    var currentSection = new DocumentSection();
-    this.lines.forEach(currentLine => {
-      var line_fontSize = Arrays.mean(currentLine.textSpans.map(textSpan => textSpan.fontSize));
-      // new sections can be distinguished by larger sizes
-      if (line_fontSize > (this.normalFontSize + 0.5)) {
-        // only start a new section if the current section has some content
-        if (currentSection.contentLines.length > 0) {
-          sections.push(currentSection);
-          currentSection = new DocumentSection();
-        }
-        currentSection.headerLines.push(currentLine);
-      }
-      else {
-        currentSection.contentLines.push(currentLine);
-      }
-    });
-    // flush final section
-    sections.push(currentSection);
-    return sections;
-  }
-
-  toJSON() {
-    return {
-      // native properties
-      lines: this.lines,
-      normalFontSize: this.normalFontSize,
-      meanFontSize: this.meanFontSize,
-      // getters
-      sections: this.getSections(),
-    };
-  }
-}
-/**
-Despite being an array, `headerLines` will most often be 1-long.
-*/
-export class DocumentSection  {
-  constructor(public headerLines: Line[] = [], public contentLines: Line[] = []) { }
-
-  get header(): string {
-    return this.headerLines.map(line => line.toString()).join('\n');
-  }
-  get content(): string {
-    return this.contentLines.map(line => line.toString()).join('\n');
-  }
-
-  /**
-  Paragraphs.
-
-  Paragraphs are distinguished by an unusual first line. This initial line is
-  unusual compared to preceding lines, as well as subsequent lines.
-
-  If paragraphs are very short, it can be hard to distinguish which are the start
-  lines and which are the end lines simply by shape, since paragraphs may have
-  normal positive indentation, or have hanging indentation.
-
-  Each Line keeps track of the container it belongs to, so that we can measure
-  offsets later.
-  */
-  getParagraphs(min_indent = 8, min_gap = 5): Paragraph[] {
-    // offsets will all be non-negative
-    // var leftOffsets = this.contentLines.map(line => line.minX - line.container.minX);
-    // var medianLeftOffset = Arrays.median(leftOffsets);
-    var paragraphs: Paragraph[] = [];
-    var currentParagraph = new Paragraph();
-    // we can't use currentParagraph.maxY because paragraphs may span multiple columns
-    var previousLine: Line = null;
-    this.contentLines.forEach(currentLine => {
-      // new paragraphs can be distinguished by left offset
-      var diff_offsetX = Math.abs(currentLine.containerMedianElementLeftOffset - currentLine.leftOffset);
-      // or by vertical gaps
-      var dY = -1000;
-      if (previousLine) {
-        dY = currentLine.minY - previousLine.maxY;
-      }
-      if (currentParagraph.length > 0 && ((diff_offsetX > min_indent) || (dY > min_gap))) {
-        paragraphs.push(currentParagraph);
-        currentParagraph = new Paragraph();
-      }
-      currentParagraph.push(currentLine);
-      previousLine = currentLine;
-    });
-    // finish up
-    paragraphs.push(currentParagraph);
-    return paragraphs;
-  }
-
-  toJSON() {
-    return {
-      // native properties
-      headerLines: this.headerLines,
-      contentLines: this.contentLines,
-      // getters
-      header: this.header,
-      content: this.content,
-      // getters
-      paragraphs: this.getParagraphs(),
-    };
-  }
-
+function medianLeftOffset(container: Rectangle, elements: Rectangle[]): number {
+  var leftOffsets = elements.map(element => element.minX - container.minX);
+  return Arrays.median(leftOffsets);
 }
 
 /**
@@ -389,18 +106,20 @@ the next line directly; otherwise, join them with a space.
 
 Render each Paragraph into a single string with any pre-existing EOL
 markers converted to spaces, and any control characters stripped out.
+
+TODO: look at the whole document / a general corpus for indicators of
+intentionally hyphenated words.
 */
-export function joinLines(lines: Line[]): string {
+export function joinLines(lines: string[]): string {
   var strings = lines.map(line => {
-    var string = line.toString();
-    if (string.match(/-$/)) {
+    if (line.match(/-$/)) {
       // if line is hyphenated, return it without the hyphen.
       // TODO: be smarter about this.
-      return string.slice(0, -1);
+      return line.slice(0, -1);
     }
     else {
       // otherwise, return it with a space on the end
-      return string + ' ';
+      return line + ' ';
     }
   });
   // prepare line string
@@ -419,4 +138,247 @@ export function joinLines(lines: Line[]): string {
   // and replacing the combining character pairs with precombined characters where possible
   var canonical_line = unorm.nfc(normalized_line);
   return canonical_line;
+}
+
+export class DocumentCanvas extends Canvas {
+  /**
+  Flexibly partition all of this Canvas's spans into contiguous-ish groups.
+
+  1. first pass: linear aggregation
+
+  containers = empty list of containers
+  currentContainer = uninitialized empty container
+  for each span in spans:
+    if container is uninitialized
+      initialize new currentContainer with span
+    else
+      if span is within (dx, dy) of currentContainer
+        add it to the currentContainer
+      else
+        add currentContainer to containers
+        initialize new currentContainer with span
+
+  we now have a collection of containers; some of them may overlap (but I think
+  no two consecutive containers will overlap? don't count on that though -- I
+  can think of perverse layouts that might do so)
+
+  2. second pass: exhaustive aggregation
+
+  for each container in containers:
+    for each otherContainer in containers:
+      if otherContainer is within (dx, dy) of container
+        merge otherContainer into containers
+        # maybe: restart the loop over otherContainers?
+        # or instead: restart the loop over otherContainers when we reach the
+        #             end ONLY if there have been any merges?
+
+  */
+  autodetectLayout(): Container<TextSpan>[] {
+    // threshold_dx: number = 20, threshold_dy: number = 5
+    // 1. first pass -- linear aggregation
+    var containers = groupContiguousTextSpans(this.spans, 20, 5);
+    // 2. second pass -- exhaustive aggregation
+    // containers = mergeAdjoiningContainers(containers, threshold_dx, threshold_dy);
+    return containers;
+  }
+
+  toJSON() {
+    return {
+      // native properties
+      spans: this.spans,
+      outerBounds: this.outerBounds,
+      // computed values
+      layout: this.autodetectLayout(),
+    };
+  }
+}
+
+/**
+Given a single flat Array of TextSpans (which are aware of their original layout
+component), divide it into an Array of Arrays of TextSpans, such that each
+sub-Array of TextSpans contains TextSpans occurring on the same line.
+
+Usually the given `textSpans` Array consists of all the content TextSpans in
+a semantic section.
+
+The optional parameter, `line_gap`, is the the maximum distance between lines
+before we consider the next line a new paragraph.
+*/
+function groupIntoLines(textSpans: TextSpan[], line_gap = -5): TextSpan[][] {
+  var lines: TextSpan[][] = [];
+  var currentLine: TextSpan[];
+  var previousTextSpan: TextSpan;
+  textSpans.forEach(textSpan => {
+    // dY is the distance from bottom of the current (active) line to the
+    // top of the next span (this should come out negative if the span is
+    // on the same line as the last one)
+    // set dY if currentMaxY has been initialized
+    var dY: number = previousTextSpan ? (textSpan.minY - previousTextSpan.maxY) : Infinity;
+    // if the new span does not vertically overlap with the previous one
+    // at all, or if there was no previous line, or we've moved to a new
+    // container, we consider it a new line
+    if (dY > line_gap || textSpan.layoutContainer !== previousTextSpan.layoutContainer) {
+      // flush the current line
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      // and initialize a new empty currentLine
+      currentLine = [];
+    }
+    currentLine.push(textSpan);
+    previousTextSpan = textSpan;
+  });
+  // finish up: flush the final line if there is one
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines;
+}
+
+/**
+Line is a helper when doing paragraph detection; it's pretty much just a data
+struct. It's not very interesting in itself.
+*/
+class Line extends Rectangle {
+  constructor(public textSpans: TextSpan[],
+              public layoutContainer: Rectangle = textSpans[0].layoutContainer) {
+    // TODO: maybe determine the bounds of the all the textSpans, not just the first one?
+    super(textSpans[0].minX, textSpans[0].minY, textSpans[0].maxX, textSpans[0].maxY);
+  }
+}
+
+/**
+Paragraphs are distinguished by an unusual first line. This initial line is
+unusual compared to preceding lines, as well as subsequent lines.
+
+If paragraphs are very short, it can be hard to distinguish which are the start
+lines and which are the end lines simply by shape, since paragraphs may have
+normal positive indentation, or have hanging indentation.
+
+Each Line keeps track of the container it belongs to, so that we can measure
+offsets later.
+
+The given lines will come from a variety of different layout components, but in
+determining the oddity of the left offset of any given line, we only want to
+compare its left offset to the left offsets of other lines in the same layout component.
+*/
+function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 8): DocumentParagraph[] {
+  var lines = linesOfTextSpans.map(textSpans => {
+    return new Line(textSpans);
+  });
+
+  var paragraphs: DocumentParagraph[] = [];
+  var currentParagraph: DocumentParagraph;
+  lines.forEach(currentLine => {
+    // lineContainer's elements represent a single line of text
+    var layoutContainerLines = lines.filter(line => line.layoutContainer == currentLine.layoutContainer);
+    // medianLineLeftOffset measures the typical left offset of each line
+    // relative to the lines' layoutContainer
+    // TODO: implement caching somehow
+    var medianLineLeftOffset = medianLeftOffset(currentLine.layoutContainer, layoutContainerLines);
+    var lineLeftOffset = currentLine.minX - currentLine.layoutContainer.minX;
+    var diff_leftOffset = currentParagraph ? Math.abs(medianLineLeftOffset - lineLeftOffset) : Infinity;
+    // a large diff_leftOffset (set to infinity if the current paragraph has
+    // not been initialized) indicates that we should start a new paragraph
+    if (diff_leftOffset > min_indent) {
+      if (currentParagraph) {
+        paragraphs.push(currentParagraph);
+      }
+      currentParagraph = [];
+    }
+    // each line boils down to a single string
+    var lineString = currentLine.textSpans.map(textSpan => textSpan.string).join('');
+    currentParagraph.push(lineString);
+  });
+  // flush the current paragraph
+  paragraphs.push(currentParagraph);
+  return paragraphs;
+}
+
+/**
+Despite being an array, `headerLines` will most often be 1-long.
+*/
+export class Section {
+  constructor(public headerElements: TextSpan[] = [],
+              public contentElements: TextSpan[] = []) { }
+
+  getHeader(): string {
+    return this.headerElements.map(textSpan => textSpan.string).join('');
+  }
+  /**
+  As single string:
+    return this.contentElements.map(textSpan => textSpan.string).join('');
+  */
+  getContent(): string[] {
+    // 1. First step: basic line detection. There are no such things as
+    //    paragraphs if we have no concept of lines.
+    var lines: TextSpan[][] = groupIntoLines(this.contentElements);
+    //  2. iterate through the lines, flattening into paragraphs
+    var paragraphs = detectParagaphs(lines);
+    // finish up: convert each paragraph (list of strings) to a single string
+    return paragraphs.map(paragraph => joinLines(paragraph));
+  }
+}
+
+/**
+A DocumentParagraph represents a paragraph (list of lines) as an Array of strings.
+*/
+type DocumentParagraph = string[];
+
+export interface DocumentSection {
+  header: string;
+  content: string[]; // one string per paragraph
+}
+
+export interface Document {
+  sections: DocumentSection[];
+}
+
+/**
+Recombine an array of arbitrary TextSpan Containers into an array of Sections
+*/
+export function documentFromContainers(containers: Container<TextSpan>[]): Document {
+  // containers is an array of basic Containers for the whole PDF / document
+  // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
+  // 1. the easiest first step is to get the mean and median font size
+  var textSpans = Arrays.flatMap(containers, container => container.getElements());
+  var fontSizes = textSpans.map(textSpan => textSpan.fontSize);
+  var mean_fontSize = Arrays.mean(fontSizes);
+  // use the 75% quartile (Arrays.quantile() returns the endpoints, too) as the normal font size
+  var content_fontSize = Arrays.quantile(fontSizes, 4)[3];
+  // jump up a half pixel/pt to set the section header font size threshold
+  var header_fontSize = content_fontSize + 0.5;
+  // 2. the second step is to iterate through the sections and re-group them
+  var sections: Section[] = [];
+  var currentSection = new Section();
+  containers.forEach(container => {
+    container.getElements().forEach(textSpan => {
+      // new sections can be distinguished by larger sizes
+      if (textSpan.fontSize > header_fontSize) {
+        // start a new section if the current section has any content
+        if (currentSection.contentElements.length > 0) {
+          // flush the current section
+          sections.push(currentSection);
+          // initialize the new section
+          currentSection = new Section();
+        }
+        currentSection.headerElements.push(textSpan);
+      }
+      else {
+        currentSection.contentElements.push(textSpan);
+      }
+    });
+  });
+  // flush final section
+  sections.push(currentSection);
+  // flatten sections -- which is complicated in itself, but the Section class
+  // handles the line/paragraph detection
+  return {
+    sections: sections.map(section => {
+      return {
+        header: section.getHeader(),
+        content: section.getContent(),
+      };
+    })
+  };
 }

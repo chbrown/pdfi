@@ -156,16 +156,16 @@ class PDF {
 
   If `section_names` is empty, return all sections.
   */
-  getDocument(section_names: string[] = []): document.Document {
-    var lines = Arrays.flatMap(this.pages, page => {
-      var sections = graphics.renderPage(page).getLineContainers();
-      var selected_sections = sections.filter(section => {
-        return section_names.length === 0 || section_names.indexOf(section.name) > -1;
-      });
-      var selected_sections_lines = Arrays.flatMap(selected_sections, section => section.lines);
-      return selected_sections_lines;
+  getDocument(minimumElementsPerLayoutComponent = 2): document.Document {
+    var containers = Arrays.flatMap(this.pages, page => {
+      var documentCanvas = graphics.renderPage(page);
+      // autodetectLayout(): Container<TextSpan>[]
+      return documentCanvas.autodetectLayout().filter(container =>
+        container.length >= minimumElementsPerLayoutComponent);
     });
-    return new document.Document(lines);
+    // containers is now an array of basic Container<TextSpan>'s for the whole
+    // PDF, but now each TextSpan is also aware of its container
+    return document.documentFromContainers(containers);
   }
 
   renderPage(page_index: number): document.DocumentCanvas {
