@@ -54,16 +54,6 @@ var Container = (function (_super) {
     return Container;
 })(geometry_1.Rectangle);
 exports.Container = Container;
-var NamedContainer = (function (_super) {
-    __extends(NamedContainer, _super);
-    function NamedContainer(name, elements) {
-        if (elements === void 0) { elements = []; }
-        _super.call(this, elements);
-        this.name = name;
-    }
-    return NamedContainer;
-})(Container);
-exports.NamedContainer = NamedContainer;
 var TextSpan = (function (_super) {
     __extends(TextSpan, _super);
     function TextSpan(string, minX, minY, maxX, maxY, fontSize, fontBold, fontItalic, details) {
@@ -77,3 +67,12 @@ var TextSpan = (function (_super) {
     return TextSpan;
 })(geometry_1.Rectangle);
 exports.TextSpan = TextSpan;
+var ContainedElement = (function (_super) {
+    __extends(ContainedElement, _super);
+    function ContainedElement(element, container) {
+        _super.call(this, element.minX, element.minY, element.maxX, element.maxY);
+        this.element = element;
+    }
+    return ContainedElement;
+})(geometry_1.Rectangle);
+exports.ContainedElement = ContainedElement;

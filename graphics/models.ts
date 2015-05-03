@@ -43,10 +43,6 @@ export class Container<T extends Rectangle> extends Rectangle {
   }
 }
 
-export class NamedContainer<T extends Rectangle> extends Container<T> {
-  constructor(public name: string, elements: T[] = []) { super(elements) }
-}
-
 export class TextSpan extends Rectangle {
   constructor(public string: string,
               minX: number,
@@ -58,5 +54,11 @@ export class TextSpan extends Rectangle {
               public fontItalic: boolean,
               public details?: any) {
     super(minX, minY, maxX, maxY);
+  }
+}
+
+export class ContainedElement<T extends Rectangle> extends Rectangle {
+  constructor(public element: T, container: Container<T>) {
+    super(element.minX, element.minY, element.maxX, element.maxY)
   }
 }
