@@ -62,6 +62,7 @@ function equalTo(left, right, left_offset, left_end, right_offset, right_end) {
     // return false immediately if they are different lengths
     if (left_length !== right_end - right_offset)
         return false;
+    // check each character
     for (var i = 0; i < left_length; i++) {
         if (left[left_offset + i] !== right[right_offset + i]) {
             return false;

@@ -64,6 +64,7 @@ var File = (function () {
         var haystack_search_offset = 0;
         var block_buffer = new Buffer(BLOCK_SIZE);
         var bytesRead = BLOCK_SIZE;
+        // exit loop once we read fewer bytes than intended (indicating EOF)
         while (bytesRead == BLOCK_SIZE) {
             // we use the position once, to seek, and then set it to null, to use the
             // current position on subsequent reads. Hopefully no one else has seeked
@@ -99,6 +100,8 @@ var File = (function () {
         var needle = new Buffer(searchValue);
         var position = fromIndex;
         var haystack = new Buffer(0);
+        // haystack's position within file is always equal to `position`
+        // exit loop once we reach the beginning of the file.
         while (position > -1) {
             position -= BLOCK_SIZE;
             var block_buffer = this.readBuffer(BLOCK_SIZE, position);
