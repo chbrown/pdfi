@@ -1,3 +1,7 @@
+function pushAll(array, items) {
+    return Array.prototype.push.apply(array, items);
+}
+exports.pushAll = pushAll;
 /**
 TODO: disallow mixing of arrays and non-arrays? (concat don't care)
 */

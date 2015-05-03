@@ -1,3 +1,7 @@
+export function pushAll<T>(array: T[], items: T[]): void {
+  return Array.prototype.push.apply(array, items);
+}
+
 /**
 TODO: disallow mixing of arrays and non-arrays? (concat don't care)
 */
