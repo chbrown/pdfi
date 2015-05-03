@@ -22,6 +22,4 @@ export class Canvas {
     span.details = `${span.toString(2)} fontSize=${fontSize} fontName=${fontName}`;
     this.spans.push(span);
   }
-
-  // the default toJSON is just fine
 }
