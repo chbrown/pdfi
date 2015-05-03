@@ -230,7 +230,7 @@ export class TextDrawingContext extends DrawingContext {
       if (Array.isArray(item)) {
         // if it's a character array, convert it to a unicode string and render it
         var bytes = <number[]>item;
-        return font.decodeString(bytes);
+        return `(${font.decodeString(bytes)})`;
       }
       else if (typeof item === 'number') {
         // negative numbers indicate forward (rightward) movement. if it's a
@@ -239,7 +239,7 @@ export class TextDrawingContext extends DrawingContext {
         return (item < -100) ? ' ' : '';
       }
       else {
-        throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
+        throw new Error(`Unknown TJ argument type: "${item}"`);
       }
     }).join('');
     this.spans.push({operator: 'TJ', font: this.textState.fontName, text: str});
