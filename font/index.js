@@ -41,17 +41,24 @@ var Font = (function (_super) {
     });
     Object.defineProperty(Font.prototype, "BaseFont", {
         /**
-        BaseFont is usually a string; maybe not always?
+        BaseFont is supposed to be a name (i.e., a string).
+        Maybe not always?
         */
         get: function () {
-            return new models_1.Model(this._pdf, this.object['BaseFont']).object;
+            var object = new models_1.Model(this._pdf, this.object['BaseFont']).object;
+            return object;
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(Font.prototype, "FontDescriptor", {
+        /**
+        If the Font specifies no FontDescriptor value, this will return `undefined`
+        rather than an empty Model.
+        */
         get: function () {
-            return new descriptor_1.FontDescriptor(this._pdf, this.object['FontDescriptor']);
+            var object = this.object['FontDescriptor'];
+            return object ? new descriptor_1.FontDescriptor(this._pdf, object) : undefined;
         },
         enumerable: true,
         configurable: true
@@ -59,13 +66,46 @@ var Font = (function (_super) {
     Object.defineProperty(Font.prototype, "bold", {
         /**
         1. The BaseFont name may contain the string "Bold"
-        2.
+        2. The FontDescriptor.FontName may contain the string "Bold"
+        3. The FontDescriptor.FontWeight may be 700 or higher
         */
         get: function () {
             var BaseFont = this.BaseFont;
-            if (BaseFont.match && BaseFont.match(/bold/i)) {
+            if (BaseFont && BaseFont.match(/bold/i)) {
                 return true;
             }
+            var FontDescriptor = this.FontDescriptor;
+            if (FontDescriptor) {
+                if (FontDescriptor.FontName && FontDescriptor.FontName.match(/bold/i)) {
+                    return true;
+                }
+                if (FontDescriptor.FontWeight && FontDescriptor.FontWeight >= 700) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Font.prototype, "italic", {
+        get: function () {
+            var BaseFont = this.BaseFont;
+            if (BaseFont && BaseFont.match(/italic/i)) {
+                return true;
+            }
+            var FontDescriptor = this.FontDescriptor;
+            if (FontDescriptor) {
+                if (FontDescriptor.FontName && FontDescriptor.FontName.match(/italic/i)) {
+                    return true;
+                }
+                // should I have a threshold on italics? Are there small italic angles,
+                // e.g., with script-type fonts, but which don't really designate italics?
+                if (FontDescriptor.ItalicAngle && FontDescriptor.ItalicAngle !== 0) {
+                    return true;
+                }
+            }
+            return false;
         },
         enumerable: true,
         configurable: true
@@ -102,14 +142,16 @@ var Font = (function (_super) {
         }
         // still no good? try the FontDescriptor
         var FontDescriptor = this.FontDescriptor;
-        if (encoding === undefined && FontDescriptor.object) {
+        if (encoding === undefined && FontDescriptor) {
             logger.debug("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
             // check for the easy-out: 1-character fonts
             var FirstChar = this.object['FirstChar'];
             var LastChar = this.object['LastChar'];
             var CharSet = FontDescriptor.CharSet;
             if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-                encoding.mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
+                var mapping = [];
+                mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
+                encoding = new index_1.Encoding(mapping);
             }
             else if (FontDescriptor.object['FontFile']) {
                 encoding = FontDescriptor.getEncoding();
@@ -322,9 +364,9 @@ var Type1Font = (function (_super) {
                 _this._widthMapping[string] = width;
             });
             // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
-            var FontDescriptor = new models_1.Model(this._pdf, this.object['FontDescriptor']).object;
-            if (FontDescriptor && FontDescriptor['MissingWidth']) {
-                this._defaultWidth = FontDescriptor['MissingWidth'];
+            var FontDescriptor = this.FontDescriptor;
+            if (FontDescriptor && FontDescriptor.MissingWidth) {
+                this._defaultWidth = FontDescriptor.MissingWidth;
             }
             else {
                 logger.silly("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");

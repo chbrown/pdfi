@@ -14,6 +14,39 @@ export class FontDescriptor extends Model {
     return CharSet ? CharSet.slice(1).split('/') : [];
   }
 
+  get FontName(): string {
+    return this.object['FontName'];
+  }
+
+  /**
+  From PDF32000_2008.pdf:Table 122
+  > The weight (thickness) component of the fully-qualified font name or font
+  > specifier. The possible values shall be 100, 200, 300, 400, 500, 600, 700,
+  > 800, or 900, where each number indicates a weight that is at least as dark
+  > as its predecessor. A value of:
+  > * 400 shall indicate a normal weight;
+  > * 700 shall indicate bold.
+  > The specific interpretation of these values varies from font to font.
+  */
+  get FontWeight(): number {
+    return this.object['FontWeight'];
+  }
+
+  /**
+  From PDF32000_2008.pdf:Table 122
+  > The angle, expressed in degrees counterclockwise from the vertical, of the
+  > dominant vertical strokes of the font. The 9-o'clock position is 90 degrees,
+  > and the 3-o'clock position is –90 degrees. The value shall be negative for
+  > fonts that slope to the right, as almost all italic fonts do.
+  */
+  get ItalicAngle(): number {
+    return this.object['ItalicAngle'];
+  }
+
+  get MissingWidth(): number {
+    return this.object['MissingWidth'];
+  }
+
   /**
   From T1_SPEC.pdf:
 

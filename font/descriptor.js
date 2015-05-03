@@ -22,6 +22,51 @@ var FontDescriptor = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(FontDescriptor.prototype, "FontName", {
+        get: function () {
+            return this.object['FontName'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(FontDescriptor.prototype, "FontWeight", {
+        /**
+        From PDF32000_2008.pdf:Table 122
+        > The weight (thickness) component of the fully-qualified font name or font
+        > specifier. The possible values shall be 100, 200, 300, 400, 500, 600, 700,
+        > 800, or 900, where each number indicates a weight that is at least as dark
+        > as its predecessor. A value of:
+        > * 400 shall indicate a normal weight;
+        > * 700 shall indicate bold.
+        > The specific interpretation of these values varies from font to font.
+        */
+        get: function () {
+            return this.object['FontWeight'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(FontDescriptor.prototype, "ItalicAngle", {
+        /**
+        From PDF32000_2008.pdf:Table 122
+        > The angle, expressed in degrees counterclockwise from the vertical, of the
+        > dominant vertical strokes of the font. The 9-o'clock position is 90 degrees,
+        > and the 3-o'clock position is –90 degrees. The value shall be negative for
+        > fonts that slope to the right, as almost all italic fonts do.
+        */
+        get: function () {
+            return this.object['ItalicAngle'];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(FontDescriptor.prototype, "MissingWidth", {
+        get: function () {
+            return this.object['MissingWidth'];
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
     From T1_SPEC.pdf:
   
