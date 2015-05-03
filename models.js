@@ -45,6 +45,9 @@ _object: the original plain old javascript object parsed from the PDF
 
 The _object may be an IndirectReference; if so, it will not be resolved
 immediately, but only when the `object` getter is called.
+
+If a new Model is constructed with a null `_object`, it will create the Model,
+but Model#object will return null.
 */
 var Model = (function () {
     function Model(_pdf, _object) {
@@ -68,7 +71,7 @@ var Model = (function () {
     });
     /**
     This is an (icky?) hack to get around circular dependencies with subclasses
-    of Model.
+    of Model (like Font).
     */
     Model.prototype.asType = function (ctor) {
         return new ctor(this._pdf, this.object);
