@@ -326,7 +326,7 @@ var Section = (function () {
         this.contentElements = contentElements;
     }
     Section.prototype.getHeader = function () {
-        return this.headerElements.map(function (textSpan) { return textSpan.string; }).join('');
+        return flattenLine(this.headerElements);
     };
     /**
     As single string:

@@ -319,7 +319,7 @@ export class Section {
               public contentElements: TextSpan[] = []) { }
 
   getHeader(): string {
-    return this.headerElements.map(textSpan => textSpan.string).join('');
+    return flattenLine(this.headerElements);
   }
   /**
   As single string:
