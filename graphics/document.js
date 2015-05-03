@@ -99,6 +99,22 @@ function medianLeftOffset(container, elements) {
     return Arrays.median(leftOffsets);
 }
 /**
+The given textSpans should all have approximately the same Y value.
+*/
+function flattenLine(textSpans, spaceWidth) {
+    if (spaceWidth === void 0) { spaceWidth = 1; }
+    var previousTextSpan;
+    return textSpans.map(function (currentTextSpan) {
+        // dX measures the distance between the right bound of the previous span
+        // and the left bound of the current one. It may be negative.
+        var dX = previousTextSpan ? (currentTextSpan.minX - previousTextSpan.maxX) : -Infinity;
+        // save the previous span for future reference
+        previousTextSpan = currentTextSpan;
+        // if it's far enough away (horizontally) from the last box, we add a space
+        return (dX > spaceWidth) ? (' ' + currentTextSpan.string) : currentTextSpan.string;
+    }).join('').trim();
+}
+/**
 If a line ends with a hyphen, we remove the hyphen and join it to
 the next line directly; otherwise, join them with a space.
 
@@ -292,7 +308,7 @@ function detectParagaphs(linesOfTextSpans, min_indent) {
             currentParagraph = [];
         }
         // each line boils down to a single string
-        var lineString = currentLine.textSpans.map(function (textSpan) { return textSpan.string; }).join('');
+        var lineString = flattenLine(currentLine.textSpans);
         currentParagraph.push(lineString);
     });
     // flush the current paragraph
