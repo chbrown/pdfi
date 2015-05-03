@@ -185,7 +185,7 @@ export class CanvasDrawingContext extends DrawingContext {
     var height = Math.ceil(fontSize) | 0;
     var size = new Size(width, height);
 
-    this.canvas.addSpan(string, origin, size, fontSize, this.textState.fontName);
+    this.canvas.addSpan(string, origin, size, fontSize, font.bold, font.italic, this.textState.fontName);
   }
 
   /**

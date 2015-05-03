@@ -54,6 +54,8 @@ export class TextSpan extends Rectangle {
               maxX: number,
               maxY: number,
               public fontSize: number,
+              public fontBold: boolean,
+              public fontItalic: boolean,
               public details?: any) {
     super(minX, minY, maxX, maxY);
   }

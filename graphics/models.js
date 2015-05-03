@@ -20,9 +20,6 @@ var Container = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    // set length(length: number) {
-    //   this.elements.length = length;
-    // }
     Container.prototype.getElements = function () {
         return this.elements;
     };
@@ -69,10 +66,12 @@ var NamedContainer = (function (_super) {
 exports.NamedContainer = NamedContainer;
 var TextSpan = (function (_super) {
     __extends(TextSpan, _super);
-    function TextSpan(string, minX, minY, maxX, maxY, fontSize, details) {
+    function TextSpan(string, minX, minY, maxX, maxY, fontSize, fontBold, fontItalic, details) {
         _super.call(this, minX, minY, maxX, maxY);
         this.string = string;
         this.fontSize = fontSize;
+        this.fontBold = fontBold;
+        this.fontItalic = fontItalic;
         this.details = details;
     }
     return TextSpan;

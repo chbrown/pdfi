@@ -9,17 +9,19 @@ export class Canvas {
   public spans: TextSpan[] = [];
   constructor(public outerBounds: Rectangle) { }
 
-  addSpan(string: string, origin: Point, size: Size, fontSize: number, fontName: string) {
+  addSpan(string: string, origin: Point, size: Size,
+          fontSize: number, fontBold: boolean, fontItalic: boolean, fontName: string) {
     // transform into origin at top left
     var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
     var span = new TextSpan(string,
-                                   canvas_origin.x,
-                                   canvas_origin.y,
-                                   canvas_origin.x + size.width,
-                                   canvas_origin.y + size.height,
-                                   fontSize);
-    // var rectangle_string = [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-    span.details = `${span.toString(2)} fontSize=${fontSize} fontName=${fontName}`;
+                            canvas_origin.x,
+                            canvas_origin.y,
+                            canvas_origin.x + size.width,
+                            canvas_origin.y + size.height,
+                            fontSize,
+                            fontBold,
+                            fontItalic);
+    span.details = `${span.toString(0)} fontName=${fontName}`;
     this.spans.push(span);
   }
 }
