@@ -1,8 +1,10 @@
 /// <reference path="../type_declarations/index.d.ts" />
+import * as lexing from 'lexing';
 import logger = require('loge');
 
-import cmap = require('../parsers/cmap');
 import Arrays = require('../Arrays');
+import {ContentStream} from '../models';
+import cmap = require('../parsers/cmap');
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -39,8 +41,9 @@ function decodeNumber(bytes: number[]): number {
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
-export class Mapping {
-  constructor(private mapping: string[] = [], private characterByteLength = 1) { }
+export class Encoding {
+  constructor(public mapping: string[] = [],
+              public characterByteLength = 1) { }
 
   /**
   This loads the character codes listed in ./latin_charset.json into
@@ -49,7 +52,7 @@ export class Mapping {
 
   `base` should be one of 'std', 'mac', 'win', or 'pdf'
   */
-  static fromLatinCharset(base: string): Mapping {
+  static fromLatinCharset(base: string): Encoding {
     var mapping: string[] = [];
     latin_charset.forEach(charspec => {
       var charCode: number = charspec[base];
@@ -57,27 +60,16 @@ export class Mapping {
         mapping[charspec[base]] = glyphlist[charspec.glyphname];
       }
     });
-    return new Mapping(mapping);
+    return new Encoding(mapping);
   }
 
-  static fromCMap(cMap: cmap.CMap): Mapping {
-    return new Mapping(cMap.mapping, cMap.byteLength);
-  }
-
-  applyDifferences(differences: Array<number | string>): void {
-    var current_character_code = 0;
-    differences.forEach(difference => {
-      if (typeof difference === 'number') {
-        current_character_code = difference;
-      }
-      else {
-        // difference is a glyph name, but we want a mapping from character
-        // codes to native unicode strings, so we resolve the glyphname via the
-        // PDF standard glyphlist
-        // TODO: handle missing glyphnames
-        this.mapping[current_character_code++] = glyphlist[difference];
-      }
-    });
+  /**
+  This is called with a ToUnicode content stream for font types that specify one.
+  */
+  static fromCMapContentStream(contentStream: ContentStream): Encoding {
+    var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
+    var cMap = cmap.CMap.parseStringIterable(string_iterable);
+    return new Encoding(cMap.mapping, cMap.byteLength);
   }
 
   /**

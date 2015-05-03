@@ -1,4 +1,7 @@
+/// <reference path="../type_declarations/index.d.ts" />
+var lexing = require('lexing');
 var Arrays = require('../Arrays');
+var cmap = require('../parsers/cmap');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -23,8 +26,8 @@ function decodeNumber(bytes) {
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
-var Mapping = (function () {
-    function Mapping(mapping, characterByteLength) {
+var Encoding = (function () {
+    function Encoding(mapping, characterByteLength) {
         if (mapping === void 0) { mapping = []; }
         if (characterByteLength === void 0) { characterByteLength = 1; }
         this.mapping = mapping;
@@ -37,7 +40,7 @@ var Mapping = (function () {
   
     `base` should be one of 'std', 'mac', 'win', or 'pdf'
     */
-    Mapping.fromLatinCharset = function (base) {
+    Encoding.fromLatinCharset = function (base) {
         var mapping = [];
         latin_charset.forEach(function (charspec) {
             var charCode = charspec[base];
@@ -45,33 +48,22 @@ var Mapping = (function () {
                 mapping[charspec[base]] = exports.glyphlist[charspec.glyphname];
             }
         });
-        return new Mapping(mapping);
+        return new Encoding(mapping);
     };
-    Mapping.fromCMap = function (cMap) {
-        return new Mapping(cMap.mapping, cMap.byteLength);
-    };
-    Mapping.prototype.applyDifferences = function (differences) {
-        var _this = this;
-        var current_character_code = 0;
-        differences.forEach(function (difference) {
-            if (typeof difference === 'number') {
-                current_character_code = difference;
-            }
-            else {
-                // difference is a glyph name, but we want a mapping from character
-                // codes to native unicode strings, so we resolve the glyphname via the
-                // PDF standard glyphlist
-                // TODO: handle missing glyphnames
-                _this.mapping[current_character_code++] = exports.glyphlist[difference];
-            }
-        });
+    /**
+    This is called with a ToUnicode content stream for font types that specify one.
+    */
+    Encoding.fromCMapContentStream = function (contentStream) {
+        var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
+        var cMap = cmap.CMap.parseStringIterable(string_iterable);
+        return new Encoding(cMap.mapping, cMap.byteLength);
     };
     /**
     Returns the character codes represented by the given bytes.
   
     `bytes` should all be in the range: 0 ≤ byte < 256
     */
-    Mapping.prototype.decodeCharCodes = function (bytes) {
+    Encoding.prototype.decodeCharCodes = function (bytes) {
         return Arrays.groups(bytes, this.characterByteLength).map(decodeNumber);
     };
     /**
@@ -81,9 +73,9 @@ var Mapping = (function () {
     fields, and can be assigned widths via the Font dictionary's Widths or
     BaseFont fields.
     */
-    Mapping.prototype.decodeCharacter = function (charCode) {
+    Encoding.prototype.decodeCharacter = function (charCode) {
         return this.mapping[charCode];
     };
-    return Mapping;
+    return Encoding;
 })();
-exports.Mapping = Mapping;
+exports.Encoding = Encoding;

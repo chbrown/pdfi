@@ -2,7 +2,7 @@
 import * as lexing from 'lexing';
 import * as logger from 'loge';
 
-import {glyphlist, Mapping} from '../encoding/index';
+import {glyphlist, Encoding} from '../encoding/index';
 import {Model, ContentStream} from '../models';
 
 /**
@@ -21,7 +21,7 @@ export class FontDescriptor extends Model {
   >     dup index charactername put
   > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
   */
-  getMapping(): Mapping {
+  getEncoding(): Encoding {
     var FontFile = new ContentStream(this._pdf, this.object['FontFile']);
     var cleartext_length = <number>FontFile.dictionary['Length1'];
     // var string_iterable = lexing.StringIterator.fromBuffer(FontFile.buffer, 'ascii');
@@ -39,6 +39,6 @@ export class FontDescriptor extends Model {
       mapping[index] = glyphlist[glyphname];
     }
 
-    return new Mapping(mapping);
+    return new Encoding(mapping);
   }
 }

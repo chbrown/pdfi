@@ -1,12 +1,10 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import * as lexing from 'lexing';
 import * as logger from 'loge';
 import * as afm from 'afm';
 
 import {FontDescriptor} from './descriptor';
 import {Model, ContentStream} from '../models';
-import {glyphlist, Mapping} from '../encoding/index';
-import cmap = require('../parsers/cmap');
+import {glyphlist, Encoding} from '../encoding/index';
 
 /**
 Font is a general, sometimes abstract (see Font#measureString), representation
@@ -22,91 +20,133 @@ material purposes (and is not necessary for any).
 
 # Cached objects
 
-* `_encodingMapping: Mapping` is a cached mapping from in-PDF character codes to native
+* `_cached_encoding: Encoding` is a cached mapping from in-PDF character codes to native
   Javascript (unicode) strings.
 */
 export class Font extends Model {
-  private _encodingMapping: Mapping;
+  private _cached_encoding: Encoding;
   public Name: string;
 
   get Subtype(): string {
     return this.object['Subtype'];
   }
 
+  /**
+  BaseFont is usually a string; maybe not always?
+  */
   get BaseFont(): any {
     return new Model(this._pdf, this.object['BaseFont']).object;
   }
 
-  /**
-  Cached as `_encodingMapping`.
+  get FontDescriptor(): FontDescriptor {
+    return new FontDescriptor(this._pdf, this.object['FontDescriptor']);
+  }
 
-  We need the Font's Encoding (not always specified) to read its Differences,
-  which we use to map character codes into the glyph name (which can then easily
-  be mapped to the unicode string representation of that glyph).
+  /**
+  1. The BaseFont name may contain the string "Bold"
+  2.
   */
-  get encodingMapping(): Mapping {
-    // initialize if needed
-    if (this._encodingMapping === undefined) {
-      // try the ToUnicode object first
-      if (this.object['ToUnicode']) {
-        var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
-        var string_iterable = lexing.StringIterator.fromBuffer(ToUnicode.buffer, 'ascii');
-        var cMap = cmap.CMap.parseStringIterable(string_iterable);
-        this._encodingMapping = Mapping.fromCMap(cMap);
+  get bold(): boolean {
+    var BaseFont = this.BaseFont;
+    if (BaseFont.match && BaseFont.match(/bold/i)) {
+      return true;
+    }
+  }
+
+
+  /**
+  This is used / exposed by the `encodingMapping` getter, which caches the result.
+
+  We need the Font's Encoding to map character codes into the glyph name (which
+  can then easily be mapped to the unicode string representation of that glyph).
+
+  Encoding and ToUnicode are not always specified.
+  */
+  protected detectEncoding(): Encoding {
+    var encoding: Encoding;
+    // the best encoding indicator is ToUnicode, but it is not always present
+    var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
+    if (ToUnicode.object) {
+      encoding = Encoding.fromCMapContentStream(ToUnicode);
+    }
+
+    // No luck? Try the Encoding string / dictionary
+    var Encoding_object = new Model(this._pdf, this.object['Encoding']).object;
+    if (encoding === undefined && Encoding_object) {
+      // TODO: use Encoding.object['BaseEncoding'] if it's specified
+      // TODO: handle MacExpertEncoding properly
+      if (Encoding_object == 'MacRomanEncoding' || Encoding_object == 'MacExpertEncoding') {
+        encoding = Encoding.fromLatinCharset('mac');
       }
-      // No luck? Try the Encoding dictionary
-      else if (this.object['Encoding']) {
-        var Encoding = new Model(this._pdf, this.object['Encoding']);
-        // TODO: use Encoding.object['BaseEncoding']
-        // TODO: handle MacExpertEncoding properly
-        if (Encoding.object == 'MacRomanEncoding' || Encoding.object == 'MacExpertEncoding') {
-          this._encodingMapping = Mapping.fromLatinCharset('mac');
-        }
-        else if (Encoding.object == 'WinAnsiEncoding') {
-          this._encodingMapping = Mapping.fromLatinCharset('win');
-        }
-        else {
-          this._encodingMapping = Mapping.fromLatinCharset('std');
-        }
-        // apply differences, if there are any
-        var Differences = Encoding.object['Differences'];
-        if (Differences && Differences.length > 0) {
-          this._encodingMapping.applyDifferences(Differences);
-        }
+      else if (Encoding_object == 'WinAnsiEncoding') {
+        encoding = Encoding.fromLatinCharset('win');
       }
-      else if (this.object['FontDescriptor']) {
-        logger.debug(`[Font=${this.Name}] Loading FontDescriptor`);
-        var font_descriptor = new FontDescriptor(this._pdf, this.object['FontDescriptor']);
-        // check for the easy-out: 1-character fonts
-        var FirstChar = <number>this.object['FirstChar'];
-        var LastChar = <number>this.object['LastChar'];
-        var CharSet = font_descriptor.CharSet;
-        if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-          var mapping: string[] = [];
-          mapping[FirstChar] = glyphlist[CharSet[0]];
-          this._encodingMapping = new Mapping(mapping);
-        }
-        else if (font_descriptor.object['FontFile']) {
-          this._encodingMapping = font_descriptor.getMapping();
-        }
-        else {
-          logger.warn(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
-          this._encodingMapping = Mapping.fromLatinCharset('std');
-        }
-      }
-      // else if (this.object['FontName']) {
-      //   var [prefix, name] = this.object['FontName'].split('+');
-      //   if (name) {
-      //     // try to lookup an AFM file to resolve characters to glyphnames
-      //   }
-      // }
       else {
-        logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default mapping`);
-        // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-        this._encodingMapping = Mapping.fromLatinCharset('std');
+        encoding = Encoding.fromLatinCharset('std');
       }
     }
-    return this._encodingMapping;
+
+    // still no good? try the FontDescriptor
+    var FontDescriptor = this.FontDescriptor;
+    if (encoding === undefined && FontDescriptor.object) {
+      logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
+      // check for the easy-out: 1-character fonts
+      var FirstChar = <number>this.object['FirstChar'];
+      var LastChar = <number>this.object['LastChar'];
+      var CharSet = FontDescriptor.CharSet;
+      if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
+        encoding.mapping[FirstChar] = glyphlist[CharSet[0]];
+      }
+      else if (FontDescriptor.object['FontFile']) {
+        encoding = FontDescriptor.getEncoding();
+      }
+      else {
+        logger.warn(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
+      }
+    }
+
+    // if (this.object['FontName']) {
+    //   var [prefix, name] = this.object['FontName'].split('+');
+    //   if (name) {
+    //     // try to lookup an AFM file to resolve characters to glyphnames
+    //   }
+    // }
+
+    // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
+
+    if (encoding === undefined) {
+      logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default "std" mapping`);
+      encoding = Encoding.fromLatinCharset('std');
+    }
+
+    // Finally, apply differences, if there are any.
+    // even if ToUnicode is specified, there might still be Differences to incorporate.
+    var differences: Array<number | string> = Encoding_object ? Encoding_object['Differences'] : null;
+    if (differences && differences.length > 0) {
+      var current_character_code = 0;
+      differences.forEach(difference => {
+        if (typeof difference === 'number') {
+          current_character_code = difference;
+        }
+        else {
+          // difference is a glyph name, but we want a mapping from character
+          // codes to native unicode strings, so we resolve the glyphname via the
+          // PDF standard glyphlist
+          // TODO: handle missing glyphnames
+          encoding.mapping[current_character_code++] = glyphlist[difference];
+        }
+      });
+    }
+
+    return encoding;
+  }
+
+  get encoding(): Encoding {
+    // initialize if needed
+    if (this._cached_encoding === undefined) {
+      this._cached_encoding = this.detectEncoding();
+    }
+    return this._cached_encoding;
   }
 
   /**
@@ -123,8 +163,8 @@ export class Font extends Model {
   in which case, it simply skips those characters.
   */
   decodeString(bytes: number[], skipMissing = false): string {
-    return this.encodingMapping.decodeCharCodes(bytes).map(charCode => {
-      var string = this.encodingMapping.decodeCharacter(charCode);
+    return this.encoding.decodeCharCodes(bytes).map(charCode => {
+      var string = this.encoding.decodeCharacter(charCode);
       if (string === undefined) {
         var placeholder = '\\u{' + charCode.toString(16) + '}';
         logger.error(`[Font=${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
@@ -240,8 +280,8 @@ export class Type1Font extends Font {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
-      var string = this.encodingMapping.decodeCharacter(charCode);
+    return this.encoding.decodeCharCodes(bytes).reduce((sum, charCode) => {
+      var string = this.encoding.decodeCharacter(charCode);
       var width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
       return sum + width;
     }, 0);
@@ -265,7 +305,7 @@ export class Type1Font extends Font {
       this._widthMapping = {};
       Widths.forEach((width, width_index) => {
         var charCode = FirstChar + width_index;
-        var string = this.encodingMapping.decodeCharacter(charCode);
+        var string = this.encoding.decodeCharacter(charCode);
         this._widthMapping[string] = width;
       });
       // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
@@ -335,7 +375,7 @@ export class Type0Font extends Font {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encodingMapping.decodeCharCodes(bytes).reduce((sum, charCode) => {
+    return this.encoding.decodeCharCodes(bytes).reduce((sum, charCode) => {
       var width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
       return sum + width;
     }, 0);
