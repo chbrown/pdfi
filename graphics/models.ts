@@ -44,6 +44,7 @@ export class Container<T extends Rectangle> extends Rectangle {
 }
 
 export class TextSpan extends Rectangle {
+  layoutContainer: Rectangle;
   constructor(public string: string,
               minX: number,
               minY: number,
@@ -55,10 +56,18 @@ export class TextSpan extends Rectangle {
               public details?: any) {
     super(minX, minY, maxX, maxY);
   }
-}
 
-export class ContainedElement<T extends Rectangle> extends Rectangle {
-  constructor(public element: T, container: Container<T>) {
-    super(element.minX, element.minY, element.maxX, element.maxY)
+  toJSON() {
+    return {
+      string: this.string,
+      minX: this.minX,
+      minY: this.minY,
+      maxX: this.maxX,
+      maxY: this.maxY,
+      fontSize: this.fontSize,
+      fontBold: this.fontBold,
+      fontItalic: this.fontItalic,
+      details: this.details,
+    }
   }
 }

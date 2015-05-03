@@ -64,15 +64,19 @@ var TextSpan = (function (_super) {
         this.fontItalic = fontItalic;
         this.details = details;
     }
+    TextSpan.prototype.toJSON = function () {
+        return {
+            string: this.string,
+            minX: this.minX,
+            minY: this.minY,
+            maxX: this.maxX,
+            maxY: this.maxY,
+            fontSize: this.fontSize,
+            fontBold: this.fontBold,
+            fontItalic: this.fontItalic,
+            details: this.details,
+        };
+    };
     return TextSpan;
 })(geometry_1.Rectangle);
 exports.TextSpan = TextSpan;
-var ContainedElement = (function (_super) {
-    __extends(ContainedElement, _super);
-    function ContainedElement(element, container) {
-        _super.call(this, element.minX, element.minY, element.maxX, element.maxY);
-        this.element = element;
-    }
-    return ContainedElement;
-})(geometry_1.Rectangle);
-exports.ContainedElement = ContainedElement;
