@@ -41,15 +41,17 @@ var Font = (function (_super) {
     });
     Object.defineProperty(Font.prototype, "BaseEncoding", {
         /**
-        This returns the object's `Encoding` value, if it's a string, or
-        `Encoding.BaseEncoding`, if it exists.
+        This returns the object's `Encoding.BaseEncoding`, if it exists, or
+        the plain `Encoding` value, if it's a string.
         */
         get: function () {
             var Encoding = new models_1.Model(this._pdf, this.object['Encoding']).object;
             if (Encoding && Encoding['BaseEncoding']) {
                 return Encoding['BaseEncoding'];
             }
-            return Encoding;
+            if (typeof Encoding == 'string') {
+                return Encoding;
+            }
         },
         enumerable: true,
         configurable: true
@@ -134,7 +136,7 @@ var Font = (function (_super) {
         configurable: true
     });
     /**
-    This is used / exposed by the `encodingMapping` getter, which caches the result.
+    This is used / exposed by the `encoding` getter, which caches the result.
   
     We need the Font's Encoding to map character codes into the glyph name (which
     can then easily be mapped to the unicode string representation of that glyph).
@@ -153,8 +155,8 @@ var Font = (function (_super) {
         else if (BaseEncoding == 'WinAnsiEncoding') {
             encoding.mergeLatinCharset('win');
         }
-        else {
-            logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: " + BaseEncoding);
+        else if (BaseEncoding !== undefined) {
+            logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
         }
         // ToUnicode is a better encoding indicator, but it is not always present,
         // and even when it is, it may be only complementary to the
