@@ -1,0 +1,3 @@
+#!/usr/bin/env node
+// TypeScript doesn't like hashbangs. This file functions as an alias.
+require('./pdfi-cli');

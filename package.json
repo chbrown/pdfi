@@ -32,8 +32,7 @@
     "typescript": "*"
   },
   "bin": {
-    "pdf-dump": "bin/pdf-dump",
-    "pdf-extract": "bin/pdf-extract"
+    "pdfi": "bin/pdfi"
   },
   "scripts": {
     "test": "make test"
