@@ -120,7 +120,7 @@ export class CONTENT_STREAM extends Collection<Operation[], Operation[]> {
     Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
     Rule(/^-?\d*\.\d+/, this.captureFloat),
     Rule(/^-?\d+/, this.captureInt),
-    Rule(/^%%EOF/, this.pop), // WTF?
+    Rule(/^%%EOF/, this.ignore), // WTF?
     Rule(/^[A-Za-z'"]+\*?/, this.captureOperator),
   ]
   captureOperator(matchValue: RegExpMatchArray) {

@@ -144,7 +144,7 @@ var CONTENT_STREAM = (function (_super) {
             Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
             Rule(/^-?\d*\.\d+/, this.captureFloat),
             Rule(/^-?\d+/, this.captureInt),
-            Rule(/^%%EOF/, this.pop),
+            Rule(/^%%EOF/, this.ignore),
             Rule(/^[A-Za-z'"]+\*?/, this.captureOperator),
         ];
     }
