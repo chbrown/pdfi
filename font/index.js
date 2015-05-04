@@ -39,6 +39,29 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Font.prototype, "BaseEncoding", {
+        /**
+        This returns the object's `Encoding` value, if it's a string, or
+        `Encoding.BaseEncoding`, if it exists.
+        */
+        get: function () {
+            var Encoding = new models_1.Model(this._pdf, this.object['Encoding']).object;
+            if (Encoding && Encoding['BaseEncoding']) {
+                return Encoding['BaseEncoding'];
+            }
+            return Encoding;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Font.prototype, "Differences", {
+        get: function () {
+            var Encoding = new models_1.Model(this._pdf, this.object['Encoding']).object;
+            return Encoding ? Encoding['Differences'] : null;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(Font.prototype, "BaseFont", {
         /**
         BaseFont is supposed to be a name (i.e., a string).
@@ -119,42 +142,44 @@ var Font = (function (_super) {
     Encoding and ToUnicode are not always specified.
     */
     Font.prototype.detectEncoding = function () {
-        var encoding;
-        // the best encoding indicator is ToUnicode, but it is not always present
+        var _this = this;
+        var encoding = new index_1.Encoding();
+        // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
+        var BaseEncoding = this.BaseEncoding;
+        if (BaseEncoding == 'MacRomanEncoding' || BaseEncoding == 'MacExpertEncoding') {
+            // TODO: handle MacExpertEncoding properly
+            encoding.mergeLatinCharset('mac');
+        }
+        else if (BaseEncoding == 'WinAnsiEncoding') {
+            encoding.mergeLatinCharset('win');
+        }
+        else {
+            logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: " + BaseEncoding);
+        }
+        // ToUnicode is a better encoding indicator, but it is not always present,
+        // and even when it is, it may be only complementary to the
+        // Encoding/BaseEncoding value
         var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
         if (ToUnicode.object) {
-            encoding = index_1.Encoding.fromCMapContentStream(ToUnicode);
+            encoding.mergeCMapContentStream(ToUnicode);
         }
-        // No luck? Try the Encoding string / dictionary
-        var Encoding_object = new models_1.Model(this._pdf, this.object['Encoding']).object;
-        if (encoding === undefined && Encoding_object) {
-            // TODO: use Encoding.object['BaseEncoding'] if it's specified
-            // TODO: handle MacExpertEncoding properly
-            if (Encoding_object == 'MacRomanEncoding' || Encoding_object == 'MacExpertEncoding') {
-                encoding = index_1.Encoding.fromLatinCharset('mac');
-            }
-            else if (Encoding_object == 'WinAnsiEncoding') {
-                encoding = index_1.Encoding.fromLatinCharset('win');
-            }
-            else {
-                encoding = index_1.Encoding.fromLatinCharset('std');
-            }
-        }
-        // still no good? try the FontDescriptor
+        // still no luck? try the FontDescriptor
         var FontDescriptor = this.FontDescriptor;
-        if (encoding === undefined && FontDescriptor) {
+        if (FontDescriptor) {
             logger.debug("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
             // check for the easy-out: 1-character fonts
             var FirstChar = this.object['FirstChar'];
             var LastChar = this.object['LastChar'];
             var CharSet = FontDescriptor.CharSet;
             if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-                var mapping = [];
-                mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
-                encoding = new index_1.Encoding(mapping);
+                encoding.mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
             }
             else if (FontDescriptor.object['FontFile']) {
-                encoding = FontDescriptor.getEncoding();
+                FontDescriptor.getMapping().forEach(function (str, charCode) {
+                    if (str !== null && str !== undefined) {
+                        encoding.mapping[charCode] = str;
+                    }
+                });
             }
             else {
                 logger.warn("[Font=" + this.Name + "] Could not resolve FontDescriptor (no FontFile property)");
@@ -167,13 +192,13 @@ var Font = (function (_super) {
         //   }
         // }
         // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-        if (encoding === undefined) {
+        if (encoding.mapping.length === 0) {
             logger.warn("[Font=" + this.Name + "] Could not find any character code mapping; using default \"std\" mapping");
-            encoding = index_1.Encoding.fromLatinCharset('std');
+            encoding.mergeLatinCharset('std');
         }
         // Finally, apply differences, if there are any.
         // even if ToUnicode is specified, there might still be Differences to incorporate.
-        var differences = Encoding_object ? Encoding_object['Differences'] : null;
+        var differences = this.Differences;
         if (differences && differences.length > 0) {
             var current_character_code = 0;
             differences.forEach(function (difference) {
@@ -185,7 +210,13 @@ var Font = (function (_super) {
                     // codes to native unicode strings, so we resolve the glyphname via the
                     // PDF standard glyphlist
                     // TODO: handle missing glyphnames
-                    encoding.mapping[current_character_code++] = index_1.glyphlist[difference];
+                    var difference_string = index_1.glyphlist[difference];
+                    if (difference_string !== undefined) {
+                        encoding.mapping[current_character_code++] = difference_string;
+                    }
+                    else {
+                        logger.warn("[Font=" + _this.Name + "] Ignoring Encoding.Difference " + current_character_code + " -> " + difference + ", which is not an existing glyphname");
+                    }
                 }
             });
         }

@@ -4,6 +4,7 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
+var logger = require('loge');
 var index_1 = require('../encoding/index');
 var models_1 = require('../models');
 /**
@@ -74,7 +75,7 @@ var FontDescriptor = (function (_super) {
     >     dup index charactername put
     > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
     */
-    FontDescriptor.prototype.getEncoding = function () {
+    FontDescriptor.prototype.getMapping = function () {
         var FontFile = new models_1.ContentStream(this._pdf, this.object['FontFile']);
         var cleartext_length = FontFile.dictionary['Length1'];
         // var string_iterable = lexing.StringIterator.fromBuffer(FontFile.buffer, 'ascii');
@@ -87,9 +88,15 @@ var FontDescriptor = (function (_super) {
         while ((match = charRegExp.exec(Encoding_string))) {
             var index = parseInt(match[1], 10);
             var glyphname = match[2];
-            mapping[index] = index_1.glyphlist[glyphname];
+            var str = index_1.glyphlist[glyphname];
+            if (str !== undefined) {
+                mapping[index] = str;
+            }
+            else {
+                logger.warn("Ignoring FontDescriptor mapping " + index + " -> " + glyphname + ", which is not a valid glyphname");
+            }
         }
-        return new index_1.Encoding(mapping);
+        return mapping;
     };
     return FontDescriptor;
 })(models_1.Model);

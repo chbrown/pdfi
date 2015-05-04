@@ -40,23 +40,28 @@ var Encoding = (function () {
   
     `base` should be one of 'std', 'mac', 'win', or 'pdf'
     */
-    Encoding.fromLatinCharset = function (base) {
-        var mapping = [];
+    Encoding.prototype.mergeLatinCharset = function (base) {
+        var _this = this;
         latin_charset.forEach(function (charspec) {
             var charCode = charspec[base];
             if (charCode !== null) {
-                mapping[charspec[base]] = exports.glyphlist[charspec.glyphname];
+                _this.mapping[charCode] = exports.glyphlist[charspec.glyphname];
             }
         });
-        return new Encoding(mapping);
     };
     /**
     This is called with a ToUnicode content stream for font types that specify one.
     */
-    Encoding.fromCMapContentStream = function (contentStream) {
+    Encoding.prototype.mergeCMapContentStream = function (contentStream) {
+        var _this = this;
         var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
         var cMap = cmap.CMap.parseStringIterable(string_iterable);
-        return new Encoding(cMap.mapping, cMap.byteLength);
+        this.characterByteLength = cMap.byteLength;
+        cMap.mapping.forEach(function (str, charCode) {
+            if (str !== null && str !== undefined) {
+                _this.mapping[charCode] = str;
+            }
+        });
     };
     /**
     Returns the character codes represented by the given bytes.

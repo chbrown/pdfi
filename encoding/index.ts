@@ -52,24 +52,27 @@ export class Encoding {
 
   `base` should be one of 'std', 'mac', 'win', or 'pdf'
   */
-  static fromLatinCharset(base: string): Encoding {
-    var mapping: string[] = [];
+  mergeLatinCharset(base: string): void {
     latin_charset.forEach(charspec => {
       var charCode: number = charspec[base];
       if (charCode !== null) {
-        mapping[charspec[base]] = glyphlist[charspec.glyphname];
+        this.mapping[charCode] = glyphlist[charspec.glyphname];
       }
     });
-    return new Encoding(mapping);
   }
 
   /**
   This is called with a ToUnicode content stream for font types that specify one.
   */
-  static fromCMapContentStream(contentStream: ContentStream): Encoding {
+  mergeCMapContentStream(contentStream: ContentStream): void {
     var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
     var cMap = cmap.CMap.parseStringIterable(string_iterable);
-    return new Encoding(cMap.mapping, cMap.byteLength);
+    this.characterByteLength = cMap.byteLength;
+    cMap.mapping.forEach((str, charCode) => {
+      if (str !== null && str !== undefined) {
+        this.mapping[charCode] = str;
+      }
+    });
   }
 
   /**
