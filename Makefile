@@ -9,12 +9,10 @@ all: $(TYPESCRIPT:%.ts=%.js)
 %.js: %.ts
 	node_modules/.bin/tsc -m commonjs -t ES5 $+
 
-DT_GITHUB := https://raw.githubusercontent.com/borisyankov/DefinitelyTyped/master
-
 # e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
 type_declarations/DefinitelyTyped/%:
 	mkdir -p $(shell dirname $@)
-	curl $(DT_GITHUB)/$* > $@
+	curl -s https://raw.githubusercontent.com/borisyankov/DefinitelyTyped/master/$* > $@
 
 .PHONY: external
 
