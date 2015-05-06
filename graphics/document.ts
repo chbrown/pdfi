@@ -2,6 +2,7 @@
 import logger = require('loge');
 import lexing = require('lexing');
 import unorm = require('unorm');
+import academia = require('academia');
 
 import Arrays = require('../Arrays');
 import {Container, TextSpan} from './models';
@@ -278,13 +279,13 @@ The given lines will come from a variety of different layout components, but in
 determining the oddity of the left offset of any given line, we only want to
 compare its left offset to the left offsets of other lines in the same layout component.
 */
-function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 8): DocumentParagraph[] {
+function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 8): string[][] {
   var lines = linesOfTextSpans.map(textSpans => {
     return new Line(textSpans);
   });
 
-  var paragraphs: DocumentParagraph[] = [];
-  var currentParagraph: DocumentParagraph;
+  var paragraphs: string[][] = [];
+  var currentParagraph: string[];
   lines.forEach(currentLine => {
     // lineContainer's elements represent a single line of text
     var layoutContainerLines = lines.filter(line => line.layoutContainer == currentLine.layoutContainer);
@@ -319,6 +320,7 @@ export class Section {
               public contentElements: TextSpan[] = []) { }
 
   getHeader(): string {
+    // TODO: handle multi-line section headers
     return flattenLine(this.headerElements);
   }
   /**
@@ -337,23 +339,9 @@ export class Section {
 }
 
 /**
-A DocumentParagraph represents a paragraph (list of lines) as an Array of strings.
-*/
-type DocumentParagraph = string[];
-
-export interface DocumentSection {
-  header: string;
-  content: string[]; // one string per paragraph
-}
-
-export interface Document {
-  sections: DocumentSection[];
-}
-
-/**
 Recombine an array of arbitrary TextSpan Containers into an array of Sections
 */
-export function documentFromContainers(containers: Container<TextSpan>[]): Document {
+export function documentFromContainers(containers: Container<TextSpan>[]): academia.types.Paper {
   // containers is an array of basic Containers for the whole PDF / document
   // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
   // 1. the easiest first step is to get the mean and median font size
@@ -392,8 +380,8 @@ export function documentFromContainers(containers: Container<TextSpan>[]): Docum
   return {
     sections: sections.map(section => {
       return {
-        header: section.getHeader(),
-        content: section.getContent(),
+        title: section.getHeader(),
+        paragraphs: section.getContent(),
       };
     })
   };

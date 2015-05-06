@@ -3,6 +3,7 @@ import fs = require('fs');
 import chalk = require('chalk');
 import logger = require('loge');
 import lexing = require('lexing');
+import academia = require('academia');
 
 import File = require('./File');
 
@@ -156,7 +157,7 @@ class PDF {
 
   If `section_names` is empty, return all sections.
   */
-  getDocument(minimumElementsPerLayoutComponent = 2): document.Document {
+  getDocument(minimumElementsPerLayoutComponent = 2): academia.types.Paper {
     var containers = Arrays.flatMap(this.pages, page => {
       var documentCanvas = graphics.renderPage(page);
       // autodetectLayout(): Container<TextSpan>[]

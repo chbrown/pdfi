@@ -326,6 +326,7 @@ var Section = (function () {
         this.contentElements = contentElements;
     }
     Section.prototype.getHeader = function () {
+        // TODO: handle multi-line section headers
         return flattenLine(this.headerElements);
     };
     /**
@@ -386,8 +387,8 @@ function documentFromContainers(containers) {
     return {
         sections: sections.map(function (section) {
             return {
-                header: section.getHeader(),
-                content: section.getContent(),
+                title: section.getHeader(),
+                paragraphs: section.getContent(),
             };
         })
     };
