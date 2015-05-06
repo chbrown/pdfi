@@ -236,7 +236,8 @@ export class TextDrawingContext extends DrawingContext {
         // negative numbers indicate forward (rightward) movement. if it's a
         // very negative number, it's like inserting a space. otherwise, it
         // only signifies a small manual spacing hack.
-        return (item < -100) ? ' ' : '';
+        // return (item < -100) ? ' ' : '';
+        return ` ${item} `;
       }
       else {
         throw new Error(`Unknown TJ argument type: "${item}"`);
