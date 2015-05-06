@@ -1,10 +1,10 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import logger = require('loge');
 import lexing = require('lexing');
-import unorm = require('unorm');
 import academia = require('academia');
 
 import Arrays = require('../Arrays');
+import {normalize} from '../encoding/index';
 import {Container, TextSpan} from './models';
 import {Rectangle} from './geometry';
 import {Canvas} from './canvas';
@@ -103,10 +103,12 @@ function medianLeftOffset(container: Rectangle, elements: Rectangle[]): number {
 
 /**
 The given textSpans should all have approximately the same Y value.
+
+normalize(...) ensures that there is no whitespace, besides SPACE, in the result.
 */
 function flattenLine(textSpans: TextSpan[], spaceWidth = 1): string {
   var previousTextSpan: TextSpan;
-  return textSpans.map(currentTextSpan => {
+  var line = textSpans.map(currentTextSpan => {
     // dX measures the distance between the right bound of the previous span
     // and the left bound of the current one. It may be negative.
     var dX = previousTextSpan ? (currentTextSpan.minX - previousTextSpan.maxX) : -Infinity;
@@ -114,110 +116,8 @@ function flattenLine(textSpans: TextSpan[], spaceWidth = 1): string {
     previousTextSpan = currentTextSpan;
     // if it's far enough away (horizontally) from the last box, we add a space
     return (dX > spaceWidth) ? (' ' + currentTextSpan.string) : currentTextSpan.string;
-  }).join('').trim();
-}
-
-/**
-Modifiers modify the character after them.
-Combiners modify the character before them.
-*/
-var modifier_to_combiner = {
-  "\u02C7": "\u030C", // CARON -> COMBINING CARON
-  "\u02DB": "\u0328", // OGONEK -> COMBINING OGONEK
-  "\u02CA": "\u0301", // MODIFIER LETTER ACUTE ACCENT -> COMBINING ACUTE ACCENT
-  "\u02CB": "\u0300", // MODIFIER LETTER GRAVE ACCENT -> COMBINING GRAVE ACCENT
-  "\u02C6": "\u0302", // MODIFIER LETTER CIRCUMFLEX ACCENT -> COMBINING CIRCUMFLEX ACCENT
-};
-/**
-These are all the unicode characters where:
-* the category of Modifier_Symbol
-* the character code is less than 1000
-* they have decompositions.
-
-I think these are the ones that we can assume are supposed to combine with the
-following character.
-*/
-var decomposable_modifiers = {
-  '\u00A8': '\u0308', // DIAERESIS
-  '\u00AF': '\u0304', // MACRON
-  '\u00B4': '\u0301', // ACUTE ACCENT
-  '\u00B8': '\u0327', // CEDILLA
-  '\u02D8': '\u0306', // BREVE -> COMBINING BREVE
-  '\u02D9': '\u0307', // DOT ABOVE
-  '\u02DA': '\u030A', // RING ABOVE
-  '\u02DB': '\u0328', // OGONEK
-  '\u02DC': '\u0303', // SMALL TILDE
-  '\u02DD': '\u030B', // DOUBLE ACUTE ACCENT -> COMBINING DOUBLE ACUTE ACCENT
-};
-/**
-Normalization:
-1. Combining diacritics combine with the character that precedes them.
-   A high-order character with diacritic (like "LATIN SMALL LETTER C WITH CARON")
-   is decomposed into a pair [lowercase c, combining caron]. This is what we deal
-   with below, by decomposing lone diacritics into [space, combining diacritic]
-   pairs, removing the space, and recomposing, so that the diacritic combines
-   with the previous character, as the PDF writer intended.
-   E.g., Preot¸iuc (from P14-6001.pdf), where the U+00B8 "CEDILLA" combines with
-   the character preceding it.
-2. We also need to deal with modifier diacritics, which precede the character
-   they modify. For example, Hajiˇc (from P14-5021.pdf), where the intended č
-   is designated by a (U+02C7 "CARON", U+0063 "LATIN SMALL LETTER C") pair.
-   ("CARON" is a Modifier_Letter)
-
-Actually, I'm not sure how to tell these apart. "¸", which joins with the
-preceding character, has a decomposition specified, as (SPACE, COMBINING CEDILLA),
-but is otherwise a modifier character as usual.
-
-So, it's ambiguous?
-*/
-export function normalize(raw: string): string {
-  // remove all character codes 0 through 31 (space is 32 == 0x1F)
-  var visible = raw.replace(/[\x00-\x1F]/g, '');
-  // replace combining characters that are currently combining with a space
-  // by the lone combiner so that they'll combine with the following character
-  // instead, as intended.
-  var decompositions_applied = visible.replace(/[\u00A8\u00AF\u00B4\u00B8\u02D8-\u02DD]/g, (modifier) => {
-    return decomposable_modifiers[modifier];
-  });
-  // replace (modifier, letter) pairs with a single modified-letter character
-  // (0x02B0-0x02FF) = (688-767)
-  var modifiers_applied = decompositions_applied.replace(/([\u02B0-\u02FF])(.)/g, (_, modifier, modified) => {
-    if (modifier in modifier_to_combiner) {
-      return modified + modifier_to_combiner[modifier];
-    }
-    // if we can't find a matching combiner, return the original pair
-    return modifier + modified;
-  });
-  // finally, canonicalize all the combining characters with precomposed
-  // characters via unorm
-  return unorm.nfc(modifiers_applied);
-}
-
-/**
-If a line ends with a hyphen, we remove the hyphen and join it to
-the next line directly; otherwise, join them with a space.
-
-Render each Paragraph into a single string with any pre-existing EOL
-markers converted to spaces, and any control characters stripped out.
-
-TODO: look at the whole document / a general corpus for indicators of
-intentionally hyphenated words.
-*/
-export function joinLines(lines: string[]): string {
-  var strings = lines.map(line => {
-    if (line.match(/-$/)) {
-      // if line is hyphenated, return it without the hyphen.
-      // TODO: be smarter about this.
-      return line.slice(0, -1);
-    }
-    else {
-      // otherwise, return it with a space on the end
-      return line + ' ';
-    }
-  });
-  // prepare line string
-  var line = strings.join('').replace(/(\r\n|\r|\n|\t)/g, ' ').trim();
-  return normalize(line);
+  }).join('');
+  return normalize(line).trim();
 }
 
 export class DocumentCanvas extends Canvas {
@@ -375,32 +275,29 @@ function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 8): string
   return paragraphs;
 }
 
+class Multiset {
+  public total = 0;
+  public elements: {[index: string]: number} = {};
+
+  constructor() { }
+
+  add(element: string) {
+    this.elements[element] = (this.elements[element] || 0) + 1;
+    this.total++;
+  }
+
+  get(element: string): number {
+    return this.elements[element] || 0;
+  }
+}
+
 /**
 Despite being an array, `headerLines` will most often be 1-long.
 */
 export class Section {
+  public paragraphs: string[][];
   constructor(public headerElements: TextSpan[] = [],
               public contentElements: TextSpan[] = []) { }
-
-  getHeader(): string {
-    // TODO: handle multi-line section headers (better)
-    var text = flattenLine(this.headerElements);
-    var line = text.replace(/(\r\n|\r|\n|\t)/g, ' ').trim();
-    return normalize(line);
-  }
-  /**
-  As single string:
-    return this.contentElements.map(textSpan => textSpan.string).join('');
-  */
-  getContent(): string[] {
-    // 1. First step: basic line detection. There are no such things as
-    //    paragraphs if we have no concept of lines.
-    var lines: TextSpan[][] = groupIntoLines(this.contentElements);
-    //  2. iterate through the lines, flattening into paragraphs
-    var paragraphs = detectParagaphs(lines);
-    // finish up: convert each paragraph (list of strings) to a single string
-    return paragraphs.map(paragraph => joinLines(paragraph));
-  }
 }
 
 /**
@@ -440,14 +337,70 @@ export function documentFromContainers(containers: Container<TextSpan>[]): acade
   });
   // flush final section
   sections.push(currentSection);
-  // flatten sections -- which is complicated in itself, but the Section class
-  // handles the line/paragraph detection
+
+  // pass through once to prepare the paragraphs
+  // (this flattens each sections -- which is complicated in itself, but the
+  // groupIntoLines and detectParagaphs functions do the heavy work)
+  sections.forEach(section => {
+    // 1. First step: basic line detection. There are no such things as
+    //    paragraphs if we have no concept of lines.
+    var lines: TextSpan[][] = groupIntoLines(section.contentElements);
+    // 2. iterate through the lines, regrouping into paragraphs
+    section.paragraphs = detectParagaphs(lines);
+  });
+
+  // Each section's `paragraphs` is now set to a list of lists of lines (string[][])
+  // We now need to derive a bag of words for the entire document.
+  var bag_of_words = new Multiset();
+  sections.forEach(section => {
+    section.paragraphs.forEach(lines => {
+      lines.forEach(line => {
+        line.split(/\s+/).forEach(token => {
+          bag_of_words.add(token);
+        });
+      });
+    });
+  });
+
   return {
     sections: sections.map(section => {
-      return {
-        title: section.getHeader(),
-        paragraphs: section.getContent(),
-      };
+      // TODO: handle multi-line section headers better
+      var title = flattenLine(section.headerElements).trim();
+      // finish up: convert each paragraph (list of strings) to a single string
+      var paragraphs = section.paragraphs.map(lines => joinLines(lines, bag_of_words));
+      return { title: title, paragraphs: paragraphs };
     })
   };
+}
+
+/**
+If a line ends with a hyphen, we remove the hyphen and join it to
+the next line directly; otherwise, join them with a space.
+
+Render each Paragraph into a single string with any pre-existing EOL
+markers converted to spaces, and any control characters stripped out.
+
+bag_of_words is used to look at the whole document for indicators of
+intentionally hyphenated words.
+*/
+function joinLines(lines: string[], bag_of_words: Multiset): string {
+  // each line in lines is guaranteed not to contain whitespace other than
+  // SPACE, since they've all been run through flattenLine, so when we join
+  // with newline characters here, we know that only newlines in the string
+  // are the ones we've just added
+  var joined = lines.join('\n');
+  // now look for all occurrences of "-\n", capturing the words before and after
+  var rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, m1, m2) => {
+    // if line is hyphenated, and the word that is broken turns up in the corpus
+    // more times WITH the hyphen than WITHOUT, return it WITH the hyphen
+    var hyphenated = m1 + '-' + m2;
+    var nhyphenated = bag_of_words.get(hyphenated);
+    var dehyphenated = m1 + m2;
+    var ndehyphenated = bag_of_words.get(dehyphenated);
+    var result = (nhyphenated > ndehyphenated) ? hyphenated : dehyphenated;
+    return result;
+  });
+  // the remaining line breaks are legimate breaks between words, so we simply
+  // replace them with a plain SPACE
+  return rejoined.replace(/\n/g, ' ');
 }

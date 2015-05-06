@@ -1,6 +1,7 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import * as lexing from 'lexing';
 import logger = require('loge');
+import unorm = require('unorm');
 
 import Arrays = require('../Arrays');
 import {ContentStream} from '../models';
@@ -94,4 +95,73 @@ export class Encoding {
   decodeCharacter(charCode: number): string {
     return this.mapping[charCode];
   }
+}
+
+/**
+Modifiers modify the character after them. This is the PDF way.
+Combiners modify the character before them. This is the Unicode way.
+
+The Unicode modifier block is (0x02B0-0x02FF) = (688-767)
+*/
+var modifier_to_combiner = {
+  '\u005E': '\u0302', // CIRCUMFLEX ACCENT
+  '\u0060': '\u0300', // GRAVE ACCENT
+  '\u00A8': '\u0308', // DIAERESIS
+  '\u00AF': '\u0304', // MACRON
+  '\u00B4': '\u0301', // ACUTE ACCENT
+  '\u00B8': '\u0327', // CEDILLA
+  '\u02C6': '\u0302', // MODIFIER LETTER CIRCUMFLEX ACCENT -> COMBINING CIRCUMFLEX ACCENT
+  '\u02C7': '\u030C', // CARON -> COMBINING CARON
+  '\u02CA': '\u0301', // MODIFIER LETTER ACUTE ACCENT -> COMBINING ACUTE ACCENT
+  '\u02CB': '\u0300', // MODIFIER LETTER GRAVE ACCENT -> COMBINING GRAVE ACCENT
+  '\u02D8': '\u0306', // BREVE -> COMBINING BREVE
+  '\u02D9': '\u0307', // DOT ABOVE
+  '\u02DA': '\u030A', // RING ABOVE
+  '\u02DB': '\u0328', // OGONEK
+  '\u02DC': '\u0303', // SMALL TILDE
+  '\u02DD': '\u030B', // DOUBLE ACUTE ACCENT -> COMBINING DOUBLE ACUTE ACCENT
+};
+/**
+Normalization:
+1. Combining diacritics combine with the character that precedes them.
+   A high-order character with diacritic (like "LATIN SMALL LETTER C WITH CARON")
+   is decomposed into a pair [lowercase c, combining caron]. This is what we deal
+   with below, by decomposing lone diacritics into [space, combining diacritic]
+   pairs, removing the space, and recomposing, so that the diacritic combines
+   with the previous character, as the PDF writer intended.
+   E.g., Preot¸iuc (from P14-6001.pdf), where the U+00B8 "CEDILLA" combines with
+   the character preceding it.
+   Actually, apparently that's an oddity. There's a huge (positive) TJ spacing
+   argument in between the two arguments: (eot) 333 (¸iuc)
+
+2. We also need to deal with modifier diacritics, which precede the character
+   they modify. For example, Hajiˇc (from P14-5021.pdf), where the intended č
+   is designated by a (U+02C7 "CARON", U+0063 "LATIN SMALL LETTER C") pair.
+   ("CARON" is a Modifier_Letter)
+
+Actually, I'm not sure how to tell these apart. "¸", which joins with the
+preceding character, has a decomposition specified, as (SPACE, COMBINING CEDILLA),
+but is otherwise a modifier character as usual.
+
+So, it's ambiguous?
+*/
+export function normalize(raw: string): string {
+  // ensure that the only whitespace is SPACE
+  // TODO: match other whitespace?
+  var flattened = raw.replace(/\r\n|\r|\n|\t/g, ' ');
+  // just remove any other character codes 0 through 31 (space is 32 == 0x20)
+  var visible = flattened.replace(/[\x00-\x1F]/g, '');
+  // replace modifier characters that are currently combining with a space
+  // (sort of) with the lone combiner, so that they'll combine with the
+  // following character instead, as intended.
+  var modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, (_, modifier, modified) => {
+    if (modifier in modifier_to_combiner) {
+      return modified + modifier_to_combiner[modifier];
+    }
+    // if we can't find a matching combiner, return the original pair
+    return modifier + modified;
+  });
+  // finally, canonicalize via unorm
+  // NFKC: Compatibility Decomposition, followed by Canonical Composition
+  return unorm.nfkc(modifiers_recombined);
 }

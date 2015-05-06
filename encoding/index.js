@@ -1,5 +1,6 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
+var unorm = require('unorm');
 var Arrays = require('../Arrays');
 var cmap = require('../parsers/cmap');
 /**
@@ -84,3 +85,72 @@ var Encoding = (function () {
     return Encoding;
 })();
 exports.Encoding = Encoding;
+/**
+Modifiers modify the character after them. This is the PDF way.
+Combiners modify the character before them. This is the Unicode way.
+
+The Unicode modifier block is (0x02B0-0x02FF) = (688-767)
+*/
+var modifier_to_combiner = {
+    '\u005E': '\u0302',
+    '\u0060': '\u0300',
+    '\u00A8': '\u0308',
+    '\u00AF': '\u0304',
+    '\u00B4': '\u0301',
+    '\u00B8': '\u0327',
+    '\u02C6': '\u0302',
+    '\u02C7': '\u030C',
+    '\u02CA': '\u0301',
+    '\u02CB': '\u0300',
+    '\u02D8': '\u0306',
+    '\u02D9': '\u0307',
+    '\u02DA': '\u030A',
+    '\u02DB': '\u0328',
+    '\u02DC': '\u0303',
+    '\u02DD': '\u030B',
+};
+/**
+Normalization:
+1. Combining diacritics combine with the character that precedes them.
+   A high-order character with diacritic (like "LATIN SMALL LETTER C WITH CARON")
+   is decomposed into a pair [lowercase c, combining caron]. This is what we deal
+   with below, by decomposing lone diacritics into [space, combining diacritic]
+   pairs, removing the space, and recomposing, so that the diacritic combines
+   with the previous character, as the PDF writer intended.
+   E.g., Preot¸iuc (from P14-6001.pdf), where the U+00B8 "CEDILLA" combines with
+   the character preceding it.
+   Actually, apparently that's an oddity. There's a huge (positive) TJ spacing
+   argument in between the two arguments: (eot) 333 (¸iuc)
+
+2. We also need to deal with modifier diacritics, which precede the character
+   they modify. For example, Hajiˇc (from P14-5021.pdf), where the intended č
+   is designated by a (U+02C7 "CARON", U+0063 "LATIN SMALL LETTER C") pair.
+   ("CARON" is a Modifier_Letter)
+
+Actually, I'm not sure how to tell these apart. "¸", which joins with the
+preceding character, has a decomposition specified, as (SPACE, COMBINING CEDILLA),
+but is otherwise a modifier character as usual.
+
+So, it's ambiguous?
+*/
+function normalize(raw) {
+    // ensure that the only whitespace is SPACE
+    // TODO: match other whitespace?
+    var flattened = raw.replace(/\r\n|\r|\n|\t/g, ' ');
+    // just remove any other character codes 0 through 31 (space is 32 == 0x20)
+    var visible = flattened.replace(/[\x00-\x1F]/g, '');
+    // replace modifier characters that are currently combining with a space
+    // (sort of) with the lone combiner, so that they'll combine with the
+    // following character instead, as intended.
+    var modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, function (_, modifier, modified) {
+        if (modifier in modifier_to_combiner) {
+            return modified + modifier_to_combiner[modifier];
+        }
+        // if we can't find a matching combiner, return the original pair
+        return modifier + modified;
+    });
+    // finally, canonicalize via unorm
+    // NFKC: Compatibility Decomposition, followed by Canonical Composition
+    return unorm.nfkc(modifiers_recombined);
+}
+exports.normalize = normalize;
