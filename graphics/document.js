@@ -115,6 +115,82 @@ function flattenLine(textSpans, spaceWidth) {
     }).join('').trim();
 }
 /**
+Modifiers modify the character after them.
+Combiners modify the character before them.
+*/
+var modifier_to_combiner = {
+    "\u02C7": "\u030C",
+    "\u02DB": "\u0328",
+    "\u02CA": "\u0301",
+    "\u02CB": "\u0300",
+    "\u02C6": "\u0302",
+};
+/**
+These are all the unicode characters where:
+* the category of Modifier_Symbol
+* the character code is less than 1000
+* they have decompositions.
+
+I think these are the ones that we can assume are supposed to combine with the
+following character.
+*/
+var decomposable_modifiers = {
+    '\u00A8': '\u0308',
+    '\u00AF': '\u0304',
+    '\u00B4': '\u0301',
+    '\u00B8': '\u0327',
+    '\u02D8': '\u0306',
+    '\u02D9': '\u0307',
+    '\u02DA': '\u030A',
+    '\u02DB': '\u0328',
+    '\u02DC': '\u0303',
+    '\u02DD': '\u030B',
+};
+/**
+Normalization:
+1. Combining diacritics combine with the character that precedes them.
+   A high-order character with diacritic (like "LATIN SMALL LETTER C WITH CARON")
+   is decomposed into a pair [lowercase c, combining caron]. This is what we deal
+   with below, by decomposing lone diacritics into [space, combining diacritic]
+   pairs, removing the space, and recomposing, so that the diacritic combines
+   with the previous character, as the PDF writer intended.
+   E.g., Preot¸iuc (from P14-6001.pdf), where the U+00B8 "CEDILLA" combines with
+   the character preceding it.
+2. We also need to deal with modifier diacritics, which precede the character
+   they modify. For example, Hajiˇc (from P14-5021.pdf), where the intended č
+   is designated by a (U+02C7 "CARON", U+0063 "LATIN SMALL LETTER C") pair.
+   ("CARON" is a Modifier_Letter)
+
+Actually, I'm not sure how to tell these apart. "¸", which joins with the
+preceding character, has a decomposition specified, as (SPACE, COMBINING CEDILLA),
+but is otherwise a modifier character as usual.
+
+So, it's ambiguous?
+*/
+function normalize(raw) {
+    // remove all character codes 0 through 31 (space is 32 == 0x1F)
+    var visible = raw.replace(/[\x00-\x1F]/g, '');
+    // replace combining characters that are currently combining with a space
+    // by the lone combiner so that they'll combine with the following character
+    // instead, as intended.
+    var decompositions_applied = visible.replace(/[\u00A8\u00AF\u00B4\u00B8\u02D8-\u02DD]/g, function (modifier) {
+        return decomposable_modifiers[modifier];
+    });
+    // replace (modifier, letter) pairs with a single modified-letter character
+    // (0x02B0-0x02FF) = (688-767)
+    var modifiers_applied = decompositions_applied.replace(/([\u02B0-\u02FF])(.)/g, function (_, modifier, modified) {
+        if (modifier in modifier_to_combiner) {
+            return modified + modifier_to_combiner[modifier];
+        }
+        // if we can't find a matching combiner, return the original pair
+        return modifier + modified;
+    });
+    // finally, canonicalize all the combining characters with precomposed
+    // characters via unorm
+    return unorm.nfc(modifiers_applied);
+}
+exports.normalize = normalize;
+/**
 If a line ends with a hyphen, we remove the hyphen and join it to
 the next line directly; otherwise, join them with a space.
 
@@ -138,20 +214,7 @@ function joinLines(lines) {
     });
     // prepare line string
     var line = strings.join('').replace(/(\r\n|\r|\n|\t)/g, ' ').trim();
-    // remove all character codes 0 through 31 (space is 32)
-    var visible_line = line.replace(/[\x00-\x1F]/g, '');
-    // TODO: reduce combining characters without this space->tab hack
-    // replace spaces temporarily
-    var protected_line = visible_line.replace(/ /g, '\t');
-    // replace spaces temporarily
-    var normalized_protected_line = unorm.nfkc(protected_line);
-    // collapse out the spaces generated for the combining characters
-    var collapsed_line = normalized_protected_line.replace(/ /g, '');
-    // change the space substitutes back into spaces
-    var normalized_line = collapsed_line.replace(/\t/g, ' ');
-    // and replacing the combining character pairs with precombined characters where possible
-    var canonical_line = unorm.nfc(normalized_line);
-    return canonical_line;
+    return normalize(line);
 }
 exports.joinLines = joinLines;
 var DocumentCanvas = (function (_super) {
@@ -326,8 +389,10 @@ var Section = (function () {
         this.contentElements = contentElements;
     }
     Section.prototype.getHeader = function () {
-        // TODO: handle multi-line section headers
-        return flattenLine(this.headerElements);
+        // TODO: handle multi-line section headers (better)
+        var text = flattenLine(this.headerElements);
+        var line = text.replace(/(\r\n|\r|\n|\t)/g, ' ').trim();
+        return normalize(line);
     };
     /**
     As single string:
