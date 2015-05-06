@@ -13,6 +13,7 @@
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
+    "academia": "*",
     "adts": "*",
     "afm": "*",
     "async": "*",
@@ -22,6 +23,7 @@
     "lodash": "*",
     "loge": "*",
     "streaming": "*",
+    "unidata": "*",
     "unorm": "*",
     "util-enhanced": "*",
     "visible": "*",
