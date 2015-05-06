@@ -1,6 +1,7 @@
 /// <reference path="DefinitelyTyped.d.ts" />
 
 // self-declaring packages:
+/// <reference path="../node_modules/academia/academia.d.ts" />
 /// <reference path="../node_modules/adts/adts.d.ts" />
 /// <reference path="../node_modules/afm/afm.d.ts" />
 /// <reference path="../node_modules/lexing/lexing.d.ts" />
