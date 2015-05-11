@@ -1,23 +1,19 @@
-TYPESCRIPT = $(wildcard *.ts bin/*.ts parsers/*.ts filters/*.ts test/*.ts)
+TYPESCRIPT := $(wildcard *.ts bin/*.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
 
+DTS := async/async lodash/lodash mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
+
+.PHONY: all type_declarations
 all: $(TYPESCRIPT:%.ts=%.js)
 
-# build the pdfobject parser script from Jison grammar
-# parsers/pdfobject.parser.js: parsers/pdfobject.jison
-# 	node_modules/.bin/jison $+ -m commonjs -p lalr -o $@
+type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
 
-%.js: %.ts
+%.js: %.ts type_declarations
 	node_modules/.bin/tsc -m commonjs -t ES5 $+
 
 # e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
 type_declarations/DefinitelyTyped/%:
-	mkdir -p $(shell dirname $@)
-	curl -s https://raw.githubusercontent.com/borisyankov/DefinitelyTyped/master/$* > $@
-
-.PHONY: external
-
-EXTERNAL := async/async.d.ts lodash/lodash.d.ts mocha/mocha.d.ts node/node.d.ts yargs/yargs.d.ts chalk/chalk.d.ts
-external: $(EXTERNAL:%=type_declarations/DefinitelyTyped/%)
+	mkdir -p $(@D)
+	curl -s https://raw.githubusercontent.com/chbrown/DefinitelyTyped/master/$* > $@
 
 test: all
 	node_modules/.bin/mocha --recursive test/
