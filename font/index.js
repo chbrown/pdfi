@@ -32,20 +32,14 @@ var Font = (function (_super) {
     function Font() {
         _super.apply(this, arguments);
     }
-    Object.defineProperty(Font.prototype, "Subtype", {
-        get: function () {
-            return this.object['Subtype'];
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(Font.prototype, "BaseEncoding", {
         /**
         This returns the object's `Encoding.BaseEncoding`, if it exists, or
         the plain `Encoding` value, if it's a string.
         */
         get: function () {
-            var Encoding = new models_1.Model(this._pdf, this.object['Encoding']).object;
+            var Encoding = this.get('Encoding');
+            // logger.info(`[Font=${this.Name}] Encoding=${Encoding}`);
             if (Encoding && Encoding['BaseEncoding']) {
                 return Encoding['BaseEncoding'];
             }
@@ -58,7 +52,7 @@ var Font = (function (_super) {
     });
     Object.defineProperty(Font.prototype, "Differences", {
         get: function () {
-            var Encoding = new models_1.Model(this._pdf, this.object['Encoding']).object;
+            var Encoding = this.get('Encoding');
             return Encoding ? Encoding['Differences'] : null;
         },
         enumerable: true,
@@ -70,8 +64,7 @@ var Font = (function (_super) {
         Maybe not always?
         */
         get: function () {
-            var object = new models_1.Model(this._pdf, this.object['BaseFont']).object;
-            return object;
+            return this.get('BaseFont');
         },
         enumerable: true,
         configurable: true
@@ -148,12 +141,13 @@ var Font = (function (_super) {
         var encoding = new index_1.Encoding();
         // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
         var BaseEncoding = this.BaseEncoding;
-        if (BaseEncoding == 'MacRomanEncoding' || BaseEncoding == 'MacExpertEncoding') {
-            // TODO: handle MacExpertEncoding properly
-            encoding.mergeLatinCharset('mac');
+        // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
+        if (index_1.Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
+            encoding.mergeLatinCharset(BaseEncoding);
         }
-        else if (BaseEncoding == 'WinAnsiEncoding') {
-            encoding.mergeLatinCharset('win');
+        else if (BaseEncoding == 'Identity-H') {
+            logger.warn("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
+            encoding.characterByteLength = 2;
         }
         else if (BaseEncoding !== undefined) {
             logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
@@ -168,35 +162,32 @@ var Font = (function (_super) {
         // still no luck? try the FontDescriptor
         var FontDescriptor = this.FontDescriptor;
         if (FontDescriptor) {
-            logger.debug("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
+            logger.silly("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
             // check for the easy-out: 1-character fonts
-            var FirstChar = this.object['FirstChar'];
-            var LastChar = this.object['LastChar'];
+            var FirstChar = this.get('FirstChar');
+            var LastChar = this.get('LastChar');
             var CharSet = FontDescriptor.CharSet;
             if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
                 encoding.mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
             }
-            else if (FontDescriptor.object['FontFile']) {
-                FontDescriptor.getMapping().forEach(function (str, charCode) {
+            else if (FontDescriptor.get('FontFile')) {
+                FontDescriptor.getEncoding().mapping.forEach(function (str, charCode) {
                     if (str !== null && str !== undefined) {
                         encoding.mapping[charCode] = str;
                     }
                 });
             }
-            else {
-                logger.warn("[Font=" + this.Name + "] Could not resolve FontDescriptor (no FontFile property)");
-            }
         }
+        // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
         // if (this.object['FontName']) {
         //   var [prefix, name] = this.object['FontName'].split('+');
         //   if (name) {
         //     // try to lookup an AFM file to resolve characters to glyphnames
         //   }
         // }
-        // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
         if (encoding.mapping.length === 0) {
             logger.warn("[Font=" + this.Name + "] Could not find any character code mapping; using default \"std\" mapping");
-            encoding.mergeLatinCharset('std');
+            encoding.mergeLatinCharset('StandardEncoding');
         }
         // Finally, apply differences, if there are any.
         // even if ToUnicode is specified, there might still be Differences to incorporate.
@@ -213,12 +204,16 @@ var Font = (function (_super) {
                     // PDF standard glyphlist
                     // TODO: handle missing glyphnames
                     var difference_string = index_1.glyphlist[difference];
-                    if (difference_string !== undefined) {
-                        encoding.mapping[current_character_code++] = difference_string;
+                    if (difference == '.notdef') {
+                        encoding.mapping[current_character_code] = undefined;
+                    }
+                    else if (difference_string !== undefined) {
+                        encoding.mapping[current_character_code] = difference_string;
                     }
                     else {
                         logger.warn("[Font=" + _this.Name + "] Ignoring Encoding.Difference " + current_character_code + " -> " + difference + ", which is not an existing glyphname");
                     }
+                    current_character_code++;
                 }
             });
         }
@@ -269,12 +264,12 @@ var Font = (function (_super) {
     (usually somewhere in the range of 250-750 for each character/glyph).
     */
     Font.prototype.measureString = function (bytes) {
-        throw new Error("Cannot measureString() in base Font class (Subtype: " + this.Subtype + ", Name: " + this.Name + ")");
+        throw new Error("Cannot measureString() in base Font class (Subtype: " + this.get('Subtype') + ", Name: " + this.Name + ")");
     };
     Font.prototype.toJSON = function () {
         return {
             Type: 'Font',
-            Subtype: this.Subtype,
+            Subtype: this.get('Subtype'),
             BaseFont: this.BaseFont,
         };
     };
@@ -386,9 +381,9 @@ var Type1Font = (function (_super) {
         // Try using the local Widths, etc., configuration first.
         // TODO: avoid this BaseFont_name hack and resolve TrueType fonts properly
         var BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
-        var Widths = new models_1.Model(this._pdf, this.object['Widths']).object;
+        var Widths = new models_1.Model(this._pdf, this.get('Widths')).object;
         if (Widths) {
-            var FirstChar = this.object['FirstChar'];
+            var FirstChar = this.get('FirstChar');
             // TODO: verify LastChar?
             this._widthMapping = {};
             Widths.forEach(function (width, width_index) {
@@ -452,7 +447,7 @@ var Type0Font = (function (_super) {
         > CIDFont dictionary that is the descendant of this Type 0 font.
         */
         get: function () {
-            var array = new models_1.Model(this._pdf, this.object['DescendantFonts']).object;
+            var array = new models_1.Model(this._pdf, this.get('DescendantFonts')).object;
             return new CIDFont(this._pdf, array[0]);
         },
         enumerable: true,
@@ -503,7 +498,7 @@ var CIDFont = (function (_super) {
     }
     Object.defineProperty(CIDFont.prototype, "CIDSystemInfo", {
         get: function () {
-            return this.object['CIDSystemInfo'];
+            return this.get('CIDSystemInfo');
         },
         enumerable: true,
         configurable: true
@@ -517,7 +512,7 @@ var CIDFont = (function (_super) {
         configurable: true
     });
     CIDFont.prototype.getDefaultWidth = function () {
-        return this.object['DW'];
+        return this.get('DW');
     };
     /**
     The W array allows the definition of widths for individual CIDs. The elements

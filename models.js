@@ -19,10 +19,7 @@ var IndirectReference = (function () {
     IndirectReference.isIndirectReference = function (object) {
         if (object === undefined || object === null)
             return false;
-        // return ('object_number' in object) && ('generation_number' in object);
-        var object_number = object['object_number'];
-        var generation_number = object['generation_number'];
-        return (object_number !== undefined) && (generation_number !== undefined);
+        return (object['object_number'] !== undefined) && (object['generation_number'] !== undefined);
     };
     /**
     Create an IndirectReference from an "object[:reference=0]" string.
@@ -69,6 +66,20 @@ var Model = (function () {
         enumerable: true,
         configurable: true
     });
+    /**
+    Read a value from the `object` mapping (assuming `this` is a PDFDictionary or
+    behaves like one), resolving indirect references as needed.
+  
+    Much like `new Model(this._pdf, this.object[key]).object`, but avoids creating
+    a whole new Model.
+    */
+    Model.prototype.get = function (key) {
+        var value = this.object[key];
+        if (value !== undefined && value['object_number'] !== undefined && value['generation_number'] !== undefined) {
+            value = this._pdf.getObject(value['object_number'], value['generation_number']);
+        }
+        return value;
+    };
     /**
     This is an (icky?) hack to get around circular dependencies with subclasses
     of Model (like Font).
@@ -165,7 +176,7 @@ var Page = (function (_super) {
     });
     Object.defineProperty(Page.prototype, "MediaBox", {
         get: function () {
-            return this.object['MediaBox'];
+            return this.get('MediaBox');
         },
         enumerable: true,
         configurable: true
@@ -312,6 +323,7 @@ var ContentStream = (function (_super) {
     return ContentStream;
 })(Model);
 exports.ContentStream = ContentStream;
+var index_1 = require('./font/index');
 /**
 Pages that render to text are defined by their `Contents` field, but
 that field sometimes references objects or fonts in the `Resources` field,
@@ -327,72 +339,62 @@ var Resources = (function (_super) {
     __extends(Resources, _super);
     function Resources() {
         _super.apply(this, arguments);
+        this._cached_fonts = {};
     }
-    Object.defineProperty(Resources.prototype, "ExtGState", {
-        get: function () {
-            return this.object['ExtGState'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Resources.prototype, "ColorSpace", {
-        get: function () {
-            return this.object['ColorSpace'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Resources.prototype, "Pattern", {
-        get: function () {
-            return this.object['Pattern'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Resources.prototype, "Shading", {
-        get: function () {
-            return this.object['Shading'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Resources.prototype, "ProcSet", {
-        get: function () {
-            return this.object['ProcSet'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Resources.prototype, "Properties", {
-        get: function () {
-            return this.object['Properties'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    // get Font(): any {
-    //   return new Model(this._pdf, this.object['Font']).object;
-    // }
-    Resources.prototype.getFontModel = function (name) {
-        var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-        var Font_object = Font_dictionary[name];
-        return new Model(this._pdf, Font_object);
-    };
+    /**
+    returns `undefined` if no matching XObject is found.
+    */
     Resources.prototype.getXObject = function (name) {
-        var XObject_dictionary = new Model(this._pdf, this.object['XObject']).object;
+        var XObject_dictionary = this.get('XObject');
         var object = XObject_dictionary[name];
         return object ? new ContentStream(this._pdf, object) : undefined;
     };
+    /**
+    Retrieve a Font instance from the given Resources' Font dictionary.
+  
+    Caches Fonts (which is pretty hot when rendering a page),
+    even missing ones (as null).
+  
+    Returns `null` if the Font dictionary has no matching `name` key.
+    */
+    Resources.prototype.getFont = function (name) {
+        var cached_font = this._cached_fonts[name];
+        if (cached_font === undefined) {
+            var Font_dictionary = this.get('Font');
+            var object = Font_dictionary[name];
+            if (object) {
+                var model = new Model(this._pdf, object);
+                cached_font = this._cached_fonts[name] = index_1.Font.fromModel(model);
+                cached_font.Name = name;
+            }
+            else {
+                // if (!font) {
+                //   throw new Error(`Cannot find font "${name}" in Resources: ${JSON.stringify(this.resources)}`);
+                // }
+                cached_font = this._cached_fonts[name] = null;
+            }
+        }
+        return cached_font;
+    };
+    /**
+    return a Model since the values may be indirect references.
+    returns `undefined` if no matching ExtGState is found.
+    */
+    Resources.prototype.getExtGState = function (name) {
+        var ExtGState_dictionary = this.get('ExtGState');
+        var object = ExtGState_dictionary[name];
+        return object ? new Model(this._pdf, object) : undefined;
+    };
     Resources.prototype.toJSON = function () {
         return {
-            ExtGState: this.ExtGState,
-            ColorSpace: this.ColorSpace,
-            Pattern: this.Pattern,
-            Shading: this.Shading,
-            XObject: this.object['XObject'],
-            Font: this.object['Font'],
-            ProcSet: this.ProcSet,
-            Properties: this.Properties,
+            ExtGState: this.get('ExtGState'),
+            ColorSpace: this.get('ColorSpace'),
+            Pattern: this.get('Pattern'),
+            Shading: this.get('Shading'),
+            XObject: this.get('XObject'),
+            Font: this.get('Font'),
+            ProcSet: this.get('ProcSet'),
+            Properties: this.get('Properties'),
         };
     };
     return Resources;
@@ -421,34 +423,13 @@ var Catalog = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(Catalog.prototype, "Names", {
-        get: function () {
-            return this.object['Names'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Catalog.prototype, "PageMode", {
-        get: function () {
-            return this.object['PageMode'];
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Catalog.prototype, "OpenAction", {
-        get: function () {
-            return this.object['OpenAction'];
-        },
-        enumerable: true,
-        configurable: true
-    });
     Catalog.prototype.toJSON = function () {
         return {
             Type: 'Catalog',
             Pages: this.Pages,
-            Names: this.Names,
-            PageMode: this.PageMode,
-            OpenAction: this.OpenAction,
+            Names: this.get('Names'),
+            PageMode: this.get('PageMode'),
+            OpenAction: this.get('OpenAction'),
         };
     };
     return Catalog;

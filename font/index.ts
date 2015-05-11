@@ -3,7 +3,7 @@ import * as logger from 'loge';
 import * as afm from 'afm';
 
 import {FontDescriptor} from './descriptor';
-import {Model, ContentStream} from '../models';
+import {Model, ContentStream, Resources} from '../models';
 import {glyphlist, Encoding} from '../encoding/index';
 
 /**
@@ -27,16 +27,13 @@ export class Font extends Model {
   private _cached_encoding: Encoding;
   public Name: string;
 
-  get Subtype(): string {
-    return this.object['Subtype'];
-  }
-
   /**
   This returns the object's `Encoding.BaseEncoding`, if it exists, or
   the plain `Encoding` value, if it's a string.
   */
   get BaseEncoding(): string {
-    var Encoding = new Model(this._pdf, this.object['Encoding']).object;
+    var Encoding = this.get('Encoding');
+    // logger.info(`[Font=${this.Name}] Encoding=${Encoding}`);
     if (Encoding && Encoding['BaseEncoding']) {
       return Encoding['BaseEncoding'];
     }
@@ -46,7 +43,7 @@ export class Font extends Model {
   }
 
   get Differences(): Array<number | string> {
-    var Encoding = new Model(this._pdf, this.object['Encoding']).object;
+    var Encoding = this.get('Encoding');
     return Encoding ? Encoding['Differences'] : null;
   }
 
@@ -55,8 +52,7 @@ export class Font extends Model {
   Maybe not always?
   */
   get BaseFont(): string {
-    var object = new Model(this._pdf, this.object['BaseFont']).object;
-    return <string>object;
+    return <string>this.get('BaseFont');
   }
 
   /**
@@ -122,12 +118,13 @@ export class Font extends Model {
 
     // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
     var BaseEncoding = this.BaseEncoding;
-    if (BaseEncoding == 'MacRomanEncoding' || BaseEncoding == 'MacExpertEncoding') {
-      // TODO: handle MacExpertEncoding properly
-      encoding.mergeLatinCharset('mac');
+    // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
+    if (Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
+      encoding.mergeLatinCharset(BaseEncoding);
     }
-    else if (BaseEncoding == 'WinAnsiEncoding') {
-      encoding.mergeLatinCharset('win');
+    else if (BaseEncoding == 'Identity-H') {
+      logger.warn(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (setting characterByteLength to 2)`);
+      encoding.characterByteLength = 2;
     }
     else if (BaseEncoding !== undefined) {
       logger.info(`[Font=${this.Name}] Unrecognized Encoding/BaseEncoding: %j`, BaseEncoding);
@@ -144,26 +141,28 @@ export class Font extends Model {
     // still no luck? try the FontDescriptor
     var FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
+      logger.silly(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
       // check for the easy-out: 1-character fonts
-      var FirstChar = <number>this.object['FirstChar'];
-      var LastChar = <number>this.object['LastChar'];
+      var FirstChar = <number>this.get('FirstChar');
+      var LastChar = <number>this.get('LastChar');
       var CharSet = FontDescriptor.CharSet;
       if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
         encoding.mapping[FirstChar] = glyphlist[CharSet[0]];
       }
       // otherwise, try reading the FontFile
-      else if (FontDescriptor.object['FontFile']) {
-        FontDescriptor.getMapping().forEach((str, charCode) => {
+      else if (FontDescriptor.get('FontFile')) {
+        FontDescriptor.getEncoding().mapping.forEach((str, charCode) => {
           if (str !== null && str !== undefined) {
             encoding.mapping[charCode] = str;
           }
         });
       }
-      else {
-        logger.warn(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
-      }
+      // else {
+      //   logger.warn(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
+      // }
     }
+
+    // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
 
     // if (this.object['FontName']) {
     //   var [prefix, name] = this.object['FontName'].split('+');
@@ -172,11 +171,9 @@ export class Font extends Model {
     //   }
     // }
 
-    // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-
     if (encoding.mapping.length === 0) {
       logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default "std" mapping`);
-      encoding.mergeLatinCharset('std');
+      encoding.mergeLatinCharset('StandardEncoding');
     }
 
     // Finally, apply differences, if there are any.
@@ -194,12 +191,16 @@ export class Font extends Model {
           // PDF standard glyphlist
           // TODO: handle missing glyphnames
           var difference_string = glyphlist[difference]
-          if (difference_string !== undefined) {
-            encoding.mapping[current_character_code++] = difference_string;
+          if (difference == '.notdef') {
+            encoding.mapping[current_character_code] = undefined;
+          }
+          else if (difference_string !== undefined) {
+            encoding.mapping[current_character_code] = difference_string;
           }
           else {
             logger.warn(`[Font=${this.Name}] Ignoring Encoding.Difference ${current_character_code} -> ${difference}, which is not an existing glyphname`);
           }
+          current_character_code++;
         }
       });
     }
@@ -248,13 +249,13 @@ export class Font extends Model {
   (usually somewhere in the range of 250-750 for each character/glyph).
   */
   measureString(bytes: number[]): number {
-    throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.Subtype}, Name: ${this.Name})`);
+    throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.get('Subtype')}, Name: ${this.Name})`);
   }
 
   toJSON() {
     return {
       Type: 'Font',
-      Subtype: this.Subtype,
+      Subtype: this.get('Subtype'),
       BaseFont: this.BaseFont,
     };
   }
@@ -364,9 +365,9 @@ export class Type1Font extends Font {
     // Try using the local Widths, etc., configuration first.
     // TODO: avoid this BaseFont_name hack and resolve TrueType fonts properly
     var BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
-    var Widths = <number[]>new Model(this._pdf, this.object['Widths']).object;
+    var Widths = <number[]>new Model(this._pdf, this.get('Widths')).object;
     if (Widths) {
-      var FirstChar = <number>this.object['FirstChar'];
+      var FirstChar = <number>this.get('FirstChar');
       // TODO: verify LastChar?
       this._widthMapping = {};
       Widths.forEach((width, width_index) => {
@@ -428,7 +429,7 @@ export class Type0Font extends Font {
   > CIDFont dictionary that is the descendant of this Type 0 font.
   */
   get DescendantFont(): CIDFont {
-    var array = new Model(this._pdf, this.object['DescendantFonts']).object;
+    var array = new Model(this._pdf, this.get('DescendantFonts')).object;
     return new CIDFont(this._pdf, array[0]);
   }
 
@@ -471,7 +472,7 @@ Goes well with Type 0 fonts.
 */
 class CIDFont extends Font {
   get CIDSystemInfo(): string {
-    return this.object['CIDSystemInfo'];
+    return this.get('CIDSystemInfo');
   }
 
   get W(): Array<number | number[]> {
@@ -480,7 +481,7 @@ class CIDFont extends Font {
   }
 
   getDefaultWidth(): number {
-    return this.object['DW'];
+    return this.get('DW');
   }
 
   /**

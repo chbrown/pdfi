@@ -25,10 +25,7 @@ export class IndirectReference {
 
   static isIndirectReference(object): boolean {
     if (object === undefined || object === null) return false;
-    // return ('object_number' in object) && ('generation_number' in object);
-    var object_number = object['object_number'];
-    var generation_number = object['generation_number'];
-    return (object_number !== undefined) && (generation_number !== undefined);
+    return (object['object_number'] !== undefined) && (object['generation_number'] !== undefined);
   }
   /**
   Create an IndirectReference from an "object[:reference=0]" string.
@@ -70,6 +67,21 @@ export class Model {
       this._resolved = true;
     }
     return this._object;
+  }
+
+  /**
+  Read a value from the `object` mapping (assuming `this` is a PDFDictionary or
+  behaves like one), resolving indirect references as needed.
+
+  Much like `new Model(this._pdf, this.object[key]).object`, but avoids creating
+  a whole new Model.
+  */
+  get(key: string): any {
+    var value = this.object[key];
+    if (value !== undefined && value['object_number'] !== undefined && value['generation_number'] !== undefined) {
+      value = this._pdf.getObject(value['object_number'], value['generation_number']);
+    }
+    return value;
   }
 
   /**
@@ -153,7 +165,7 @@ export class Page extends Model {
   }
 
   get MediaBox(): pdfdom.Rectangle {
-    return this.object['MediaBox'];
+    return this.get('MediaBox');
   }
 
   get Resources(): Resources {
@@ -268,6 +280,8 @@ export class ContentStream extends Model {
   }
 }
 
+import {Font} from './font/index';
+
 /**
 Pages that render to text are defined by their `Contents` field, but
 that field sometimes references objects or fonts in the `Resources` field,
@@ -280,49 +294,65 @@ as far as I can tell.
 None of the fields are required.
 */
 export class Resources extends Model {
-  get ExtGState(): any {
-    return this.object['ExtGState'];
-  }
-  get ColorSpace(): any {
-    return this.object['ColorSpace'];
-  }
-  get Pattern(): any {
-    return this.object['Pattern'];
-  }
-  get Shading(): any {
-    return this.object['Shading'];
-  }
-  get ProcSet(): string[] {
-    return this.object['ProcSet'];
-  }
-  get Properties(): any {
-    return this.object['Properties'];
-  }
-  // get Font(): any {
-  //   return new Model(this._pdf, this.object['Font']).object;
-  // }
-  getFontModel(name: string): Model {
-    var Font_dictionary = new Model(this._pdf, this.object['Font']).object;
-    var Font_object = Font_dictionary[name];
-    return new Model(this._pdf, Font_object);
-  }
+  private _cached_fonts: {[index: string]: Font} = {};
 
+  /**
+  returns `undefined` if no matching XObject is found.
+  */
   getXObject(name: string): ContentStream {
-    var XObject_dictionary = new Model(this._pdf, this.object['XObject']).object;
+    var XObject_dictionary = this.get('XObject');
     var object = XObject_dictionary[name];
     return object ? new ContentStream(this._pdf, object) : undefined;
   }
 
+  /**
+  Retrieve a Font instance from the given Resources' Font dictionary.
+
+  Caches Fonts (which is pretty hot when rendering a page),
+  even missing ones (as null).
+
+  Returns `null` if the Font dictionary has no matching `name` key.
+  */
+  getFont(name: string): Font {
+    var cached_font = this._cached_fonts[name];
+    if (cached_font === undefined) {
+      var Font_dictionary = this.get('Font');
+      var object = Font_dictionary[name];
+      if (object) {
+        var model = new Model(this._pdf, object);
+        cached_font = this._cached_fonts[name] = Font.fromModel(model);
+        cached_font.Name = name;
+      }
+      else {
+        // if (!font) {
+        //   throw new Error(`Cannot find font "${name}" in Resources: ${JSON.stringify(this.resources)}`);
+        // }
+        cached_font = this._cached_fonts[name] = null;
+      }
+    }
+    return cached_font;
+  }
+
+  /**
+  return a Model since the values may be indirect references.
+  returns `undefined` if no matching ExtGState is found.
+  */
+  getExtGState(name: string): Model {
+    var ExtGState_dictionary = this.get('ExtGState');
+    var object = ExtGState_dictionary[name];
+    return object ? new Model(this._pdf, object) : undefined;
+  }
+
   toJSON() {
     return {
-      ExtGState: this.ExtGState,
-      ColorSpace: this.ColorSpace,
-      Pattern: this.Pattern,
-      Shading: this.Shading,
-      XObject: this.object['XObject'],
-      Font: this.object['Font'],
-      ProcSet: this.ProcSet,
-      Properties: this.Properties,
+      ExtGState: this.get('ExtGState'),
+      ColorSpace: this.get('ColorSpace'),
+      Pattern: this.get('Pattern'),
+      Shading: this.get('Shading'),
+      XObject: this.get('XObject'),
+      Font: this.get('Font'),
+      ProcSet: this.get('ProcSet'),
+      Properties: this.get('Properties'),
     };
   }
 }
@@ -342,23 +372,14 @@ export class Catalog extends Model {
   get Pages(): Pages {
     return new Pages(this._pdf, this.object['Pages']);
   }
-  get Names(): any {
-    return this.object['Names'];
-  }
-  get PageMode(): string {
-    return this.object['PageMode'];
-  }
-  get OpenAction(): any {
-    return this.object['OpenAction'];
-  }
 
   toJSON() {
     return {
       Type: 'Catalog',
       Pages: this.Pages,
-      Names: this.Names,
-      PageMode: this.PageMode,
-      OpenAction: this.OpenAction,
+      Names: this.get('Names'),
+      PageMode: this.get('PageMode'),
+      OpenAction: this.get('OpenAction'),
     };
   }
 }

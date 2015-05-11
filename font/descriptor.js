@@ -17,7 +17,7 @@ var FontDescriptor = (function (_super) {
     }
     Object.defineProperty(FontDescriptor.prototype, "CharSet", {
         get: function () {
-            var CharSet = this.object['CharSet'];
+            var CharSet = this.get('CharSet');
             return CharSet ? CharSet.slice(1).split('/') : [];
         },
         enumerable: true,
@@ -25,7 +25,7 @@ var FontDescriptor = (function (_super) {
     });
     Object.defineProperty(FontDescriptor.prototype, "FontName", {
         get: function () {
-            return this.object['FontName'];
+            return this.get('FontName');
         },
         enumerable: true,
         configurable: true
@@ -42,7 +42,7 @@ var FontDescriptor = (function (_super) {
         > The specific interpretation of these values varies from font to font.
         */
         get: function () {
-            return this.object['FontWeight'];
+            return this.get('FontWeight');
         },
         enumerable: true,
         configurable: true
@@ -56,14 +56,14 @@ var FontDescriptor = (function (_super) {
         > fonts that slope to the right, as almost all italic fonts do.
         */
         get: function () {
-            return this.object['ItalicAngle'];
+            return this.get('ItalicAngle');
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(FontDescriptor.prototype, "MissingWidth", {
         get: function () {
-            return this.object['MissingWidth'];
+            return this.get('MissingWidth');
         },
         enumerable: true,
         configurable: true
@@ -75,14 +75,20 @@ var FontDescriptor = (function (_super) {
     >     dup index charactername put
     > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
     */
-    FontDescriptor.prototype.getMapping = function () {
+    FontDescriptor.prototype.getEncoding = function () {
         var FontFile = new models_1.ContentStream(this._pdf, this.object['FontFile']);
         var cleartext_length = FontFile.dictionary['Length1'];
         // var string_iterable = lexing.StringIterator.fromBuffer(FontFile.buffer, 'ascii');
         var FontFile_string = FontFile.buffer.toString('ascii', 0, cleartext_length);
         var start_index = FontFile_string.indexOf('/Encoding');
         var Encoding_string = FontFile_string.slice(start_index);
-        var mapping = [];
+        var encoding = new index_1.Encoding();
+        var encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
+        var encodingNameMatch = Encoding_string.match(encodingNameRegExp);
+        if (encodingNameMatch !== null) {
+            var encodingName = encodingNameMatch[1];
+            encoding.mergeLatinCharset(encodingName);
+        }
         var charRegExp = /dup (\d+) \/(\w+) put/g;
         var match;
         while ((match = charRegExp.exec(Encoding_string))) {
@@ -90,13 +96,13 @@ var FontDescriptor = (function (_super) {
             var glyphname = match[2];
             var str = index_1.glyphlist[glyphname];
             if (str !== undefined) {
-                mapping[index] = str;
+                encoding.mapping[index] = str;
             }
             else {
                 logger.warn("Ignoring FontDescriptor mapping " + index + " -> " + glyphname + ", which is not a valid glyphname");
             }
         }
-        return mapping;
+        return encoding;
     };
     return FontDescriptor;
 })(models_1.Model);

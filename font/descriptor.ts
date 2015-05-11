@@ -10,12 +10,12 @@ See PDF32000_2008.pdf:9.8 Font Descriptors
 */
 export class FontDescriptor extends Model {
   get CharSet(): string[] {
-    var CharSet = this.object['CharSet'];
+    var CharSet = this.get('CharSet');
     return CharSet ? CharSet.slice(1).split('/') : [];
   }
 
   get FontName(): string {
-    return this.object['FontName'];
+    return this.get('FontName');
   }
 
   /**
@@ -29,7 +29,7 @@ export class FontDescriptor extends Model {
   > The specific interpretation of these values varies from font to font.
   */
   get FontWeight(): number {
-    return this.object['FontWeight'];
+    return this.get('FontWeight');
   }
 
   /**
@@ -40,11 +40,11 @@ export class FontDescriptor extends Model {
   > fonts that slope to the right, as almost all italic fonts do.
   */
   get ItalicAngle(): number {
-    return this.object['ItalicAngle'];
+    return this.get('ItalicAngle');
   }
 
   get MissingWidth(): number {
-    return this.object['MissingWidth'];
+    return this.get('MissingWidth');
   }
 
   /**
@@ -54,7 +54,7 @@ export class FontDescriptor extends Model {
   >     dup index charactername put
   > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
   */
-  getMapping(): string[] {
+  getEncoding(): Encoding {
     var FontFile = new ContentStream(this._pdf, this.object['FontFile']);
     var cleartext_length = <number>FontFile.dictionary['Length1'];
     // var string_iterable = lexing.StringIterator.fromBuffer(FontFile.buffer, 'ascii');
@@ -62,7 +62,14 @@ export class FontDescriptor extends Model {
     var start_index = FontFile_string.indexOf('/Encoding');
     var Encoding_string = FontFile_string.slice(start_index);
 
-    var mapping: string[] = [];
+    var encoding = new Encoding();
+
+    var encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
+    var encodingNameMatch = Encoding_string.match(encodingNameRegExp);
+    if (encodingNameMatch !== null) {
+      var encodingName = encodingNameMatch[1];
+      encoding.mergeLatinCharset(encodingName);
+    }
 
     var charRegExp = /dup (\d+) \/(\w+) put/g;
     var match;
@@ -71,13 +78,13 @@ export class FontDescriptor extends Model {
       var glyphname = match[2];
       var str = glyphlist[glyphname];
       if (str !== undefined) {
-        mapping[index] = str;
+        encoding.mapping[index] = str;
       }
       else {
         logger.warn(`Ignoring FontDescriptor mapping ${index} -> ${glyphname}, which is not a valid glyphname`);
       }
     }
 
-    return mapping;
+    return encoding;
   }
 }
