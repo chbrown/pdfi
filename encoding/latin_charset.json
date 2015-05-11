@@ -2,1833 +2,1833 @@
  {
   "char": "A",
   "glyphname": "A",
-  "std": 65,
-  "mac": 65,
-  "win": 65,
-  "pdf": 65
+  "StandardEncoding": 65,
+  "MacRomanEncoding": 65,
+  "WinAnsiEncoding": 65,
+  "PDFDocEncoding": 65
  },
  {
   "char": "Æ",
   "glyphname": "AE",
-  "std": 225,
-  "mac": 174,
-  "win": 198,
-  "pdf": 198
+  "StandardEncoding": 225,
+  "MacRomanEncoding": 174,
+  "WinAnsiEncoding": 198,
+  "PDFDocEncoding": 198
  },
  {
   "char": "Á",
   "glyphname": "Aacute",
-  "std": null,
-  "mac": 231,
-  "win": 193,
-  "pdf": 193
+  "StandardEncoding": null,
+  "MacRomanEncoding": 231,
+  "WinAnsiEncoding": 193,
+  "PDFDocEncoding": 193
  },
  {
   "char": "Â",
   "glyphname": "Acircumflex",
-  "std": null,
-  "mac": 229,
-  "win": 194,
-  "pdf": 194
+  "StandardEncoding": null,
+  "MacRomanEncoding": 229,
+  "WinAnsiEncoding": 194,
+  "PDFDocEncoding": 194
  },
  {
   "char": "Ä",
   "glyphname": "Adieresis",
-  "std": null,
-  "mac": 128,
-  "win": 196,
-  "pdf": 196
+  "StandardEncoding": null,
+  "MacRomanEncoding": 128,
+  "WinAnsiEncoding": 196,
+  "PDFDocEncoding": 196
  },
  {
   "char": "À",
   "glyphname": "Agrave",
-  "std": null,
-  "mac": 203,
-  "win": 192,
-  "pdf": 192
+  "StandardEncoding": null,
+  "MacRomanEncoding": 203,
+  "WinAnsiEncoding": 192,
+  "PDFDocEncoding": 192
  },
  {
   "char": "Å",
   "glyphname": "Aring",
-  "std": null,
-  "mac": 129,
-  "win": 197,
-  "pdf": 197
+  "StandardEncoding": null,
+  "MacRomanEncoding": 129,
+  "WinAnsiEncoding": 197,
+  "PDFDocEncoding": 197
  },
  {
   "char": "Ã",
   "glyphname": "Atilde",
-  "std": null,
-  "mac": 204,
-  "win": 195,
-  "pdf": 195
+  "StandardEncoding": null,
+  "MacRomanEncoding": 204,
+  "WinAnsiEncoding": 195,
+  "PDFDocEncoding": 195
  },
  {
   "char": "B",
   "glyphname": "B",
-  "std": 66,
-  "mac": 66,
-  "win": 66,
-  "pdf": 66
+  "StandardEncoding": 66,
+  "MacRomanEncoding": 66,
+  "WinAnsiEncoding": 66,
+  "PDFDocEncoding": 66
  },
  {
   "char": "C",
   "glyphname": "C",
-  "std": 67,
-  "mac": 67,
-  "win": 67,
-  "pdf": 67
+  "StandardEncoding": 67,
+  "MacRomanEncoding": 67,
+  "WinAnsiEncoding": 67,
+  "PDFDocEncoding": 67
  },
  {
   "char": "Ç",
   "glyphname": "Ccedilla",
-  "std": null,
-  "mac": 130,
-  "win": 199,
-  "pdf": 199
+  "StandardEncoding": null,
+  "MacRomanEncoding": 130,
+  "WinAnsiEncoding": 199,
+  "PDFDocEncoding": 199
  },
  {
   "char": "D",
   "glyphname": "D",
-  "std": 68,
-  "mac": 68,
-  "win": 68,
-  "pdf": 68
+  "StandardEncoding": 68,
+  "MacRomanEncoding": 68,
+  "WinAnsiEncoding": 68,
+  "PDFDocEncoding": 68
  },
  {
   "char": "E",
   "glyphname": "E",
-  "std": 69,
-  "mac": 69,
-  "win": 69,
-  "pdf": 69
+  "StandardEncoding": 69,
+  "MacRomanEncoding": 69,
+  "WinAnsiEncoding": 69,
+  "PDFDocEncoding": 69
  },
  {
   "char": "É",
   "glyphname": "Eacute",
-  "std": null,
-  "mac": 131,
-  "win": 201,
-  "pdf": 201
+  "StandardEncoding": null,
+  "MacRomanEncoding": 131,
+  "WinAnsiEncoding": 201,
+  "PDFDocEncoding": 201
  },
  {
   "char": "Ê",
   "glyphname": "Ecircumflex",
-  "std": null,
-  "mac": 230,
-  "win": 202,
-  "pdf": 202
+  "StandardEncoding": null,
+  "MacRomanEncoding": 230,
+  "WinAnsiEncoding": 202,
+  "PDFDocEncoding": 202
  },
  {
   "char": "Ë",
   "glyphname": "Edieresis",
-  "std": null,
-  "mac": 232,
-  "win": 203,
-  "pdf": 203
+  "StandardEncoding": null,
+  "MacRomanEncoding": 232,
+  "WinAnsiEncoding": 203,
+  "PDFDocEncoding": 203
  },
  {
   "char": "È",
   "glyphname": "Egrave",
-  "std": null,
-  "mac": 233,
-  "win": 200,
-  "pdf": 200
+  "StandardEncoding": null,
+  "MacRomanEncoding": 233,
+  "WinAnsiEncoding": 200,
+  "PDFDocEncoding": 200
  },
  {
   "char": "Ð",
   "glyphname": "Eth",
-  "std": null,
-  "mac": null,
-  "win": 208,
-  "pdf": 208
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 208,
+  "PDFDocEncoding": 208
  },
  {
   "char": "€",
   "glyphname": "Euro",
-  "std": null,
-  "mac": null,
-  "win": 128,
-  "pdf": 160
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 128,
+  "PDFDocEncoding": 160
  },
  {
   "char": "F",
   "glyphname": "F",
-  "std": 70,
-  "mac": 70,
-  "win": 70,
-  "pdf": 70
+  "StandardEncoding": 70,
+  "MacRomanEncoding": 70,
+  "WinAnsiEncoding": 70,
+  "PDFDocEncoding": 70
  },
  {
   "char": "G",
   "glyphname": "G",
-  "std": 71,
-  "mac": 71,
-  "win": 71,
-  "pdf": 71
+  "StandardEncoding": 71,
+  "MacRomanEncoding": 71,
+  "WinAnsiEncoding": 71,
+  "PDFDocEncoding": 71
  },
  {
   "char": "H",
   "glyphname": "H",
-  "std": 72,
-  "mac": 72,
-  "win": 72,
-  "pdf": 72
+  "StandardEncoding": 72,
+  "MacRomanEncoding": 72,
+  "WinAnsiEncoding": 72,
+  "PDFDocEncoding": 72
  },
  {
   "char": "I",
   "glyphname": "I",
-  "std": 73,
-  "mac": 73,
-  "win": 73,
-  "pdf": 73
+  "StandardEncoding": 73,
+  "MacRomanEncoding": 73,
+  "WinAnsiEncoding": 73,
+  "PDFDocEncoding": 73
  },
  {
   "char": "Í",
   "glyphname": "Iacute",
-  "std": null,
-  "mac": 234,
-  "win": 205,
-  "pdf": 205
+  "StandardEncoding": null,
+  "MacRomanEncoding": 234,
+  "WinAnsiEncoding": 205,
+  "PDFDocEncoding": 205
  },
  {
   "char": "Î",
   "glyphname": "Icircumflex",
-  "std": null,
-  "mac": 235,
-  "win": 206,
-  "pdf": 206
+  "StandardEncoding": null,
+  "MacRomanEncoding": 235,
+  "WinAnsiEncoding": 206,
+  "PDFDocEncoding": 206
  },
  {
   "char": "Ï",
   "glyphname": "Idieresis",
-  "std": null,
-  "mac": 236,
-  "win": 207,
-  "pdf": 207
+  "StandardEncoding": null,
+  "MacRomanEncoding": 236,
+  "WinAnsiEncoding": 207,
+  "PDFDocEncoding": 207
  },
  {
   "char": "Ì",
   "glyphname": "Igrave",
-  "std": null,
-  "mac": 237,
-  "win": 204,
-  "pdf": 204
+  "StandardEncoding": null,
+  "MacRomanEncoding": 237,
+  "WinAnsiEncoding": 204,
+  "PDFDocEncoding": 204
  },
  {
   "char": "J",
   "glyphname": "J",
-  "std": 74,
-  "mac": 74,
-  "win": 74,
-  "pdf": 74
+  "StandardEncoding": 74,
+  "MacRomanEncoding": 74,
+  "WinAnsiEncoding": 74,
+  "PDFDocEncoding": 74
  },
  {
   "char": "K",
   "glyphname": "K",
-  "std": 75,
-  "mac": 75,
-  "win": 75,
-  "pdf": 75
+  "StandardEncoding": 75,
+  "MacRomanEncoding": 75,
+  "WinAnsiEncoding": 75,
+  "PDFDocEncoding": 75
  },
  {
   "char": "L",
   "glyphname": "L",
-  "std": 76,
-  "mac": 76,
-  "win": 76,
-  "pdf": 76
+  "StandardEncoding": 76,
+  "MacRomanEncoding": 76,
+  "WinAnsiEncoding": 76,
+  "PDFDocEncoding": 76
  },
  {
   "char": "Ł",
   "glyphname": "Lslash",
-  "std": 232,
-  "mac": null,
-  "win": null,
-  "pdf": 149
+  "StandardEncoding": 232,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 149
  },
  {
   "char": "M",
   "glyphname": "M",
-  "std": 77,
-  "mac": 77,
-  "win": 77,
-  "pdf": 77
+  "StandardEncoding": 77,
+  "MacRomanEncoding": 77,
+  "WinAnsiEncoding": 77,
+  "PDFDocEncoding": 77
  },
  {
   "char": "N",
   "glyphname": "N",
-  "std": 78,
-  "mac": 78,
-  "win": 78,
-  "pdf": 78
+  "StandardEncoding": 78,
+  "MacRomanEncoding": 78,
+  "WinAnsiEncoding": 78,
+  "PDFDocEncoding": 78
  },
  {
   "char": "Ñ",
   "glyphname": "Ntilde",
-  "std": null,
-  "mac": 132,
-  "win": 209,
-  "pdf": 209
+  "StandardEncoding": null,
+  "MacRomanEncoding": 132,
+  "WinAnsiEncoding": 209,
+  "PDFDocEncoding": 209
  },
  {
   "char": "O",
   "glyphname": "O",
-  "std": 79,
-  "mac": 79,
-  "win": 79,
-  "pdf": 79
+  "StandardEncoding": 79,
+  "MacRomanEncoding": 79,
+  "WinAnsiEncoding": 79,
+  "PDFDocEncoding": 79
  },
  {
   "char": "Œ",
   "glyphname": "OE",
-  "std": 234,
-  "mac": 206,
-  "win": 140,
-  "pdf": 150
+  "StandardEncoding": 234,
+  "MacRomanEncoding": 206,
+  "WinAnsiEncoding": 140,
+  "PDFDocEncoding": 150
  },
  {
   "char": "Ó",
   "glyphname": "Oacute",
-  "std": null,
-  "mac": 238,
-  "win": 211,
-  "pdf": 211
+  "StandardEncoding": null,
+  "MacRomanEncoding": 238,
+  "WinAnsiEncoding": 211,
+  "PDFDocEncoding": 211
  },
  {
   "char": "Ô",
   "glyphname": "Ocircumflex",
-  "std": null,
-  "mac": 239,
-  "win": 212,
-  "pdf": 212
+  "StandardEncoding": null,
+  "MacRomanEncoding": 239,
+  "WinAnsiEncoding": 212,
+  "PDFDocEncoding": 212
  },
  {
   "char": "Ö",
   "glyphname": "Odieresis",
-  "std": null,
-  "mac": 133,
-  "win": 214,
-  "pdf": 214
+  "StandardEncoding": null,
+  "MacRomanEncoding": 133,
+  "WinAnsiEncoding": 214,
+  "PDFDocEncoding": 214
  },
  {
   "char": "Ò",
   "glyphname": "Ograve",
-  "std": null,
-  "mac": 241,
-  "win": 210,
-  "pdf": 210
+  "StandardEncoding": null,
+  "MacRomanEncoding": 241,
+  "WinAnsiEncoding": 210,
+  "PDFDocEncoding": 210
  },
  {
   "char": "Ø",
   "glyphname": "Oslash",
-  "std": 233,
-  "mac": 175,
-  "win": 216,
-  "pdf": 216
+  "StandardEncoding": 233,
+  "MacRomanEncoding": 175,
+  "WinAnsiEncoding": 216,
+  "PDFDocEncoding": 216
  },
  {
   "char": "Õ",
   "glyphname": "Otilde",
-  "std": null,
-  "mac": 205,
-  "win": 213,
-  "pdf": 213
+  "StandardEncoding": null,
+  "MacRomanEncoding": 205,
+  "WinAnsiEncoding": 213,
+  "PDFDocEncoding": 213
  },
  {
   "char": "P",
   "glyphname": "P",
-  "std": 80,
-  "mac": 80,
-  "win": 80,
-  "pdf": 80
+  "StandardEncoding": 80,
+  "MacRomanEncoding": 80,
+  "WinAnsiEncoding": 80,
+  "PDFDocEncoding": 80
  },
  {
   "char": "Q",
   "glyphname": "Q",
-  "std": 81,
-  "mac": 81,
-  "win": 81,
-  "pdf": 81
+  "StandardEncoding": 81,
+  "MacRomanEncoding": 81,
+  "WinAnsiEncoding": 81,
+  "PDFDocEncoding": 81
  },
  {
   "char": "R",
   "glyphname": "R",
-  "std": 82,
-  "mac": 82,
-  "win": 82,
-  "pdf": 82
+  "StandardEncoding": 82,
+  "MacRomanEncoding": 82,
+  "WinAnsiEncoding": 82,
+  "PDFDocEncoding": 82
  },
  {
   "char": "S",
   "glyphname": "S",
-  "std": 83,
-  "mac": 83,
-  "win": 83,
-  "pdf": 83
+  "StandardEncoding": 83,
+  "MacRomanEncoding": 83,
+  "WinAnsiEncoding": 83,
+  "PDFDocEncoding": 83
  },
  {
   "char": "Š",
   "glyphname": "Scaron",
-  "std": null,
-  "mac": null,
-  "win": 138,
-  "pdf": 151
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 138,
+  "PDFDocEncoding": 151
  },
  {
   "char": "T",
   "glyphname": "T",
-  "std": 84,
-  "mac": 84,
-  "win": 84,
-  "pdf": 84
+  "StandardEncoding": 84,
+  "MacRomanEncoding": 84,
+  "WinAnsiEncoding": 84,
+  "PDFDocEncoding": 84
  },
  {
   "char": "Þ",
   "glyphname": "Thorn",
-  "std": null,
-  "mac": null,
-  "win": 222,
-  "pdf": 222
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 222,
+  "PDFDocEncoding": 222
  },
  {
   "char": "U",
   "glyphname": "U",
-  "std": 85,
-  "mac": 85,
-  "win": 85,
-  "pdf": 85
+  "StandardEncoding": 85,
+  "MacRomanEncoding": 85,
+  "WinAnsiEncoding": 85,
+  "PDFDocEncoding": 85
  },
  {
   "char": "Ú",
   "glyphname": "Uacute",
-  "std": null,
-  "mac": 242,
-  "win": 218,
-  "pdf": 218
+  "StandardEncoding": null,
+  "MacRomanEncoding": 242,
+  "WinAnsiEncoding": 218,
+  "PDFDocEncoding": 218
  },
  {
   "char": "Û",
   "glyphname": "Ucircumflex",
-  "std": null,
-  "mac": 243,
-  "win": 219,
-  "pdf": 219
+  "StandardEncoding": null,
+  "MacRomanEncoding": 243,
+  "WinAnsiEncoding": 219,
+  "PDFDocEncoding": 219
  },
  {
   "char": "Ü",
   "glyphname": "Udieresis",
-  "std": null,
-  "mac": 134,
-  "win": 220,
-  "pdf": 220
+  "StandardEncoding": null,
+  "MacRomanEncoding": 134,
+  "WinAnsiEncoding": 220,
+  "PDFDocEncoding": 220
  },
  {
   "char": "Ù",
   "glyphname": "Ugrave",
-  "std": null,
-  "mac": 244,
-  "win": 217,
-  "pdf": 217
+  "StandardEncoding": null,
+  "MacRomanEncoding": 244,
+  "WinAnsiEncoding": 217,
+  "PDFDocEncoding": 217
  },
  {
   "char": "V",
   "glyphname": "V",
-  "std": 86,
-  "mac": 86,
-  "win": 86,
-  "pdf": 86
+  "StandardEncoding": 86,
+  "MacRomanEncoding": 86,
+  "WinAnsiEncoding": 86,
+  "PDFDocEncoding": 86
  },
  {
   "char": "W",
   "glyphname": "W",
-  "std": 87,
-  "mac": 87,
-  "win": 87,
-  "pdf": 87
+  "StandardEncoding": 87,
+  "MacRomanEncoding": 87,
+  "WinAnsiEncoding": 87,
+  "PDFDocEncoding": 87
  },
  {
   "char": "X",
   "glyphname": "X",
-  "std": 88,
-  "mac": 88,
-  "win": 88,
-  "pdf": 88
+  "StandardEncoding": 88,
+  "MacRomanEncoding": 88,
+  "WinAnsiEncoding": 88,
+  "PDFDocEncoding": 88
  },
  {
   "char": "Y",
   "glyphname": "Y",
-  "std": 89,
-  "mac": 89,
-  "win": 89,
-  "pdf": 89
+  "StandardEncoding": 89,
+  "MacRomanEncoding": 89,
+  "WinAnsiEncoding": 89,
+  "PDFDocEncoding": 89
  },
  {
   "char": "Ý",
   "glyphname": "Yacute",
-  "std": null,
-  "mac": null,
-  "win": 221,
-  "pdf": 221
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 221,
+  "PDFDocEncoding": 221
  },
  {
   "char": "Ÿ",
   "glyphname": "Ydieresis",
-  "std": null,
-  "mac": 217,
-  "win": 159,
-  "pdf": 152
+  "StandardEncoding": null,
+  "MacRomanEncoding": 217,
+  "WinAnsiEncoding": 159,
+  "PDFDocEncoding": 152
  },
  {
   "char": "Z",
   "glyphname": "Z",
-  "std": 90,
-  "mac": 90,
-  "win": 90,
-  "pdf": 90
+  "StandardEncoding": 90,
+  "MacRomanEncoding": 90,
+  "WinAnsiEncoding": 90,
+  "PDFDocEncoding": 90
  },
  {
   "char": "Ž",
   "glyphname": "Zcaron",
-  "std": null,
-  "mac": null,
-  "win": 142,
-  "pdf": 153
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 142,
+  "PDFDocEncoding": 153
  },
  {
   "char": "a",
   "glyphname": "a",
-  "std": 97,
-  "mac": 97,
-  "win": 97,
-  "pdf": 97
+  "StandardEncoding": 97,
+  "MacRomanEncoding": 97,
+  "WinAnsiEncoding": 97,
+  "PDFDocEncoding": 97
  },
  {
   "char": "á",
   "glyphname": "aacute",
-  "std": null,
-  "mac": 135,
-  "win": 225,
-  "pdf": 225
+  "StandardEncoding": null,
+  "MacRomanEncoding": 135,
+  "WinAnsiEncoding": 225,
+  "PDFDocEncoding": 225
  },
  {
   "char": "â",
   "glyphname": "acircumflex",
-  "std": null,
-  "mac": 137,
-  "win": 226,
-  "pdf": 226
+  "StandardEncoding": null,
+  "MacRomanEncoding": 137,
+  "WinAnsiEncoding": 226,
+  "PDFDocEncoding": 226
  },
  {
   "char": "´",
   "glyphname": "acute",
-  "std": 194,
-  "mac": 171,
-  "win": 180,
-  "pdf": 180
+  "StandardEncoding": 194,
+  "MacRomanEncoding": 171,
+  "WinAnsiEncoding": 180,
+  "PDFDocEncoding": 180
  },
  {
   "char": "ä",
   "glyphname": "adieresis",
-  "std": null,
-  "mac": 138,
-  "win": 228,
-  "pdf": 228
+  "StandardEncoding": null,
+  "MacRomanEncoding": 138,
+  "WinAnsiEncoding": 228,
+  "PDFDocEncoding": 228
  },
  {
   "char": "æ",
   "glyphname": "ae",
-  "std": 241,
-  "mac": 190,
-  "win": 230,
-  "pdf": 230
+  "StandardEncoding": 241,
+  "MacRomanEncoding": 190,
+  "WinAnsiEncoding": 230,
+  "PDFDocEncoding": 230
  },
  {
   "char": "à",
   "glyphname": "agrave",
-  "std": null,
-  "mac": 136,
-  "win": 224,
-  "pdf": 224
+  "StandardEncoding": null,
+  "MacRomanEncoding": 136,
+  "WinAnsiEncoding": 224,
+  "PDFDocEncoding": 224
  },
  {
   "char": "&",
   "glyphname": "ampersand",
-  "std": 38,
-  "mac": 38,
-  "win": 38,
-  "pdf": 38
+  "StandardEncoding": 38,
+  "MacRomanEncoding": 38,
+  "WinAnsiEncoding": 38,
+  "PDFDocEncoding": 38
  },
  {
   "char": "å",
   "glyphname": "aring",
-  "std": null,
-  "mac": 140,
-  "win": 229,
-  "pdf": 229
+  "StandardEncoding": null,
+  "MacRomanEncoding": 140,
+  "WinAnsiEncoding": 229,
+  "PDFDocEncoding": 229
  },
  {
   "char": "^",
   "glyphname": "asciicircum",
-  "std": 94,
-  "mac": 94,
-  "win": 94,
-  "pdf": 94
+  "StandardEncoding": 94,
+  "MacRomanEncoding": 94,
+  "WinAnsiEncoding": 94,
+  "PDFDocEncoding": 94
  },
  {
   "char": "~",
   "glyphname": "asciitilde",
-  "std": 126,
-  "mac": 126,
-  "win": 126,
-  "pdf": 126
+  "StandardEncoding": 126,
+  "MacRomanEncoding": 126,
+  "WinAnsiEncoding": 126,
+  "PDFDocEncoding": 126
  },
  {
   "char": "*",
   "glyphname": "asterisk",
-  "std": 42,
-  "mac": 42,
-  "win": 42,
-  "pdf": 42
+  "StandardEncoding": 42,
+  "MacRomanEncoding": 42,
+  "WinAnsiEncoding": 42,
+  "PDFDocEncoding": 42
  },
  {
   "char": "@",
   "glyphname": "at",
-  "std": 64,
-  "mac": 64,
-  "win": 64,
-  "pdf": 64
+  "StandardEncoding": 64,
+  "MacRomanEncoding": 64,
+  "WinAnsiEncoding": 64,
+  "PDFDocEncoding": 64
  },
  {
   "char": "ã",
   "glyphname": "atilde",
-  "std": null,
-  "mac": 139,
-  "win": 227,
-  "pdf": 227
+  "StandardEncoding": null,
+  "MacRomanEncoding": 139,
+  "WinAnsiEncoding": 227,
+  "PDFDocEncoding": 227
  },
  {
   "char": "b",
   "glyphname": "b",
-  "std": 98,
-  "mac": 98,
-  "win": 98,
-  "pdf": 98
+  "StandardEncoding": 98,
+  "MacRomanEncoding": 98,
+  "WinAnsiEncoding": 98,
+  "PDFDocEncoding": 98
  },
  {
   "char": "\\",
   "glyphname": "backslash",
-  "std": 92,
-  "mac": 92,
-  "win": 92,
-  "pdf": 92
+  "StandardEncoding": 92,
+  "MacRomanEncoding": 92,
+  "WinAnsiEncoding": 92,
+  "PDFDocEncoding": 92
  },
  {
   "char": "|",
   "glyphname": "bar",
-  "std": 124,
-  "mac": 124,
-  "win": 124,
-  "pdf": 124
+  "StandardEncoding": 124,
+  "MacRomanEncoding": 124,
+  "WinAnsiEncoding": 124,
+  "PDFDocEncoding": 124
  },
  {
   "char": "{",
   "glyphname": "braceleft",
-  "std": 123,
-  "mac": 123,
-  "win": 123,
-  "pdf": 123
+  "StandardEncoding": 123,
+  "MacRomanEncoding": 123,
+  "WinAnsiEncoding": 123,
+  "PDFDocEncoding": 123
  },
  {
   "char": "}",
   "glyphname": "braceright",
-  "std": 125,
-  "mac": 125,
-  "win": 125,
-  "pdf": 125
+  "StandardEncoding": 125,
+  "MacRomanEncoding": 125,
+  "WinAnsiEncoding": 125,
+  "PDFDocEncoding": 125
  },
  {
   "char": "[",
   "glyphname": "bracketleft",
-  "std": 91,
-  "mac": 91,
-  "win": 91,
-  "pdf": 91
+  "StandardEncoding": 91,
+  "MacRomanEncoding": 91,
+  "WinAnsiEncoding": 91,
+  "PDFDocEncoding": 91
  },
  {
   "char": "]",
   "glyphname": "bracketright",
-  "std": 93,
-  "mac": 93,
-  "win": 93,
-  "pdf": 93
+  "StandardEncoding": 93,
+  "MacRomanEncoding": 93,
+  "WinAnsiEncoding": 93,
+  "PDFDocEncoding": 93
  },
  {
   "char": "˘",
   "glyphname": "breve",
-  "std": 198,
-  "mac": 249,
-  "win": null,
-  "pdf": 24
+  "StandardEncoding": 198,
+  "MacRomanEncoding": 249,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 24
  },
  {
   "char": "¦",
   "glyphname": "brokenbar",
-  "std": null,
-  "mac": null,
-  "win": 166,
-  "pdf": 166
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 166,
+  "PDFDocEncoding": 166
  },
  {
   "char": "•",
   "glyphname": "bullet",
-  "std": 183,
-  "mac": 165,
-  "win": 149,
-  "pdf": 128
+  "StandardEncoding": 183,
+  "MacRomanEncoding": 165,
+  "WinAnsiEncoding": 149,
+  "PDFDocEncoding": 128
  },
  {
   "char": "c",
   "glyphname": "c",
-  "std": 99,
-  "mac": 99,
-  "win": 99,
-  "pdf": 99
+  "StandardEncoding": 99,
+  "MacRomanEncoding": 99,
+  "WinAnsiEncoding": 99,
+  "PDFDocEncoding": 99
  },
  {
   "char": "ˇ",
   "glyphname": "caron",
-  "std": 207,
-  "mac": 255,
-  "win": null,
-  "pdf": 25
+  "StandardEncoding": 207,
+  "MacRomanEncoding": 255,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 25
  },
  {
   "char": "ç",
   "glyphname": "ccedilla",
-  "std": null,
-  "mac": 141,
-  "win": 231,
-  "pdf": 231
+  "StandardEncoding": null,
+  "MacRomanEncoding": 141,
+  "WinAnsiEncoding": 231,
+  "PDFDocEncoding": 231
  },
  {
   "char": "¸",
   "glyphname": "cedilla",
-  "std": 203,
-  "mac": 252,
-  "win": 184,
-  "pdf": 184
+  "StandardEncoding": 203,
+  "MacRomanEncoding": 252,
+  "WinAnsiEncoding": 184,
+  "PDFDocEncoding": 184
  },
  {
   "char": "¢",
   "glyphname": "cent",
-  "std": 162,
-  "mac": 162,
-  "win": 162,
-  "pdf": 162
+  "StandardEncoding": 162,
+  "MacRomanEncoding": 162,
+  "WinAnsiEncoding": 162,
+  "PDFDocEncoding": 162
  },
  {
   "char": "ˆ",
   "glyphname": "circumflex",
-  "std": 195,
-  "mac": 246,
-  "win": 136,
-  "pdf": 26
+  "StandardEncoding": 195,
+  "MacRomanEncoding": 246,
+  "WinAnsiEncoding": 136,
+  "PDFDocEncoding": 26
  },
  {
   "char": ":",
   "glyphname": "colon",
-  "std": 58,
-  "mac": 58,
-  "win": 58,
-  "pdf": 58
+  "StandardEncoding": 58,
+  "MacRomanEncoding": 58,
+  "WinAnsiEncoding": 58,
+  "PDFDocEncoding": 58
  },
  {
   "char": ",",
   "glyphname": "comma",
-  "std": 44,
-  "mac": 44,
-  "win": 44,
-  "pdf": 44
+  "StandardEncoding": 44,
+  "MacRomanEncoding": 44,
+  "WinAnsiEncoding": 44,
+  "PDFDocEncoding": 44
  },
  {
   "char": "©",
   "glyphname": "copyright",
-  "std": null,
-  "mac": 169,
-  "win": 169,
-  "pdf": 169
+  "StandardEncoding": null,
+  "MacRomanEncoding": 169,
+  "WinAnsiEncoding": 169,
+  "PDFDocEncoding": 169
  },
  {
   "char": "¤",
   "glyphname": "currency",
-  "std": 168,
-  "mac": 219,
-  "win": 164,
-  "pdf": 164
+  "StandardEncoding": 168,
+  "MacRomanEncoding": 219,
+  "WinAnsiEncoding": 164,
+  "PDFDocEncoding": 164
  },
  {
   "char": "d",
   "glyphname": "d",
-  "std": 100,
-  "mac": 100,
-  "win": 100,
-  "pdf": 100
+  "StandardEncoding": 100,
+  "MacRomanEncoding": 100,
+  "WinAnsiEncoding": 100,
+  "PDFDocEncoding": 100
  },
  {
   "char": "†",
   "glyphname": "dagger",
-  "std": 178,
-  "mac": 160,
-  "win": 134,
-  "pdf": 129
+  "StandardEncoding": 178,
+  "MacRomanEncoding": 160,
+  "WinAnsiEncoding": 134,
+  "PDFDocEncoding": 129
  },
  {
   "char": "‡",
   "glyphname": "daggerdbl",
-  "std": 179,
-  "mac": 224,
-  "win": 135,
-  "pdf": 130
+  "StandardEncoding": 179,
+  "MacRomanEncoding": 224,
+  "WinAnsiEncoding": 135,
+  "PDFDocEncoding": 130
  },
  {
   "char": "°",
   "glyphname": "degree",
-  "std": null,
-  "mac": 161,
-  "win": 176,
-  "pdf": 176
+  "StandardEncoding": null,
+  "MacRomanEncoding": 161,
+  "WinAnsiEncoding": 176,
+  "PDFDocEncoding": 176
  },
  {
   "char": "¨",
   "glyphname": "dieresis",
-  "std": 200,
-  "mac": 172,
-  "win": 168,
-  "pdf": 168
+  "StandardEncoding": 200,
+  "MacRomanEncoding": 172,
+  "WinAnsiEncoding": 168,
+  "PDFDocEncoding": 168
  },
  {
   "char": "÷",
   "glyphname": "divide",
-  "std": null,
-  "mac": 214,
-  "win": 247,
-  "pdf": 247
+  "StandardEncoding": null,
+  "MacRomanEncoding": 214,
+  "WinAnsiEncoding": 247,
+  "PDFDocEncoding": 247
  },
  {
   "char": "$",
   "glyphname": "dollar",
-  "std": 36,
-  "mac": 36,
-  "win": 36,
-  "pdf": 36
+  "StandardEncoding": 36,
+  "MacRomanEncoding": 36,
+  "WinAnsiEncoding": 36,
+  "PDFDocEncoding": 36
  },
  {
   "char": "˙",
   "glyphname": "dotaccent",
-  "std": 199,
-  "mac": 250,
-  "win": null,
-  "pdf": 27
+  "StandardEncoding": 199,
+  "MacRomanEncoding": 250,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 27
  },
  {
   "char": "ı",
   "glyphname": "dotlessi",
-  "std": 245,
-  "mac": 245,
-  "win": null,
-  "pdf": 154
+  "StandardEncoding": 245,
+  "MacRomanEncoding": 245,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 154
  },
  {
   "char": "e",
   "glyphname": "e",
-  "std": 101,
-  "mac": 101,
-  "win": 101,
-  "pdf": 101
+  "StandardEncoding": 101,
+  "MacRomanEncoding": 101,
+  "WinAnsiEncoding": 101,
+  "PDFDocEncoding": 101
  },
  {
   "char": "é",
   "glyphname": "eacute",
-  "std": null,
-  "mac": 142,
-  "win": 233,
-  "pdf": 233
+  "StandardEncoding": null,
+  "MacRomanEncoding": 142,
+  "WinAnsiEncoding": 233,
+  "PDFDocEncoding": 233
  },
  {
   "char": "ê",
   "glyphname": "ecircumflex",
-  "std": null,
-  "mac": 144,
-  "win": 234,
-  "pdf": 234
+  "StandardEncoding": null,
+  "MacRomanEncoding": 144,
+  "WinAnsiEncoding": 234,
+  "PDFDocEncoding": 234
  },
  {
   "char": "ë",
   "glyphname": "edieresis",
-  "std": null,
-  "mac": 145,
-  "win": 235,
-  "pdf": 235
+  "StandardEncoding": null,
+  "MacRomanEncoding": 145,
+  "WinAnsiEncoding": 235,
+  "PDFDocEncoding": 235
  },
  {
   "char": "è",
   "glyphname": "egrave",
-  "std": null,
-  "mac": 143,
-  "win": 232,
-  "pdf": 232
+  "StandardEncoding": null,
+  "MacRomanEncoding": 143,
+  "WinAnsiEncoding": 232,
+  "PDFDocEncoding": 232
  },
  {
   "char": "8",
   "glyphname": "eight",
-  "std": 56,
-  "mac": 56,
-  "win": 56,
-  "pdf": 56
+  "StandardEncoding": 56,
+  "MacRomanEncoding": 56,
+  "WinAnsiEncoding": 56,
+  "PDFDocEncoding": 56
  },
  {
   "char": "…",
   "glyphname": "ellipsis",
-  "std": 188,
-  "mac": 201,
-  "win": 133,
-  "pdf": 131
+  "StandardEncoding": 188,
+  "MacRomanEncoding": 201,
+  "WinAnsiEncoding": 133,
+  "PDFDocEncoding": 131
  },
  {
   "char": "—",
   "glyphname": "emdash",
-  "std": 208,
-  "mac": 209,
-  "win": 151,
-  "pdf": 132
+  "StandardEncoding": 208,
+  "MacRomanEncoding": 209,
+  "WinAnsiEncoding": 151,
+  "PDFDocEncoding": 132
  },
  {
   "char": "–",
   "glyphname": "endash",
-  "std": 177,
-  "mac": 208,
-  "win": 150,
-  "pdf": 133
+  "StandardEncoding": 177,
+  "MacRomanEncoding": 208,
+  "WinAnsiEncoding": 150,
+  "PDFDocEncoding": 133
  },
  {
   "char": "=",
   "glyphname": "equal",
-  "std": 61,
-  "mac": 61,
-  "win": 61,
-  "pdf": 61
+  "StandardEncoding": 61,
+  "MacRomanEncoding": 61,
+  "WinAnsiEncoding": 61,
+  "PDFDocEncoding": 61
  },
  {
   "char": "ð",
   "glyphname": "eth",
-  "std": null,
-  "mac": null,
-  "win": 240,
-  "pdf": 240
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 240,
+  "PDFDocEncoding": 240
  },
  {
   "char": "!",
   "glyphname": "exclam",
-  "std": 33,
-  "mac": 33,
-  "win": 33,
-  "pdf": 33
+  "StandardEncoding": 33,
+  "MacRomanEncoding": 33,
+  "WinAnsiEncoding": 33,
+  "PDFDocEncoding": 33
  },
  {
   "char": "¡",
   "glyphname": "exclamdown",
-  "std": 161,
-  "mac": 193,
-  "win": 161,
-  "pdf": 161
+  "StandardEncoding": 161,
+  "MacRomanEncoding": 193,
+  "WinAnsiEncoding": 161,
+  "PDFDocEncoding": 161
  },
  {
   "char": "f",
   "glyphname": "f",
-  "std": 102,
-  "mac": 102,
-  "win": 102,
-  "pdf": 102
+  "StandardEncoding": 102,
+  "MacRomanEncoding": 102,
+  "WinAnsiEncoding": 102,
+  "PDFDocEncoding": 102
  },
  {
   "char": "fi",
   "glyphname": "fi",
-  "std": 174,
-  "mac": 222,
-  "win": null,
-  "pdf": 147
+  "StandardEncoding": 174,
+  "MacRomanEncoding": 222,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 147
  },
  {
   "char": "5",
   "glyphname": "five",
-  "std": 53,
-  "mac": 53,
-  "win": 53,
-  "pdf": 53
+  "StandardEncoding": 53,
+  "MacRomanEncoding": 53,
+  "WinAnsiEncoding": 53,
+  "PDFDocEncoding": 53
  },
  {
   "char": "fl",
   "glyphname": "fl",
-  "std": 175,
-  "mac": 223,
-  "win": null,
-  "pdf": 148
+  "StandardEncoding": 175,
+  "MacRomanEncoding": 223,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 148
  },
  {
   "char": "ƒ",
   "glyphname": "florin",
-  "std": 166,
-  "mac": 196,
-  "win": 131,
-  "pdf": 134
+  "StandardEncoding": 166,
+  "MacRomanEncoding": 196,
+  "WinAnsiEncoding": 131,
+  "PDFDocEncoding": 134
  },
  {
   "char": "4",
   "glyphname": "four",
-  "std": 52,
-  "mac": 52,
-  "win": 52,
-  "pdf": 52
+  "StandardEncoding": 52,
+  "MacRomanEncoding": 52,
+  "WinAnsiEncoding": 52,
+  "PDFDocEncoding": 52
  },
  {
   "char": "⁄",
   "glyphname": "fraction",
-  "std": 164,
-  "mac": 218,
-  "win": null,
-  "pdf": 135
+  "StandardEncoding": 164,
+  "MacRomanEncoding": 218,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 135
  },
  {
   "char": "g",
   "glyphname": "g",
-  "std": 103,
-  "mac": 103,
-  "win": 103,
-  "pdf": 103
+  "StandardEncoding": 103,
+  "MacRomanEncoding": 103,
+  "WinAnsiEncoding": 103,
+  "PDFDocEncoding": 103
  },
  {
   "char": "ß",
   "glyphname": "germandbls",
-  "std": 251,
-  "mac": 167,
-  "win": 223,
-  "pdf": 223
+  "StandardEncoding": 251,
+  "MacRomanEncoding": 167,
+  "WinAnsiEncoding": 223,
+  "PDFDocEncoding": 223
  },
  {
   "char": "`",
   "glyphname": "grave",
-  "std": 193,
-  "mac": 96,
-  "win": 96,
-  "pdf": 96
+  "StandardEncoding": 193,
+  "MacRomanEncoding": 96,
+  "WinAnsiEncoding": 96,
+  "PDFDocEncoding": 96
  },
  {
   "char": ">",
   "glyphname": "greater",
-  "std": 62,
-  "mac": 62,
-  "win": 62,
-  "pdf": 62
+  "StandardEncoding": 62,
+  "MacRomanEncoding": 62,
+  "WinAnsiEncoding": 62,
+  "PDFDocEncoding": 62
  },
  {
   "char": "«",
   "glyphname": "guillemotleft",
-  "std": 171,
-  "mac": 199,
-  "win": 171,
-  "pdf": 171
+  "StandardEncoding": 171,
+  "MacRomanEncoding": 199,
+  "WinAnsiEncoding": 171,
+  "PDFDocEncoding": 171
  },
  {
   "char": "»",
   "glyphname": "guillemotright",
-  "std": 187,
-  "mac": 200,
-  "win": 187,
-  "pdf": 187
+  "StandardEncoding": 187,
+  "MacRomanEncoding": 200,
+  "WinAnsiEncoding": 187,
+  "PDFDocEncoding": 187
  },
  {
   "char": "‹",
   "glyphname": "guilsinglleft",
-  "std": 172,
-  "mac": 220,
-  "win": 139,
-  "pdf": 136
+  "StandardEncoding": 172,
+  "MacRomanEncoding": 220,
+  "WinAnsiEncoding": 139,
+  "PDFDocEncoding": 136
  },
  {
   "char": "›",
   "glyphname": "guilsinglright",
-  "std": 173,
-  "mac": 221,
-  "win": 155,
-  "pdf": 137
+  "StandardEncoding": 173,
+  "MacRomanEncoding": 221,
+  "WinAnsiEncoding": 155,
+  "PDFDocEncoding": 137
  },
  {
   "char": "h",
   "glyphname": "h",
-  "std": 104,
-  "mac": 104,
-  "win": 104,
-  "pdf": 104
+  "StandardEncoding": 104,
+  "MacRomanEncoding": 104,
+  "WinAnsiEncoding": 104,
+  "PDFDocEncoding": 104
  },
  {
   "char": "˝",
   "glyphname": "hungarumlaut",
-  "std": 205,
-  "mac": 253,
-  "win": null,
-  "pdf": 28
+  "StandardEncoding": 205,
+  "MacRomanEncoding": 253,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 28
  },
  {
   "char": "-",
   "glyphname": "hyphen",
-  "std": 45,
-  "mac": 45,
-  "win": 45,
-  "pdf": 45
+  "StandardEncoding": 45,
+  "MacRomanEncoding": 45,
+  "WinAnsiEncoding": 45,
+  "PDFDocEncoding": 45
  },
  {
   "char": "i",
   "glyphname": "i",
-  "std": 105,
-  "mac": 105,
-  "win": 105,
-  "pdf": 105
+  "StandardEncoding": 105,
+  "MacRomanEncoding": 105,
+  "WinAnsiEncoding": 105,
+  "PDFDocEncoding": 105
  },
  {
   "char": "í",
   "glyphname": "iacute",
-  "std": null,
-  "mac": 146,
-  "win": 237,
-  "pdf": 237
+  "StandardEncoding": null,
+  "MacRomanEncoding": 146,
+  "WinAnsiEncoding": 237,
+  "PDFDocEncoding": 237
  },
  {
   "char": "î",
   "glyphname": "icircumflex",
-  "std": null,
-  "mac": 148,
-  "win": 238,
-  "pdf": 238
+  "StandardEncoding": null,
+  "MacRomanEncoding": 148,
+  "WinAnsiEncoding": 238,
+  "PDFDocEncoding": 238
  },
  {
   "char": "ï",
   "glyphname": "idieresis",
-  "std": null,
-  "mac": 149,
-  "win": 239,
-  "pdf": 239
+  "StandardEncoding": null,
+  "MacRomanEncoding": 149,
+  "WinAnsiEncoding": 239,
+  "PDFDocEncoding": 239
  },
  {
   "char": "ì",
   "glyphname": "igrave",
-  "std": null,
-  "mac": 147,
-  "win": 236,
-  "pdf": 236
+  "StandardEncoding": null,
+  "MacRomanEncoding": 147,
+  "WinAnsiEncoding": 236,
+  "PDFDocEncoding": 236
  },
  {
   "char": "j",
   "glyphname": "j",
-  "std": 106,
-  "mac": 106,
-  "win": 106,
-  "pdf": 106
+  "StandardEncoding": 106,
+  "MacRomanEncoding": 106,
+  "WinAnsiEncoding": 106,
+  "PDFDocEncoding": 106
  },
  {
   "char": "k",
   "glyphname": "k",
-  "std": 107,
-  "mac": 107,
-  "win": 107,
-  "pdf": 107
+  "StandardEncoding": 107,
+  "MacRomanEncoding": 107,
+  "WinAnsiEncoding": 107,
+  "PDFDocEncoding": 107
  },
  {
   "char": "l",
   "glyphname": "l",
-  "std": 108,
-  "mac": 108,
-  "win": 108,
-  "pdf": 108
+  "StandardEncoding": 108,
+  "MacRomanEncoding": 108,
+  "WinAnsiEncoding": 108,
+  "PDFDocEncoding": 108
  },
  {
   "char": "<",
   "glyphname": "less",
-  "std": 60,
-  "mac": 60,
-  "win": 60,
-  "pdf": 60
+  "StandardEncoding": 60,
+  "MacRomanEncoding": 60,
+  "WinAnsiEncoding": 60,
+  "PDFDocEncoding": 60
  },
  {
   "char": "¬",
   "glyphname": "logicalnot",
-  "std": null,
-  "mac": 194,
-  "win": 172,
-  "pdf": 172
+  "StandardEncoding": null,
+  "MacRomanEncoding": 194,
+  "WinAnsiEncoding": 172,
+  "PDFDocEncoding": 172
  },
  {
   "char": "ł",
   "glyphname": "lslash",
-  "std": 248,
-  "mac": null,
-  "win": null,
-  "pdf": 155
+  "StandardEncoding": 248,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 155
  },
  {
   "char": "m",
   "glyphname": "m",
-  "std": 109,
-  "mac": 109,
-  "win": 109,
-  "pdf": 109
+  "StandardEncoding": 109,
+  "MacRomanEncoding": 109,
+  "WinAnsiEncoding": 109,
+  "PDFDocEncoding": 109
  },
  {
   "char": "¯",
   "glyphname": "macron",
-  "std": 197,
-  "mac": 248,
-  "win": 175,
-  "pdf": 175
+  "StandardEncoding": 197,
+  "MacRomanEncoding": 248,
+  "WinAnsiEncoding": 175,
+  "PDFDocEncoding": 175
  },
  {
   "char": "−",
   "glyphname": "minus",
-  "std": null,
-  "mac": null,
-  "win": null,
-  "pdf": 138
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 138
  },
  {
   "char": "µ",
   "glyphname": "mu",
-  "std": null,
-  "mac": 181,
-  "win": 181,
-  "pdf": 181
+  "StandardEncoding": null,
+  "MacRomanEncoding": 181,
+  "WinAnsiEncoding": 181,
+  "PDFDocEncoding": 181
  },
  {
   "char": "×",
   "glyphname": "multiply",
-  "std": null,
-  "mac": null,
-  "win": 215,
-  "pdf": 215
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 215,
+  "PDFDocEncoding": 215
  },
  {
   "char": "n",
   "glyphname": "n",
-  "std": 110,
-  "mac": 110,
-  "win": 110,
-  "pdf": 110
+  "StandardEncoding": 110,
+  "MacRomanEncoding": 110,
+  "WinAnsiEncoding": 110,
+  "PDFDocEncoding": 110
  },
  {
   "char": "9",
   "glyphname": "nine",
-  "std": 57,
-  "mac": 57,
-  "win": 57,
-  "pdf": 57
+  "StandardEncoding": 57,
+  "MacRomanEncoding": 57,
+  "WinAnsiEncoding": 57,
+  "PDFDocEncoding": 57
  },
  {
   "char": "ñ",
   "glyphname": "ntilde",
-  "std": null,
-  "mac": 150,
-  "win": 241,
-  "pdf": 241
+  "StandardEncoding": null,
+  "MacRomanEncoding": 150,
+  "WinAnsiEncoding": 241,
+  "PDFDocEncoding": 241
  },
  {
   "char": "#",
   "glyphname": "numbersign",
-  "std": 35,
-  "mac": 35,
-  "win": 35,
-  "pdf": 35
+  "StandardEncoding": 35,
+  "MacRomanEncoding": 35,
+  "WinAnsiEncoding": 35,
+  "PDFDocEncoding": 35
  },
  {
   "char": "o",
   "glyphname": "o",
-  "std": 111,
-  "mac": 111,
-  "win": 111,
-  "pdf": 111
+  "StandardEncoding": 111,
+  "MacRomanEncoding": 111,
+  "WinAnsiEncoding": 111,
+  "PDFDocEncoding": 111
  },
  {
   "char": "ó",
   "glyphname": "oacute",
-  "std": null,
-  "mac": 151,
-  "win": 243,
-  "pdf": 243
+  "StandardEncoding": null,
+  "MacRomanEncoding": 151,
+  "WinAnsiEncoding": 243,
+  "PDFDocEncoding": 243
  },
  {
   "char": "ô",
   "glyphname": "ocircumflex",
-  "std": null,
-  "mac": 153,
-  "win": 244,
-  "pdf": 244
+  "StandardEncoding": null,
+  "MacRomanEncoding": 153,
+  "WinAnsiEncoding": 244,
+  "PDFDocEncoding": 244
  },
  {
   "char": "ö",
   "glyphname": "odieresis",
-  "std": null,
-  "mac": 154,
-  "win": 246,
-  "pdf": 246
+  "StandardEncoding": null,
+  "MacRomanEncoding": 154,
+  "WinAnsiEncoding": 246,
+  "PDFDocEncoding": 246
  },
  {
   "char": "œ",
   "glyphname": "oe",
-  "std": 250,
-  "mac": 207,
-  "win": 156,
-  "pdf": 156
+  "StandardEncoding": 250,
+  "MacRomanEncoding": 207,
+  "WinAnsiEncoding": 156,
+  "PDFDocEncoding": 156
  },
  {
   "char": "˛",
   "glyphname": "ogonek",
-  "std": 206,
-  "mac": 254,
-  "win": null,
-  "pdf": 29
+  "StandardEncoding": 206,
+  "MacRomanEncoding": 254,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 29
  },
  {
   "char": "ò",
   "glyphname": "ograve",
-  "std": null,
-  "mac": 152,
-  "win": 242,
-  "pdf": 242
+  "StandardEncoding": null,
+  "MacRomanEncoding": 152,
+  "WinAnsiEncoding": 242,
+  "PDFDocEncoding": 242
  },
  {
   "char": "1",
   "glyphname": "one",
-  "std": 49,
-  "mac": 49,
-  "win": 49,
-  "pdf": 49
+  "StandardEncoding": 49,
+  "MacRomanEncoding": 49,
+  "WinAnsiEncoding": 49,
+  "PDFDocEncoding": 49
  },
  {
   "char": "½",
   "glyphname": "onehalf",
-  "std": null,
-  "mac": null,
-  "win": 189,
-  "pdf": 189
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 189,
+  "PDFDocEncoding": 189
  },
  {
   "char": "¼",
   "glyphname": "onequarter",
-  "std": null,
-  "mac": null,
-  "win": 188,
-  "pdf": 188
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 188,
+  "PDFDocEncoding": 188
  },
  {
   "char": "¹",
   "glyphname": "onesuperior",
-  "std": null,
-  "mac": null,
-  "win": 185,
-  "pdf": 185
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 185,
+  "PDFDocEncoding": 185
  },
  {
   "char": "ª",
   "glyphname": "ordfeminine",
-  "std": 227,
-  "mac": 187,
-  "win": 170,
-  "pdf": 170
+  "StandardEncoding": 227,
+  "MacRomanEncoding": 187,
+  "WinAnsiEncoding": 170,
+  "PDFDocEncoding": 170
  },
  {
   "char": "º",
   "glyphname": "ordmasculine",
-  "std": 235,
-  "mac": 188,
-  "win": 186,
-  "pdf": 186
+  "StandardEncoding": 235,
+  "MacRomanEncoding": 188,
+  "WinAnsiEncoding": 186,
+  "PDFDocEncoding": 186
  },
  {
   "char": "ø",
   "glyphname": "oslash",
-  "std": 249,
-  "mac": 191,
-  "win": 248,
-  "pdf": 248
+  "StandardEncoding": 249,
+  "MacRomanEncoding": 191,
+  "WinAnsiEncoding": 248,
+  "PDFDocEncoding": 248
  },
  {
   "char": "õ",
   "glyphname": "otilde",
-  "std": null,
-  "mac": 155,
-  "win": 245,
-  "pdf": 245
+  "StandardEncoding": null,
+  "MacRomanEncoding": 155,
+  "WinAnsiEncoding": 245,
+  "PDFDocEncoding": 245
  },
  {
   "char": "p",
   "glyphname": "p",
-  "std": 112,
-  "mac": 112,
-  "win": 112,
-  "pdf": 112
+  "StandardEncoding": 112,
+  "MacRomanEncoding": 112,
+  "WinAnsiEncoding": 112,
+  "PDFDocEncoding": 112
  },
  {
   "char": "¶",
   "glyphname": "paragraph",
-  "std": 182,
-  "mac": 166,
-  "win": 182,
-  "pdf": 182
+  "StandardEncoding": 182,
+  "MacRomanEncoding": 166,
+  "WinAnsiEncoding": 182,
+  "PDFDocEncoding": 182
  },
  {
   "char": "(",
   "glyphname": "parenleft",
-  "std": 40,
-  "mac": 40,
-  "win": 40,
-  "pdf": 40
+  "StandardEncoding": 40,
+  "MacRomanEncoding": 40,
+  "WinAnsiEncoding": 40,
+  "PDFDocEncoding": 40
  },
  {
   "char": ")",
   "glyphname": "parenright",
-  "std": 41,
-  "mac": 41,
-  "win": 41,
-  "pdf": 41
+  "StandardEncoding": 41,
+  "MacRomanEncoding": 41,
+  "WinAnsiEncoding": 41,
+  "PDFDocEncoding": 41
  },
  {
   "char": "%",
   "glyphname": "percent",
-  "std": 37,
-  "mac": 37,
-  "win": 37,
-  "pdf": 37
+  "StandardEncoding": 37,
+  "MacRomanEncoding": 37,
+  "WinAnsiEncoding": 37,
+  "PDFDocEncoding": 37
  },
  {
   "char": ".",
   "glyphname": "period",
-  "std": 46,
-  "mac": 46,
-  "win": 46,
-  "pdf": 46
+  "StandardEncoding": 46,
+  "MacRomanEncoding": 46,
+  "WinAnsiEncoding": 46,
+  "PDFDocEncoding": 46
  },
  {
   "char": "·",
   "glyphname": "periodcentered",
-  "std": 180,
-  "mac": 225,
-  "win": 183,
-  "pdf": 183
+  "StandardEncoding": 180,
+  "MacRomanEncoding": 225,
+  "WinAnsiEncoding": 183,
+  "PDFDocEncoding": 183
  },
  {
   "char": "‰",
   "glyphname": "perthousand",
-  "std": 189,
-  "mac": 228,
-  "win": 137,
-  "pdf": 139
+  "StandardEncoding": 189,
+  "MacRomanEncoding": 228,
+  "WinAnsiEncoding": 137,
+  "PDFDocEncoding": 139
  },
  {
   "char": "+",
   "glyphname": "plus",
-  "std": 43,
-  "mac": 43,
-  "win": 43,
-  "pdf": 43
+  "StandardEncoding": 43,
+  "MacRomanEncoding": 43,
+  "WinAnsiEncoding": 43,
+  "PDFDocEncoding": 43
  },
  {
   "char": "±",
   "glyphname": "plusminus",
-  "std": null,
-  "mac": 177,
-  "win": 177,
-  "pdf": 177
+  "StandardEncoding": null,
+  "MacRomanEncoding": 177,
+  "WinAnsiEncoding": 177,
+  "PDFDocEncoding": 177
  },
  {
   "char": "q",
   "glyphname": "q",
-  "std": 113,
-  "mac": 113,
-  "win": 113,
-  "pdf": 113
+  "StandardEncoding": 113,
+  "MacRomanEncoding": 113,
+  "WinAnsiEncoding": 113,
+  "PDFDocEncoding": 113
  },
  {
   "char": "?",
   "glyphname": "question",
-  "std": 63,
-  "mac": 63,
-  "win": 63,
-  "pdf": 63
+  "StandardEncoding": 63,
+  "MacRomanEncoding": 63,
+  "WinAnsiEncoding": 63,
+  "PDFDocEncoding": 63
  },
  {
   "char": "¿",
   "glyphname": "questiondown",
-  "std": 191,
-  "mac": 192,
-  "win": 191,
-  "pdf": 191
+  "StandardEncoding": 191,
+  "MacRomanEncoding": 192,
+  "WinAnsiEncoding": 191,
+  "PDFDocEncoding": 191
  },
  {
   "char": "\"",
   "glyphname": "quotedbl",
-  "std": 34,
-  "mac": 34,
-  "win": 34,
-  "pdf": 34
+  "StandardEncoding": 34,
+  "MacRomanEncoding": 34,
+  "WinAnsiEncoding": 34,
+  "PDFDocEncoding": 34
  },
  {
   "char": "„",
   "glyphname": "quotedblbase",
-  "std": 185,
-  "mac": 227,
-  "win": 132,
-  "pdf": 140
+  "StandardEncoding": 185,
+  "MacRomanEncoding": 227,
+  "WinAnsiEncoding": 132,
+  "PDFDocEncoding": 140
  },
  {
   "char": "“",
   "glyphname": "quotedblleft",
-  "std": 170,
-  "mac": 210,
-  "win": 147,
-  "pdf": 141
+  "StandardEncoding": 170,
+  "MacRomanEncoding": 210,
+  "WinAnsiEncoding": 147,
+  "PDFDocEncoding": 141
  },
  {
   "char": "”",
   "glyphname": "quotedblright",
-  "std": 186,
-  "mac": 211,
-  "win": 148,
-  "pdf": 142
+  "StandardEncoding": 186,
+  "MacRomanEncoding": 211,
+  "WinAnsiEncoding": 148,
+  "PDFDocEncoding": 142
  },
  {
   "char": "‘",
   "glyphname": "quoteleft",
-  "std": 96,
-  "mac": 212,
-  "win": 145,
-  "pdf": 143
+  "StandardEncoding": 96,
+  "MacRomanEncoding": 212,
+  "WinAnsiEncoding": 145,
+  "PDFDocEncoding": 143
  },
  {
   "char": "’",
   "glyphname": "quoteright",
-  "std": 39,
-  "mac": 213,
-  "win": 146,
-  "pdf": 144
+  "StandardEncoding": 39,
+  "MacRomanEncoding": 213,
+  "WinAnsiEncoding": 146,
+  "PDFDocEncoding": 144
  },
  {
   "char": "‚",
   "glyphname": "quotesinglbase",
-  "std": 184,
-  "mac": 226,
-  "win": 130,
-  "pdf": 145
+  "StandardEncoding": 184,
+  "MacRomanEncoding": 226,
+  "WinAnsiEncoding": 130,
+  "PDFDocEncoding": 145
  },
  {
   "char": "'",
   "glyphname": "quotesingle",
-  "std": 169,
-  "mac": 39,
-  "win": 39,
-  "pdf": 39
+  "StandardEncoding": 169,
+  "MacRomanEncoding": 39,
+  "WinAnsiEncoding": 39,
+  "PDFDocEncoding": 39
  },
  {
   "char": "r",
   "glyphname": "r",
-  "std": 114,
-  "mac": 114,
-  "win": 114,
-  "pdf": 114
+  "StandardEncoding": 114,
+  "MacRomanEncoding": 114,
+  "WinAnsiEncoding": 114,
+  "PDFDocEncoding": 114
  },
  {
   "char": "®",
   "glyphname": "registered",
-  "std": null,
-  "mac": 168,
-  "win": 174,
-  "pdf": 174
+  "StandardEncoding": null,
+  "MacRomanEncoding": 168,
+  "WinAnsiEncoding": 174,
+  "PDFDocEncoding": 174
  },
  {
   "char": "˚",
   "glyphname": "ring",
-  "std": 202,
-  "mac": 251,
-  "win": null,
-  "pdf": 30
+  "StandardEncoding": 202,
+  "MacRomanEncoding": 251,
+  "WinAnsiEncoding": null,
+  "PDFDocEncoding": 30
  },
  {
   "char": "s",
   "glyphname": "s",
-  "std": 115,
-  "mac": 115,
-  "win": 115,
-  "pdf": 115
+  "StandardEncoding": 115,
+  "MacRomanEncoding": 115,
+  "WinAnsiEncoding": 115,
+  "PDFDocEncoding": 115
  },
  {
   "char": "š",
   "glyphname": "scaron",
-  "std": null,
-  "mac": null,
-  "win": 154,
-  "pdf": 157
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 154,
+  "PDFDocEncoding": 157
  },
  {
   "char": "§",
   "glyphname": "section",
-  "std": 167,
-  "mac": 164,
-  "win": 167,
-  "pdf": 167
+  "StandardEncoding": 167,
+  "MacRomanEncoding": 164,
+  "WinAnsiEncoding": 167,
+  "PDFDocEncoding": 167
  },
  {
   "char": ";",
   "glyphname": "semicolon",
-  "std": 59,
-  "mac": 59,
-  "win": 59,
-  "pdf": 59
+  "StandardEncoding": 59,
+  "MacRomanEncoding": 59,
+  "WinAnsiEncoding": 59,
+  "PDFDocEncoding": 59
  },
  {
   "char": "7",
   "glyphname": "seven",
-  "std": 55,
-  "mac": 55,
-  "win": 55,
-  "pdf": 55
+  "StandardEncoding": 55,
+  "MacRomanEncoding": 55,
+  "WinAnsiEncoding": 55,
+  "PDFDocEncoding": 55
  },
  {
   "char": "6",
   "glyphname": "six",
-  "std": 54,
-  "mac": 54,
-  "win": 54,
-  "pdf": 54
+  "StandardEncoding": 54,
+  "MacRomanEncoding": 54,
+  "WinAnsiEncoding": 54,
+  "PDFDocEncoding": 54
  },
  {
   "char": "/",
   "glyphname": "slash",
-  "std": 47,
-  "mac": 47,
-  "win": 47,
-  "pdf": 47
+  "StandardEncoding": 47,
+  "MacRomanEncoding": 47,
+  "WinAnsiEncoding": 47,
+  "PDFDocEncoding": 47
  },
  {
   "char": " ",
   "glyphname": "space",
-  "std": 32,
-  "mac": 32,
-  "win": 32,
-  "pdf": 32
+  "StandardEncoding": 32,
+  "MacRomanEncoding": 32,
+  "WinAnsiEncoding": 32,
+  "PDFDocEncoding": 32
  },
  {
   "char": "£",
   "glyphname": "sterling",
-  "std": 163,
-  "mac": 163,
-  "win": 163,
-  "pdf": 163
+  "StandardEncoding": 163,
+  "MacRomanEncoding": 163,
+  "WinAnsiEncoding": 163,
+  "PDFDocEncoding": 163
  },
  {
   "char": "t",
   "glyphname": "t",
-  "std": 116,
-  "mac": 116,
-  "win": 116,
-  "pdf": 116
+  "StandardEncoding": 116,
+  "MacRomanEncoding": 116,
+  "WinAnsiEncoding": 116,
+  "PDFDocEncoding": 116
  },
  {
   "char": "þ",
   "glyphname": "thorn",
-  "std": null,
-  "mac": null,
-  "win": 254,
-  "pdf": 254
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 254,
+  "PDFDocEncoding": 254
  },
  {
   "char": "3",
   "glyphname": "three",
-  "std": 51,
-  "mac": 51,
-  "win": 51,
-  "pdf": 51
+  "StandardEncoding": 51,
+  "MacRomanEncoding": 51,
+  "WinAnsiEncoding": 51,
+  "PDFDocEncoding": 51
  },
  {
   "char": "¾",
   "glyphname": "threequarters",
-  "std": null,
-  "mac": null,
-  "win": 190,
-  "pdf": 190
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 190,
+  "PDFDocEncoding": 190
  },
  {
   "char": "³",
   "glyphname": "threesuperior",
-  "std": null,
-  "mac": null,
-  "win": 179,
-  "pdf": 179
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 179,
+  "PDFDocEncoding": 179
  },
  {
   "char": "˜",
   "glyphname": "tilde",
-  "std": 196,
-  "mac": 247,
-  "win": 152,
-  "pdf": 31
+  "StandardEncoding": 196,
+  "MacRomanEncoding": 247,
+  "WinAnsiEncoding": 152,
+  "PDFDocEncoding": 31
  },
  {
   "char": "™",
   "glyphname": "trademark",
-  "std": null,
-  "mac": 170,
-  "win": 153,
-  "pdf": 146
+  "StandardEncoding": null,
+  "MacRomanEncoding": 170,
+  "WinAnsiEncoding": 153,
+  "PDFDocEncoding": 146
  },
  {
   "char": "2",
   "glyphname": "two",
-  "std": 50,
-  "mac": 50,
-  "win": 50,
-  "pdf": 50
+  "StandardEncoding": 50,
+  "MacRomanEncoding": 50,
+  "WinAnsiEncoding": 50,
+  "PDFDocEncoding": 50
  },
  {
   "char": "²",
   "glyphname": "twosuperior",
-  "std": null,
-  "mac": null,
-  "win": 178,
-  "pdf": 178
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 178,
+  "PDFDocEncoding": 178
  },
  {
   "char": "u",
   "glyphname": "u",
-  "std": 117,
-  "mac": 117,
-  "win": 117,
-  "pdf": 117
+  "StandardEncoding": 117,
+  "MacRomanEncoding": 117,
+  "WinAnsiEncoding": 117,
+  "PDFDocEncoding": 117
  },
  {
   "char": "ú",
   "glyphname": "uacute",
-  "std": null,
-  "mac": 156,
-  "win": 250,
-  "pdf": 250
+  "StandardEncoding": null,
+  "MacRomanEncoding": 156,
+  "WinAnsiEncoding": 250,
+  "PDFDocEncoding": 250
  },
  {
   "char": "û",
   "glyphname": "ucircumflex",
-  "std": null,
-  "mac": 158,
-  "win": 251,
-  "pdf": 251
+  "StandardEncoding": null,
+  "MacRomanEncoding": 158,
+  "WinAnsiEncoding": 251,
+  "PDFDocEncoding": 251
  },
  {
   "char": "ü",
   "glyphname": "udieresis",
-  "std": null,
-  "mac": 159,
-  "win": 252,
-  "pdf": 252
+  "StandardEncoding": null,
+  "MacRomanEncoding": 159,
+  "WinAnsiEncoding": 252,
+  "PDFDocEncoding": 252
  },
  {
   "char": "ù",
   "glyphname": "ugrave",
-  "std": null,
-  "mac": 157,
-  "win": 249,
-  "pdf": 249
+  "StandardEncoding": null,
+  "MacRomanEncoding": 157,
+  "WinAnsiEncoding": 249,
+  "PDFDocEncoding": 249
  },
  {
   "char": "_",
   "glyphname": "underscore",
-  "std": 95,
-  "mac": 95,
-  "win": 95,
-  "pdf": 95
+  "StandardEncoding": 95,
+  "MacRomanEncoding": 95,
+  "WinAnsiEncoding": 95,
+  "PDFDocEncoding": 95
  },
  {
   "char": "v",
   "glyphname": "v",
-  "std": 118,
-  "mac": 118,
-  "win": 118,
-  "pdf": 118
+  "StandardEncoding": 118,
+  "MacRomanEncoding": 118,
+  "WinAnsiEncoding": 118,
+  "PDFDocEncoding": 118
  },
  {
   "char": "w",
   "glyphname": "w",
-  "std": 119,
-  "mac": 119,
-  "win": 119,
-  "pdf": 119
+  "StandardEncoding": 119,
+  "MacRomanEncoding": 119,
+  "WinAnsiEncoding": 119,
+  "PDFDocEncoding": 119
  },
  {
   "char": "x",
   "glyphname": "x",
-  "std": 120,
-  "mac": 120,
-  "win": 120,
-  "pdf": 120
+  "StandardEncoding": 120,
+  "MacRomanEncoding": 120,
+  "WinAnsiEncoding": 120,
+  "PDFDocEncoding": 120
  },
  {
   "char": "y",
   "glyphname": "y",
-  "std": 121,
-  "mac": 121,
-  "win": 121,
-  "pdf": 121
+  "StandardEncoding": 121,
+  "MacRomanEncoding": 121,
+  "WinAnsiEncoding": 121,
+  "PDFDocEncoding": 121
  },
  {
   "char": "ý",
   "glyphname": "yacute",
-  "std": null,
-  "mac": null,
-  "win": 253,
-  "pdf": 253
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 253,
+  "PDFDocEncoding": 253
  },
  {
   "char": "ÿ",
   "glyphname": "ydieresis",
-  "std": null,
-  "mac": 216,
-  "win": 255,
-  "pdf": 255
+  "StandardEncoding": null,
+  "MacRomanEncoding": 216,
+  "WinAnsiEncoding": 255,
+  "PDFDocEncoding": 255
  },
  {
   "char": "¥",
   "glyphname": "yen",
-  "std": 165,
-  "mac": 180,
-  "win": 165,
-  "pdf": 165
+  "StandardEncoding": 165,
+  "MacRomanEncoding": 180,
+  "WinAnsiEncoding": 165,
+  "PDFDocEncoding": 165
  },
  {
   "char": "z",
   "glyphname": "z",
-  "std": 122,
-  "mac": 122,
-  "win": 122,
-  "pdf": 122
+  "StandardEncoding": 122,
+  "MacRomanEncoding": 122,
+  "WinAnsiEncoding": 122,
+  "PDFDocEncoding": 122
  },
  {
   "char": "ž",
   "glyphname": "zcaron",
-  "std": null,
-  "mac": null,
-  "win": 158,
-  "pdf": 158
+  "StandardEncoding": null,
+  "MacRomanEncoding": null,
+  "WinAnsiEncoding": 158,
+  "PDFDocEncoding": 158
  },
  {
   "char": "0",
   "glyphname": "zero",
-  "std": 48,
-  "mac": 48,
-  "win": 48,
-  "pdf": 48
+  "StandardEncoding": 48,
+  "MacRomanEncoding": 48,
+  "WinAnsiEncoding": 48,
+  "PDFDocEncoding": 48
  }
 ]

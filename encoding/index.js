@@ -1,5 +1,6 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
+var logger = require('loge');
 var unorm = require('unorm');
 var Arrays = require('../Arrays');
 var cmap = require('../parsers/cmap');
@@ -36,15 +37,26 @@ var Encoding = (function () {
     }
     /**
     This loads the character codes listed in ./latin_charset.json into
-    a (sparse?) Array of strings mapping indices (character codes) to unicode
+    a (sparse-ish) Array of strings mapping indices (character codes) to unicode
     strings (not glyphnames).
   
-    `base` should be one of 'std', 'mac', 'win', or 'pdf'
+    `name` should be one of the following:
+    * 'StandardEncoding'
+    * 'MacRomanEncoding'
+    * 'WinAnsiEncoding'
+    * 'PDFDocEncoding'
+    * 'MacExpertEncoding'
     */
-    Encoding.prototype.mergeLatinCharset = function (base) {
+    Encoding.prototype.mergeLatinCharset = function (name) {
         var _this = this;
+        if (name == 'MacExpertEncoding') {
+            logger.warn("Coercing \"MacExpertEncoding\" to \"MacRomanEncoding\" when merging Latin character set ");
+            // TODO: handle MacExpertEncoding properly
+            name = 'MacRomanEncoding';
+        }
+        // proceed, assuming that name is one of the base Latin character set names
         latin_charset.forEach(function (charspec) {
-            var charCode = charspec[base];
+            var charCode = charspec[name];
             if (charCode !== null) {
                 _this.mapping[charCode] = exports.glyphlist[charspec.glyphname];
             }
@@ -82,6 +94,13 @@ var Encoding = (function () {
     Encoding.prototype.decodeCharacter = function (charCode) {
         return this.mapping[charCode];
     };
+    Encoding.latinCharsetNames = [
+        'StandardEncoding',
+        'MacRomanEncoding',
+        'WinAnsiEncoding',
+        'PDFDocEncoding',
+        'MacExpertEncoding',
+    ];
     return Encoding;
 })();
 exports.Encoding = Encoding;
@@ -135,16 +154,22 @@ So, it's ambiguous?
 */
 function normalize(raw) {
     // ensure that the only whitespace is SPACE
-    // TODO: match other whitespace?
-    var flattened = raw.replace(/\r\n|\r|\n|\t/g, ' ');
-    // just remove any other character codes 0 through 31 (space is 32 == 0x20)
+    // TODO: is this too draconian?
+    var flattened = raw.replace(/\s+/g, ' ');
+    // remove any other character codes 0 through 31 (space is 32 == 0x20)
     var visible = flattened.replace(/[\x00-\x1F]/g, '');
     // replace modifier characters that are currently combining with a space
     // (sort of) with the lone combiner, so that they'll combine with the
     // following character instead, as intended.
     var modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, function (_, modifier, modified) {
-        if (modifier in modifier_to_combiner) {
-            return modified + modifier_to_combiner[modifier];
+        var combiner = modifier_to_combiner[modifier];
+        if (combiner) {
+            // if the next span was far enough away to be merit a space, this was
+            // probably a horizontal-shift diacritic hack, and so it should combine
+            // with the letter before it, not the space
+            // TODO: I'm not sure about this: sometimes, the hack is just the
+            // beginning of an entire span that's been shifted backward
+            return (modified == ' ') ? combiner : (modified + combiner);
         }
         // if we can't find a matching combiner, return the original pair
         return modifier + modified;

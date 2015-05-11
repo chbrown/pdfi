@@ -1,6 +1,3 @@
-var fs = require('fs');
-var path = require('path');
-
 function parseOctal(str) {
   if (str === '—') {
     return null;
@@ -23,10 +20,10 @@ process.stdin.on('end', function() {
     characters.push({
       char: cells[0],
       glyphname: cells[1],
-      std: parseOctal(cells[2]),
-      mac: parseOctal(cells[3]),
-      win: parseOctal(cells[4]),
-      pdf: parseOctal(cells[5]),
+      StandardEncoding: parseOctal(cells[2]),
+      MacRomanEncoding: parseOctal(cells[3]),
+      WinAnsiEncoding: parseOctal(cells[4]),
+      PDFDocEncoding: parseOctal(cells[5]),
     });
   });
   process.stdout.write(JSON.stringify(characters, null, ' '));
