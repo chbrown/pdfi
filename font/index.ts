@@ -4,7 +4,7 @@ import * as afm from 'afm';
 
 import {FontDescriptor} from './descriptor';
 import {Model, ContentStream, Resources} from '../models';
-import {glyphlist, Encoding} from '../encoding/index';
+import {glyphlist, Encoding, decodeGlyphname} from '../encoding/index';
 
 /**
 Font is a general, sometimes abstract (see Font#measureString), representation
@@ -123,7 +123,7 @@ export class Font extends Model {
       encoding.mergeLatinCharset(BaseEncoding);
     }
     else if (BaseEncoding == 'Identity-H') {
-      logger.warn(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (setting characterByteLength to 2)`);
+      logger.debug(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (setting characterByteLength to 2)`);
       encoding.characterByteLength = 2;
     }
     else if (BaseEncoding !== undefined) {
@@ -147,7 +147,7 @@ export class Font extends Model {
       var LastChar = <number>this.get('LastChar');
       var CharSet = FontDescriptor.CharSet;
       if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-        encoding.mapping[FirstChar] = glyphlist[CharSet[0]];
+        encoding.mapping[FirstChar] = decodeGlyphname(CharSet[0]);
       }
       // otherwise, try reading the FontFile
       else if (FontDescriptor.get('FontFile')) {

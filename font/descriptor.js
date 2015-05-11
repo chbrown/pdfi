@@ -94,7 +94,7 @@ var FontDescriptor = (function (_super) {
         while ((match = charRegExp.exec(Encoding_string))) {
             var index = parseInt(match[1], 10);
             var glyphname = match[2];
-            var str = index_1.glyphlist[glyphname];
+            var str = index_1.decodeGlyphname(glyphname);
             if (str !== undefined) {
                 encoding.mapping[index] = str;
             }

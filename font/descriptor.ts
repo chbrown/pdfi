@@ -2,7 +2,7 @@
 import * as lexing from 'lexing';
 import * as logger from 'loge';
 
-import {glyphlist, Encoding} from '../encoding/index';
+import {Encoding, decodeGlyphname} from '../encoding/index';
 import {Model, ContentStream} from '../models';
 
 /**
@@ -76,7 +76,7 @@ export class FontDescriptor extends Model {
     while ((match = charRegExp.exec(Encoding_string))) {
       var index = parseInt(match[1], 10);
       var glyphname = match[2];
-      var str = glyphlist[glyphname];
+      var str = decodeGlyphname(glyphname);
       if (str !== undefined) {
         encoding.mapping[index] = str;
       }

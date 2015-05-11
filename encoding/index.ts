@@ -190,3 +190,27 @@ export function normalize(raw: string): string {
   // NFKC: Compatibility Decomposition, followed by Canonical Composition
   return unorm.nfkc(modifiers_recombined);
 }
+
+/**
+A FontDescriptor stream will sometimes map character codes to unicode character
+codes, embedded as hexadecimal in a string prefixed by 'uni'. As far as I can
+tell, these are always 4 characters (so: in the BMP).
+*/
+const glyphUniRegExp = /^uni([0-9A-F]+)$/;
+
+/**
+Use the glyphlist to convert an ASCII glyphname to the appropriate unicode
+string, or via the special "uni<hexadecimal code>" specification format.
+*/
+export function decodeGlyphname(glyphname: string): string {
+  var str = glyphlist[glyphname];
+  if (str !== undefined) {
+    return str;
+  }
+
+  var uniMatch = glyphname.match(glyphUniRegExp);
+  if (uniMatch !== null) {
+    var charCode = parseInt(uniMatch[1], 16);
+    return String.fromCharCode(charCode);
+  }
+}

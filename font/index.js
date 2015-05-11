@@ -146,7 +146,7 @@ var Font = (function (_super) {
             encoding.mergeLatinCharset(BaseEncoding);
         }
         else if (BaseEncoding == 'Identity-H') {
-            logger.warn("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
+            logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
             encoding.characterByteLength = 2;
         }
         else if (BaseEncoding !== undefined) {
@@ -168,7 +168,7 @@ var Font = (function (_super) {
             var LastChar = this.get('LastChar');
             var CharSet = FontDescriptor.CharSet;
             if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-                encoding.mapping[FirstChar] = index_1.glyphlist[CharSet[0]];
+                encoding.mapping[FirstChar] = index_1.decodeGlyphname(CharSet[0]);
             }
             else if (FontDescriptor.get('FontFile')) {
                 FontDescriptor.getEncoding().mapping.forEach(function (str, charCode) {
