@@ -730,9 +730,11 @@ var RecursiveDrawingContext = (function (_super) {
 exports.RecursiveDrawingContext = RecursiveDrawingContext;
 var CanvasDrawingContext = (function (_super) {
     __extends(CanvasDrawingContext, _super);
-    function CanvasDrawingContext(canvas, resources) {
+    function CanvasDrawingContext(canvas, resources, skipMissingCharacters) {
+        if (skipMissingCharacters === void 0) { skipMissingCharacters = false; }
         _super.call(this, resources);
         this.canvas = canvas;
+        this.skipMissingCharacters = skipMissingCharacters;
     }
     /**
     advanceTextMatrix is only called from the various text drawing operations,
@@ -787,7 +789,7 @@ var CanvasDrawingContext = (function (_super) {
         }
         var origin = this.getTextPosition();
         var fontSize = this.getTextSize();
-        var string = font.decodeString(bytes);
+        var string = font.decodeString(bytes, this.skipMissingCharacters);
         var width_units = font.measureString(bytes);
         var nchars = string.length;
         var nspaces = util.countSpaces(string);
@@ -842,12 +844,12 @@ var TextDrawingContext = (function (_super) {
         if (font === null) {
             throw new Error("Cannot find font \"" + this.graphicsState.textState.fontName + "\" in Resources: " + JSON.stringify(this.resources));
         }
-        var str = "(" + font.decodeString(bytes) + ")";
+        var str = font.decodeString(bytes);
         this.operations.push({
             operator: 'showString',
             fontName: this.graphicsState.textState.fontName,
             characterByteLength: font.encoding.characterByteLength,
-            text: str,
+            text: "(" + str + ")",
         });
     };
     TextDrawingContext.prototype.showStrings = function (array) {

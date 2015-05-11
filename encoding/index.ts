@@ -201,8 +201,15 @@ const glyphUniRegExp = /^uni([0-9A-F]+)$/;
 /**
 Use the glyphlist to convert an ASCII glyphname to the appropriate unicode
 string, or via the special "uni<hexadecimal code>" specification format.
+
+Returns undefined when the glyphname is '.notdef' or cannot be found in the
+glyphlist.
 */
 export function decodeGlyphname(glyphname: string): string {
+  if (glyphname == '.notdef') {
+    return undefined;
+  }
+
   var str = glyphlist[glyphname];
   if (str !== undefined) {
     return str;

@@ -742,7 +742,9 @@ export class RecursiveDrawingContext extends DrawingContext {
 
 
 export class CanvasDrawingContext extends RecursiveDrawingContext {
-  constructor(public canvas: Canvas, resources: models.Resources) {
+  constructor(public canvas: Canvas,
+              resources: models.Resources,
+              public skipMissingCharacters = false) {
     super(resources);
   }
 
@@ -805,7 +807,7 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     var origin = this.getTextPosition();
     var fontSize = this.getTextSize();
 
-    var string = font.decodeString(bytes);
+    var string = font.decodeString(bytes, this.skipMissingCharacters);
     var width_units = font.measureString(bytes);
     var nchars = string.length;
     var nspaces = util.countSpaces(string);
@@ -867,12 +869,12 @@ export class TextDrawingContext extends RecursiveDrawingContext {
     if (font === null) {
       throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
-    var str = `(${font.decodeString(bytes)})`;
+    var str = font.decodeString(bytes);
     this.operations.push({
       operator: 'showString',
       fontName: this.graphicsState.textState.fontName,
       characterByteLength: font.encoding.characterByteLength,
-      text: str,
+      text: `(${str})`,
     });
   }
 

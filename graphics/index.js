@@ -11,7 +11,7 @@ function renderPage(page) {
     // prepare the canvas that we will draw on
     var pageBox = new geometry_1.Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
     var canvas = new document_1.DocumentCanvas(pageBox);
-    var context = new stream_1.CanvasDrawingContext(canvas, page.Resources);
+    var context = new stream_1.CanvasDrawingContext(canvas, page.Resources, true);
     var content_stream_string = page.joinContents('\n');
     // read the content stream and render it to the canvas, via the context
     context.applyContentStream(content_stream_string);
@@ -22,7 +22,7 @@ function renderContentStream(content_stream) {
     var BBox = content_stream.dictionary['BBox'];
     var outerBounds = new geometry_1.Rectangle(BBox[0], BBox[1], BBox[2], BBox[3]);
     var canvas = new document_1.DocumentCanvas(outerBounds);
-    var context = new stream_1.CanvasDrawingContext(canvas, content_stream.Resources);
+    var context = new stream_1.CanvasDrawingContext(canvas, content_stream.Resources, true);
     context.applyContentStream(content_stream.buffer.toString('binary'));
     return canvas;
 }

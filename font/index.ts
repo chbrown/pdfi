@@ -171,8 +171,8 @@ export class Font extends Model {
     //   }
     // }
 
-    if (encoding.mapping.length === 0) {
-      logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using default "std" mapping`);
+    var usingStandardEncoding = encoding.mapping.length === 0;
+    if (usingStandardEncoding) {
       encoding.mergeLatinCharset('StandardEncoding');
     }
 
@@ -189,20 +189,22 @@ export class Font extends Model {
           // difference is a glyph name, but we want a mapping from character
           // codes to native unicode strings, so we resolve the glyphname via the
           // PDF standard glyphlist
+          var glyphname: string = difference;
+          var str = decodeGlyphname(glyphname);
+          encoding.mapping[current_character_code] = str;
+
           // TODO: handle missing glyphnames
-          var difference_string = glyphlist[difference]
-          if (difference == '.notdef') {
-            encoding.mapping[current_character_code] = undefined;
-          }
-          else if (difference_string !== undefined) {
-            encoding.mapping[current_character_code] = difference_string;
-          }
-          else {
-            logger.warn(`[Font=${this.Name}] Ignoring Encoding.Difference ${current_character_code} -> ${difference}, which is not an existing glyphname`);
+          if (str === undefined && glyphname !== '.notdef') {
+            logger.warn(`[Font=${this.Name}] Encoding.Difference ${current_character_code} -> ${difference}, but that is not an existing glyphname`);
           }
           current_character_code++;
         }
       });
+    }
+    else {
+      if (usingStandardEncoding) {
+        logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
+      }
     }
 
     return encoding;
@@ -233,11 +235,12 @@ export class Font extends Model {
     return this.encoding.decodeCharCodes(bytes).map(charCode => {
       var string = this.encoding.decodeCharacter(charCode);
       if (string === undefined) {
-        var placeholder = '\\u{' + charCode.toString(16) + '}';
-        logger.error(`[Font=${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
         if (skipMissing) {
+          logger.debug(`[Font=${this.Name}] Skipping missing character code: ${charCode}`)
           return '';
         }
+        var placeholder = '\\u{' + charCode.toString(16) + '}';
+        logger.debug(`[Font=${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
         return placeholder;
       }
       return string;
