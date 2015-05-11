@@ -100,12 +100,11 @@ function objects(pdf: PDF,
 }
 
 function text(pdf: PDF) {
-  var document = pdf.getDocument(2);
+  var document = pdf.getDocument();
   document.sections.forEach(section => {
-    stdout(`#${section.header}`);
-    section.content.forEach(paragraph => {
+    stdout(`# ${section.title}`);
+    section.paragraphs.forEach(paragraph => {
       stdout(`    ${paragraph}`);
-      paragraph.toString()
     });
   });
 }

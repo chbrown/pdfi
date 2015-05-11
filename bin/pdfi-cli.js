@@ -89,12 +89,11 @@ function objects(pdf, references, decode) {
     });
 }
 function text(pdf) {
-    var document = pdf.getDocument(2);
+    var document = pdf.getDocument();
     document.sections.forEach(function (section) {
-        stdout("#" + section.header);
-        section.content.forEach(function (paragraph) {
+        stdout("# " + section.title);
+        section.paragraphs.forEach(function (paragraph) {
             stdout("    " + paragraph);
-            paragraph.toString();
         });
     });
 }
