@@ -7,8 +7,8 @@ all: $(TYPESCRIPT:%.ts=%.js)
 
 type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
 
-%.js: %.ts type_declarations
-	node_modules/.bin/tsc -m commonjs -t ES5 $+
+%.js: %.ts type_declarations | node_modules/.bin/tsc
+	node_modules/.bin/tsc -m commonjs -t ES5 $<
 
 # e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
 type_declarations/DefinitelyTyped/%:
