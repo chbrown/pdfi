@@ -2,7 +2,7 @@ TYPESCRIPT := $(wildcard *.ts bin/*.ts encoding/*.ts filters/*.ts font/*.ts grap
 
 DTS := async/async lodash/lodash mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
 
-.PHONY: all type_declarations
+.PHONY: all
 all: $(TYPESCRIPT:%.ts=%.js)
 
 type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
