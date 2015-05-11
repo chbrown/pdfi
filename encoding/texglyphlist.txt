@@ -385,3 +385,5 @@ supersetornotdbleql;2ACC
 # XXX tildewider
 # U+29F8 BIG SOLIDUS seems the right size
 upslope;29F8
+# More characters that have come up
+mapsto;21A6
