@@ -152,6 +152,7 @@ var CMapParser = (function () {
                 token.value.forEach(function (tuple) {
                     var start = parseHex(tuple[0]);
                     var end = parseHex(tuple[1]);
+                    cmap.byteLength = tuple[1].length / 2;
                     cmap.addCodeSpace(start, end);
                 });
             }
