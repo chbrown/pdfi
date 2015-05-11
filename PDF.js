@@ -11,9 +11,9 @@ var PDF = (function () {
     function PDF(file) {
         this.file = file;
         this._cross_references = [];
-        // _objects is a cache of PDF objects indexed by
+        // _cached_objects is a cache of PDF objects indexed by
         // "${object_number}:${generation_number}" identifiers
-        this._objects = {};
+        this._cached_objects = {};
     }
     PDF.open = function (filepath) {
         return new PDF(File.open(filepath));
@@ -104,10 +104,11 @@ var PDF = (function () {
     };
     PDF.prototype.getObject = function (object_number, generation_number) {
         var object_id = object_number + ":" + generation_number;
-        if (!(object_id in this._objects)) {
-            this._objects[object_id] = this._readObject(object_number, generation_number);
+        var cached_object = this._cached_objects[object_id];
+        if (cached_object === undefined) {
+            cached_object = this._cached_objects[object_id] = this._readObject(object_number, generation_number);
         }
-        return this._objects[object_id];
+        return cached_object;
     };
     /**
     Resolves a object reference to the original object from the PDF, parsing the
@@ -150,14 +151,12 @@ var PDF = (function () {
   
     If `section_names` is empty, return all sections.
     */
-    PDF.prototype.getDocument = function (minimumElementsPerLayoutComponent) {
-        if (minimumElementsPerLayoutComponent === void 0) { minimumElementsPerLayoutComponent = 2; }
-        var containers = Arrays.flatMap(this.pages, function (page) {
+    PDF.prototype.getDocument = function () {
+        var containers = Arrays.flatMap(this.pages, function (page, i, pages) {
+            logger.debug("getDocument: rendering page " + (i + 1) + "/" + pages.length);
             var documentCanvas = graphics.renderPage(page);
             // autodetectLayout(): Container<TextSpan>[]
-            return documentCanvas.autodetectLayout().filter(function (container) {
-                return container.length >= minimumElementsPerLayoutComponent;
-            });
+            return documentCanvas.autodetectLayout();
         });
         // containers is now an array of basic Container<TextSpan>'s for the whole
         // PDF, but now each TextSpan is also aware of its container

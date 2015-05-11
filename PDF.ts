@@ -18,9 +18,9 @@ import PDFObjectParser = require('./parsers/PDFObjectParser');
 class PDF {
   private _trailer: models.Trailer;
   private _cross_references: pdfdom.CrossReference[] = [];
-  // _objects is a cache of PDF objects indexed by
+  // _cached_objects is a cache of PDF objects indexed by
   // "${object_number}:${generation_number}" identifiers
-  private _objects: {[index: string]: pdfdom.PDFObject} = {};
+  private _cached_objects: {[index: string]: pdfdom.PDFObject} = {};
 
   constructor(public file: File) { }
 
@@ -109,10 +109,11 @@ class PDF {
 
   getObject(object_number: number, generation_number: number): pdfdom.PDFObject {
     var object_id = `${object_number}:${generation_number}`;
-    if (!(object_id in this._objects)) {
-      this._objects[object_id] = this._readObject(object_number, generation_number);
+    var cached_object = this._cached_objects[object_id];
+    if (cached_object === undefined) {
+      cached_object = this._cached_objects[object_id] = this._readObject(object_number, generation_number);
     }
-    return this._objects[object_id];
+    return cached_object;
   }
 
   /**
@@ -157,12 +158,12 @@ class PDF {
 
   If `section_names` is empty, return all sections.
   */
-  getDocument(minimumElementsPerLayoutComponent = 2): academia.types.Paper {
-    var containers = Arrays.flatMap(this.pages, page => {
+  getDocument(): academia.types.Paper {
+    var containers = Arrays.flatMap(this.pages, (page, i, pages) => {
+      logger.debug(`getDocument: rendering page ${i + 1}/${pages.length}`);
       var documentCanvas = graphics.renderPage(page);
       // autodetectLayout(): Container<TextSpan>[]
-      return documentCanvas.autodetectLayout().filter(container =>
-        container.length >= minimumElementsPerLayoutComponent);
+      return documentCanvas.autodetectLayout();
     });
     // containers is now an array of basic Container<TextSpan>'s for the whole
     // PDF, but now each TextSpan is also aware of its container

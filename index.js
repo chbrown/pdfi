@@ -12,26 +12,26 @@ Read a PDF from the given filepath. The callback's second argument, `data`,
 depends on the passed options. If options is an empty object, null, or
 undefined, data will be a string with newlines separating paragraphs.
 
-If options.type == "document", data will be structured, e.g.:
+If options.type == "paper", data will be structured, e.g.:
 
     {
       sections: [
-        {header: 'Abstract', paragraphs: ['This paper...']},
-        {header: 'Introduction', paragraphs: ['We hypothesize...', 'We prove...']}
+        {title: 'Abstract', paragraphs: ['This paper...']},
+        {title: 'Introduction', paragraphs: ['We hypothesize...', 'We prove...']}
       ]
     }
 
 Or in terms of the types:
 
     interface Section {
-      header: string;
+      title: string;
       paragraphs: string[];
     }
     interface Document {
       sections: Section[];
     }
 
-With readFile(filename, {type: 'document'}, ...), `data` will be a Document.
+With readFile(filename, {type: 'paper'}, ...), `data` will be an academia.types.Paper.
 */
 function readFile(filename, options, callback) {
     setImmediate(function () {
@@ -45,19 +45,14 @@ function readFileSync(filename, options) {
     if (options === null) {
         options = { type: 'string' };
     }
-    var document = pdf.getDocument();
-    if (options.type == 'document') {
-        return document.getSections().map(function (section) {
-            return {
-                header: section.header,
-                paragraphs: section.getParagraphs().map(function (paragraph) { return paragraph.toString(); }),
-            };
-        });
+    var paper = pdf.getDocument();
+    if (options.type == 'paper') {
+        return paper;
     }
     // default: plain string
-    return document.getSections().map(function (section) {
-        var paragraphs = section.getParagraphs().map(function (paragraph) { return paragraph.toString(); });
-        return [section.header].concat(paragraphs).join('\n');
+    return paper.sections.map(function (section) {
+        var paragraphs = section.paragraphs.map(function (paragraph) { return paragraph.toString(); });
+        return [section.title].concat(paragraphs).join('\n');
     }).join('\n');
 }
 exports.readFileSync = readFileSync;
