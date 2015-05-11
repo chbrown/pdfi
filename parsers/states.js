@@ -5,6 +5,7 @@ var __extends = this.__extends || function (d, b) {
     d.prototype = new __();
 };
 /// <reference path="../type_declarations/index.d.ts" />
+var logger = require('loge');
 var lexing = require('lexing');
 var Arrays = require('../Arrays');
 var Rule = lexing.MachineRule;
@@ -109,6 +110,10 @@ var Collection = (function (_super) {
         this.push(matchValue[1]);
         return undefined;
     };
+    Collection.prototype.captureBoolean = function (matchValue) {
+        this.push(matchValue[0] === 'true');
+        return undefined;
+    };
     Collection.prototype.captureFloat = function (matchValue) {
         this.push(parseFloat(matchValue[0]));
         return undefined;
@@ -119,14 +124,97 @@ var Collection = (function (_super) {
     };
     return Collection;
 })(lexing.MachineState);
-var Operation = (function () {
-    function Operation(operator, operands) {
-        this.operator = operator;
-        this.operands = operands;
-    }
-    return Operation;
-})();
-exports.Operation = Operation;
+var content_stream_operator_aliases = {
+    // General graphics state
+    'w': 'setLineWidth',
+    'J': 'setLineCap',
+    'j': 'setLineJoin',
+    'M': 'setMiterLimit',
+    'd': 'setDashPattern',
+    'ri': 'setRenderingIntent',
+    'i': 'setFlatnessTolerance',
+    'gs': 'setGraphicsStateParameters',
+    // Special graphics state
+    'q': 'pushGraphicsState',
+    'Q': 'popGraphicsState',
+    'cm': 'setCTM',
+    // Path construction
+    'm': 'moveTo',
+    'l': 'appendLine',
+    'c': 'appendCurve123',
+    'v': 'appendCurve23',
+    'y': 'appendCurve13',
+    'h': 'closePath',
+    're': 'appendRectangle',
+    // Path painting
+    'S': 'stroke',
+    's': 'closeAndStroke',
+    'f': 'fill',
+    'F': 'fillCompat',
+    'f*': 'fillEvenOdd',
+    'B': 'fillThenStroke',
+    'B*': 'fillThenStrokeEvenOdd',
+    'b': 'closeAndFillThenStroke',
+    'b*': 'closeAndFillThenStrokeEvenOdd',
+    'n': 'closePathNoop',
+    // Clipping paths
+    'W': 'clip',
+    'W*': 'clipEvenOdd',
+    // Text objects
+    'BT': 'startTextBlock',
+    'ET': 'endTextBlock',
+    // Text state
+    'Tc': 'setCharSpacing',
+    'Tw': 'setWordSpacing',
+    'Tz': 'setHorizontalScale',
+    'TL': 'setLeading',
+    'Tf': 'setFont',
+    'Tr': 'setRenderingMode',
+    'Ts': 'setRise',
+    // Text positioning
+    'Td': 'adjustCurrentPosition',
+    'TD': 'adjustCurrentPositionWithLeading',
+    'Tm': 'setTextMatrix',
+    'T*': 'newLine',
+    // Text showing
+    'Tj': 'showString',
+    'TJ': 'showStrings',
+    "'": 'newLineAndShowString',
+    '"': 'newLineAndShowStringWithSpacing',
+    // Type 3 fonts (incomplete implementation)
+    'd0': 'setType3FontCharWidthShapeColor',
+    'd1': 'setType3FontCharWidthShape',
+    // Color
+    'CS': 'setStrokeColorSpace',
+    'cs': 'setFillColorSpace',
+    'SC': 'setStrokeColorSpace2',
+    'SCN': 'setStrokeColorSpace3',
+    'sc': 'setFillColorSpace2',
+    'scn': 'setFillColorSpace3',
+    'G': 'setStrokeGray',
+    'g': 'setFillGray',
+    'RG': 'setStrokeColor',
+    'rg': 'setFillColor',
+    'K': 'setStrokeCMYK',
+    'k': 'setFillCMYK',
+    // Shading patterns
+    'sh': 'shadingPattern',
+    // Inline images (incomplete implementation)
+    'BI': 'beginInlineImage',
+    // ID is specially handled
+    'EI': 'endInlineImage',
+    // XObjects
+    'Do': 'drawObject',
+    // Marked content (incomplete implementation)
+    'MP': 'designatedMarkedContentPoint',
+    'DP': 'designatedMarkedContentPointProperties',
+    'BMC': 'beginMarkedContent',
+    'BDC': 'beginMarkedContentWithDictionary',
+    'EMC': 'endMarkedContent',
+    // Compatibility (incomplete implementation)
+    'BX': 'beginCompatibility',
+    'EX': 'endCompatibility',
+};
 var CONTENT_STREAM = (function (_super) {
     __extends(CONTENT_STREAM, _super);
     function CONTENT_STREAM() {
@@ -141,16 +229,24 @@ var CONTENT_STREAM = (function (_super) {
             Rule(/^\[/, this.captureArray),
             Rule(/^\(/, this.captureString),
             Rule(/^ID/, this.captureImageData),
+            Rule(/^(true|false)/, this.captureBoolean),
             Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
             Rule(/^-?\d*\.\d+/, this.captureFloat),
             Rule(/^-?\d+/, this.captureInt),
             Rule(/^%%EOF/, this.ignore),
+            // maybe create a regex based on the valid operators?
             Rule(/^[A-Za-z'"]+\*?/, this.captureOperator),
         ];
     }
     CONTENT_STREAM.prototype.captureOperator = function (matchValue) {
-        var operator = matchValue[0];
-        this.value.push(new Operation(operator, this.stack));
+        this.value.push({
+            operands: this.stack,
+            operator: matchValue[0],
+            alias: content_stream_operator_aliases[matchValue[0]],
+        });
+        if (content_stream_operator_aliases[matchValue[0]] === undefined) {
+            logger.warn('Unaliased operator: %j', matchValue[0]);
+        }
         this.stack = [];
     };
     CONTENT_STREAM.prototype.push = function (value) {
@@ -161,8 +257,14 @@ var CONTENT_STREAM = (function (_super) {
         // TODO: Figure out why TypeScript can't infer the type of image_data with
         // the following syntax:
         var image_data = this.attachState(IMAGEDATA).read();
+        // EI is what triggers the IMAGEDATA state pop
         this.push(image_data);
-        return undefined;
+        this.value.push({
+            operands: this.stack,
+            operator: 'EI',
+            alias: content_stream_operator_aliases['EI'],
+        });
+        this.stack = [];
     };
     return CONTENT_STREAM;
 })(Collection);

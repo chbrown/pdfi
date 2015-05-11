@@ -5,17 +5,7 @@ import {Page, ContentStream, Resources} from '../models';
 
 import {Rectangle} from './geometry';
 import {DocumentCanvas} from './document';
-import {ContentStreamReader} from './stream';
-import {DrawingContext, CanvasDrawingContext, TextDrawingContext} from './context';
-
-function renderHelper(content_stream_string: string, resources: Resources, context: DrawingContext) {
-  var content_stream_string_iterable = new lexing.StringIterator(content_stream_string);
-  // prepare the content stream reader
-  var reader = new ContentStreamReader(resources);
-  // read the content stream and render it to the canvas, via the context
-  reader.render(content_stream_string_iterable, context);
-}
-
+import {RecursiveDrawingContext, CanvasDrawingContext, TextDrawingContext, TextOperation} from './stream';
 
 /**
 When we render a page, we specify a ContentStream as well as a Resources
@@ -27,8 +17,21 @@ export function renderPage(page: Page): DocumentCanvas {
   // prepare the canvas that we will draw on
   var pageBox = new Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
   var canvas = new DocumentCanvas(pageBox);
-  var context = new CanvasDrawingContext(canvas);
-  renderHelper(page.joinContents('\n'), page.Resources, context);
+
+  var context = new CanvasDrawingContext(canvas, page.Resources);
+  var content_stream_string = page.joinContents('\n')
+  // read the content stream and render it to the canvas, via the context
+  context.applyContentStream(content_stream_string);
+  return canvas;
+}
+
+export function renderContentStream(content_stream: ContentStream): DocumentCanvas {
+  var BBox = content_stream.dictionary['BBox'];
+  var outerBounds = new Rectangle(BBox[0], BBox[1], BBox[2], BBox[3]);
+  var canvas = new DocumentCanvas(outerBounds);
+
+  var context = new CanvasDrawingContext(canvas, content_stream.Resources);
+  context.applyContentStream(content_stream.buffer.toString('binary'));
   return canvas;
 }
 
@@ -39,10 +42,10 @@ it's mostly for debugging purposes.
 It returns a list of objects like:
   {operator: 'Tj', font: 'F29', text: 'Catego'}
 */
-export function renderContentStreamText(content_stream: ContentStream): any[] {
+export function renderContentStreamText(content_stream: ContentStream): TextOperation[] {
   // prepare the list that we will "render" to
-  var spans = [];
-  var context = new TextDrawingContext(spans);
-  renderHelper(content_stream.buffer.toString('binary'), content_stream.Resources, context);
-  return spans;
+  var text_operations: TextOperation[] = [];
+  var context = new TextDrawingContext(text_operations, content_stream.Resources);
+  context.applyContentStream(content_stream.buffer.toString('binary'));
+  return text_operations;
 }

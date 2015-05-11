@@ -1,16 +1,6 @@
-/// <reference path="../type_declarations/index.d.ts" />
-var lexing = require('lexing');
 var geometry_1 = require('./geometry');
 var document_1 = require('./document');
 var stream_1 = require('./stream');
-var context_1 = require('./context');
-function renderHelper(content_stream_string, resources, context) {
-    var content_stream_string_iterable = new lexing.StringIterator(content_stream_string);
-    // prepare the content stream reader
-    var reader = new stream_1.ContentStreamReader(resources);
-    // read the content stream and render it to the canvas, via the context
-    reader.render(content_stream_string_iterable, context);
-}
 /**
 When we render a page, we specify a ContentStream as well as a Resources
 dictionary. That Resources dictionary may contain XObject streams that are
@@ -21,11 +11,22 @@ function renderPage(page) {
     // prepare the canvas that we will draw on
     var pageBox = new geometry_1.Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
     var canvas = new document_1.DocumentCanvas(pageBox);
-    var context = new context_1.CanvasDrawingContext(canvas);
-    renderHelper(page.joinContents('\n'), page.Resources, context);
+    var context = new stream_1.CanvasDrawingContext(canvas, page.Resources);
+    var content_stream_string = page.joinContents('\n');
+    // read the content stream and render it to the canvas, via the context
+    context.applyContentStream(content_stream_string);
     return canvas;
 }
 exports.renderPage = renderPage;
+function renderContentStream(content_stream) {
+    var BBox = content_stream.dictionary['BBox'];
+    var outerBounds = new geometry_1.Rectangle(BBox[0], BBox[1], BBox[2], BBox[3]);
+    var canvas = new document_1.DocumentCanvas(outerBounds);
+    var context = new stream_1.CanvasDrawingContext(canvas, content_stream.Resources);
+    context.applyContentStream(content_stream.buffer.toString('binary'));
+    return canvas;
+}
+exports.renderContentStream = renderContentStream;
 /**
 renderPageText does none of the graphical stuff.
 it's mostly for debugging purposes.
@@ -35,9 +36,9 @@ It returns a list of objects like:
 */
 function renderContentStreamText(content_stream) {
     // prepare the list that we will "render" to
-    var spans = [];
-    var context = new context_1.TextDrawingContext(spans);
-    renderHelper(content_stream.buffer.toString('binary'), content_stream.Resources, context);
-    return spans;
+    var text_operations = [];
+    var context = new stream_1.TextDrawingContext(text_operations, content_stream.Resources);
+    context.applyContentStream(content_stream.buffer.toString('binary'));
+    return text_operations;
 }
 exports.renderContentStreamText = renderContentStreamText;

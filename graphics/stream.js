@@ -1,156 +1,123 @@
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
 /// <reference path="../type_declarations/index.d.ts" />
 var logger = require('loge');
-var lexing = require('lexing');
-var font = require('../font/index');
-var parser_states = require('../parsers/states');
+var util = require('../util');
+var graphics_1 = require('../parsers/graphics');
+var geometry_1 = require('./geometry');
 var color_1 = require('./color');
 var math_1 = require('./math');
-var operator_aliases = {
-    // General graphics state
-    'w': 'setLineWidth',
-    'J': 'setLineCap',
-    'j': 'setLineJoin',
-    'M': 'setMiterLimit',
-    'd': 'setDashPattern',
-    'ri': 'setRenderingIntent',
-    'i': 'setFlatnessTolerance',
-    'gs': 'setGraphicsStateParameters',
-    // Special graphics state
-    'q': 'pushGraphicsState',
-    'Q': 'popGraphicsState',
-    'cm': 'setCTM',
-    // Path construction
-    'm': 'moveTo',
-    'l': 'appendLine',
-    'c': 'appendCurve123',
-    'v': 'appendCurve23',
-    'y': 'appendCurve13',
-    'h': 'closePath',
-    're': 'appendRectangle',
-    // Path painting
-    'S': 'stroke',
-    's': 'closeAndStroke',
-    'f': 'fill',
-    'F': 'fillCompat',
-    'f*': 'fillEvenOdd',
-    'B': 'fillThenStroke',
-    'B*': 'fillThenStrokeEvenOdd',
-    'b': 'closeAndFillThenStroke',
-    'b*': 'closeAndFillThenStrokeEvenOdd',
-    'n': 'closePathNoop',
-    // Clipping paths
-    'W': 'clip',
-    'W*': 'clipEvenOdd',
-    // Text objects
-    'BT': 'startTextBlock',
-    'ET': 'endTextBlock',
-    // Text state
-    'Tc': 'setCharSpacing',
-    'Tw': 'setWordSpacing',
-    'Tz': 'setHorizontalScale',
-    'TL': 'setLeading',
-    'Tf': 'setFont',
-    'Tr': 'setRenderingMode',
-    'Ts': 'setRise',
-    // Text positioning
-    'Td': 'adjustCurrentPosition',
-    'TD': 'adjustCurrentPositionWithLeading',
-    'Tm': 'setTextMatrix',
-    'T*': 'newLine',
-    // Text showing
-    'Tj': 'showString',
-    'TJ': 'showStrings',
-    "'": 'newLineAndShowString',
-    '"': 'newLineAndShowStringWithSpacing',
-    // Type 3 fonts
-    // incomplete: d0, d1
-    // Color
-    'CS': 'setStrokeColorSpace',
-    'cs': 'setFillColorSpace',
-    'SC': 'setStrokeColorSpace2',
-    'SCN': 'setStrokeColorSpace3',
-    'sc': 'setFillColorSpace2',
-    'scn': 'setFillColorSpace3',
-    'G': 'setStrokeGray',
-    'g': 'setFillGray',
-    'RG': 'setStrokeColor',
-    'rg': 'setFillColor',
-    'K': 'setStrokeCMYK',
-    'k': 'setFillCMYK',
-    // Shading patterns
-    'sh': 'shadingPattern',
-    // Inline images
-    // incomplete: BI, ID, EI
-    // XObjects
-    'Do': 'drawObject',
-    // Marked content
-    // incomplete: MP, DP
-    'BMC': 'beginMarkedContent',
-    'BDC': 'beginMarkedContentWithDictionary',
-    'EMC': 'endMarkedContent',
-};
-var ContentStreamReader = (function () {
-    function ContentStreamReader(Resources, depth) {
-        if (depth === void 0) { depth = 0; }
-        this.Resources = Resources;
-        this.depth = depth;
-        this._cached_fonts = {};
+// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
+(function (RenderingMode) {
+    RenderingMode[RenderingMode["Fill"] = 0] = "Fill";
+    RenderingMode[RenderingMode["Stroke"] = 1] = "Stroke";
+    RenderingMode[RenderingMode["FillThenStroke"] = 2] = "FillThenStroke";
+    RenderingMode[RenderingMode["None"] = 3] = "None";
+    RenderingMode[RenderingMode["FillClipping"] = 4] = "FillClipping";
+    RenderingMode[RenderingMode["StrokeClipping"] = 5] = "StrokeClipping";
+    RenderingMode[RenderingMode["FillThenStrokeClipping"] = 6] = "FillThenStrokeClipping";
+    RenderingMode[RenderingMode["NoneClipping"] = 7] = "NoneClipping";
+})(exports.RenderingMode || (exports.RenderingMode = {}));
+var RenderingMode = exports.RenderingMode;
+// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
+(function (LineCapStyle) {
+    LineCapStyle[LineCapStyle["Butt"] = 0] = "Butt";
+    LineCapStyle[LineCapStyle["Round"] = 1] = "Round";
+    LineCapStyle[LineCapStyle["ProjectingSquare"] = 2] = "ProjectingSquare";
+})(exports.LineCapStyle || (exports.LineCapStyle = {}));
+var LineCapStyle = exports.LineCapStyle;
+// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
+(function (LineJoinStyle) {
+    LineJoinStyle[LineJoinStyle["Miter"] = 0] = "Miter";
+    LineJoinStyle[LineJoinStyle["Round"] = 1] = "Round";
+    LineJoinStyle[LineJoinStyle["Bevel"] = 2] = "Bevel";
+})(exports.LineJoinStyle || (exports.LineJoinStyle = {}));
+var LineJoinStyle = exports.LineJoinStyle;
+var TextState = (function () {
+    function TextState() {
+        this.charSpacing = 0;
+        this.wordSpacing = 0;
+        this.horizontalScaling = 100;
+        this.leading = 0;
+        this.renderingMode = RenderingMode.Fill;
+        this.rise = 0;
+    }
+    TextState.prototype.clone = function () {
+        return util.clone(this, new TextState());
+    };
+    return TextState;
+})();
+/**
+We need to be able to clone it since we need a copy when we process a
+`pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
+were in the constructor, but there are a lot of variables!
+*/
+var GraphicsState = (function () {
+    function GraphicsState() {
+        this.ctMatrix = math_1.mat3ident; // defaults to the identity matrix
+        this.strokeColor = new color_1.Color();
+        this.fillColor = new color_1.Color();
+        this.textState = new TextState();
     }
     /**
-    Retrieve a Font instance from the Resources' Font dictionary.
-  
-    Returns null if the dictionary has no `name` key.
-  
-    Caches Fonts (which is pretty hot when rendering a page),
-    even missing ones (as null).
+    clone() creates an blank new GraphicsState object and recursively copies all
+    of `this`'s properties to it.
     */
-    ContentStreamReader.prototype.getFont = function () {
-        var name = this.context.textState.fontName;
-        var cached_font = this._cached_fonts[name];
-        if (cached_font === undefined) {
-            var Font_model = this.Resources.getFontModel(name);
-            if (Font_model.object !== undefined) {
-                var TypedFont_model = font.Font.fromModel(Font_model);
-                TypedFont_model.Name = name;
-                cached_font = this._cached_fonts[name] = TypedFont_model;
-            }
-            else {
-                cached_font = this._cached_fonts[name] = null;
-                // missing font -- will induce an error down the line pretty quickly
-                throw new Error("Cannot find font \"" + name + "\" in Resources");
-            }
-        }
-        return cached_font;
+    GraphicsState.prototype.clone = function () {
+        return util.clone(this, new GraphicsState());
     };
-    ContentStreamReader.prototype.render = function (string_iterable, context) {
-        var _this = this;
-        this.context = context;
-        var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
-        operations.forEach(function (operation) {
-            var operator_alias = operator_aliases[operation.operator];
-            var operationFunction = _this[operator_alias];
-            if (operationFunction) {
-                operationFunction.apply(_this, operation.operands);
-            }
-            else {
-                logger.warn("Ignoring unimplemented operator \"" + operation.operator + "\" [" + operation.operands.join(', ') + "]");
-            }
-        });
-    };
+    return GraphicsState;
+})();
+/**
+DrawingContext is kind of like a Canvas state, keeping track of where we are in
+painting the canvas. It's an abstraction away from the content stream and the
+rest of the PDF.
+
+the textState persists across BT and ET markers, and can be modified anywhere
+the textMatrix and textLineMatrix do not persist between distinct BT ... ET blocks
+
+I don't think textState transfers to (or out of) "Do"-drawn XObjects.
+E.g., P13-4028.pdf breaks if textState carries out of the drawn object.
+*/
+var DrawingContext = (function () {
+    function DrawingContext(resources, graphicsState) {
+        this.resourcesStack = [resources];
+        this.graphicsStateStack = [graphicsState];
+    }
+    Object.defineProperty(DrawingContext.prototype, "graphicsState", {
+        get: function () {
+            return this.graphicsStateStack[this.graphicsStateStack.length - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(DrawingContext.prototype, "resources", {
+        get: function () {
+            return this.resourcesStack[this.resourcesStack.length - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    // ###########################################################################
+    // content stream operators interpreters
     // ---------------------------------------------------------------------------
     // Special graphics states (q, Q, cm)
     /**
     > `q`: Save the current graphics state on the graphics state stack (see 8.4.2).
     */
-    ContentStreamReader.prototype.pushGraphicsState = function () {
-        this.context.stateStack.push(this.context.graphicsState.clone());
+    DrawingContext.prototype.pushGraphicsState = function () {
+        this.graphicsStateStack.push(this.graphicsState.clone());
     };
     /**
     > `Q`: Restore the graphics state by removing the most recently saved state
     > from the stack and making it the current state (see 8.4.2).
     */
-    ContentStreamReader.prototype.popGraphicsState = function () {
-        this.context.graphicsState = this.context.stateStack.pop();
+    DrawingContext.prototype.popGraphicsState = function () {
+        this.graphicsStateStack.pop();
     };
     /**
     > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -167,12 +134,11 @@ var ContentStreamReader = (function () {
     Should we multiply by the current one instead? Yes. That's what they mean by
     concatenating, apparently. Weird stuff happens if you replace.
     */
-    ContentStreamReader.prototype.setCTM = function (a, b, c, d, e, f) {
+    DrawingContext.prototype.setCTM = function (a, b, c, d, e, f) {
         var newCTMatrix = math_1.mat3mul([a, b, 0,
             c, d, 0,
-            e, f, 1], this.context.graphicsState.ctMatrix);
-        // logger.info('ctMatrix = %j', newCTMatrix);
-        this.context.graphicsState.ctMatrix = newCTMatrix;
+            e, f, 1], this.graphicsState.ctMatrix);
+        this.graphicsState.ctMatrix = newCTMatrix;
     };
     // ---------------------------------------------------------------------------
     // XObjects (Do)
@@ -191,132 +157,133 @@ var ContentStreamReader = (function () {
     e) Restores the saved graphics state, as if by invoking the Q operator
     Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
     */
-    ContentStreamReader.prototype.drawObject = function (name) {
-        var XObjectStream = this.Resources.getXObject(name);
-        if (XObjectStream === undefined) {
-            throw new Error("Cannot draw undefined XObject: " + name);
-        }
-        var object_depth = this.depth + 1;
-        if (object_depth >= 5) {
-            logger.warn("Ignoring \"" + name + " Do\" command; embedded XObject is too deep; depth = " + object_depth);
-            return;
-        }
-        if (XObjectStream.Subtype !== 'Form') {
-            logger.silly("Ignoring \"" + name + " Do\" command; embedded XObject has Subtype \"" + XObjectStream.Subtype + "\"");
-            return;
-        }
-        logger.silly("Drawing XObject: " + name);
-        // create a nested drawing context and use that
-        // a) copy the current state and push it on top of the state stack
-        this.pushGraphicsState();
-        // b) concatenate the dictionary.Matrix onto the graphics state
-        if (XObjectStream.dictionary.Matrix) {
-            this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
-        }
-        // c) clip according to the dictionary.BBox value
-        // ...meh, don't worry about that
-        // d) paint the XObject's content stream
-        var stream_string = XObjectStream.buffer.toString('binary');
-        var stream_string_iterable = new lexing.StringIterator(stream_string);
-        // var stream_string_iterable = lexing.StringIterator.fromBuffer(XObjectStream.buffer, 'binary');
-        var reader = new ContentStreamReader(XObjectStream.Resources, this.depth + 1);
-        reader.render(stream_string_iterable, this.context);
-        // e) pop the graphics state
-        this.popGraphicsState();
+    DrawingContext.prototype.drawObject = function (name) {
+        logger.error('Unimplemented "drawObject" operation');
     };
     // ---------------------------------------------------------------------------
     // General graphics state (w, J, j, M, d, ri, i, gs)
     /**
     > `lineWidth w`: Set the line width in the graphics state.
     */
-    ContentStreamReader.prototype.setLineWidth = function (lineWidth) {
-        this.context.graphicsState.lineWidth = lineWidth;
+    DrawingContext.prototype.setLineWidth = function (lineWidth) {
+        this.graphicsState.lineWidth = lineWidth;
     };
     /**
     > `lineCap J`: Set the line cap style in the graphics state.
     */
-    ContentStreamReader.prototype.setLineCap = function (lineCap) {
-        this.context.graphicsState.lineCap = lineCap;
+    DrawingContext.prototype.setLineCap = function (lineCap) {
+        this.graphicsState.lineCap = lineCap;
     };
     /**
     > `lineJoin j`: Set the line join style in the graphics state.
     */
-    ContentStreamReader.prototype.setLineJoin = function (lineJoin) {
-        this.context.graphicsState.lineJoin = lineJoin;
+    DrawingContext.prototype.setLineJoin = function (lineJoin) {
+        this.graphicsState.lineJoin = lineJoin;
     };
     /**
     > `miterLimit M`: Set the miter limit in the graphics state.
     */
-    ContentStreamReader.prototype.setMiterLimit = function (miterLimit) {
-        this.context.graphicsState.miterLimit = miterLimit;
+    DrawingContext.prototype.setMiterLimit = function (miterLimit) {
+        this.graphicsState.miterLimit = miterLimit;
     };
     /**
     > `dashArray dashPhase d`: Set the line dash pattern in the graphics state.
     */
-    ContentStreamReader.prototype.setDashPattern = function (dashArray, dashPhase) {
-        this.context.graphicsState.dashArray = dashArray;
-        this.context.graphicsState.dashPhase = dashPhase;
+    DrawingContext.prototype.setDashPattern = function (dashArray, dashPhase) {
+        this.graphicsState.dashArray = dashArray;
+        this.graphicsState.dashPhase = dashPhase;
     };
     /**
     > `intent ri`: Set the colour rendering intent in the graphics state.
     > (PDF 1.1)
     */
-    ContentStreamReader.prototype.setRenderingIntent = function (intent) {
-        this.context.graphicsState.renderingIntent = intent;
+    DrawingContext.prototype.setRenderingIntent = function (intent) {
+        this.graphicsState.renderingIntent = intent;
     };
     /**
     > `flatness i`: Set the flatness tolerance in the graphics state. flatness is
     > a number in the range 0 to 100; a value of 0 shall specify the output
     > device's default flatness tolerance.
     */
-    ContentStreamReader.prototype.setFlatnessTolerance = function (flatness) {
-        this.context.graphicsState.flatnessTolerance = flatness;
+    DrawingContext.prototype.setFlatnessTolerance = function (flatness) {
+        this.graphicsState.flatnessTolerance = flatness;
     };
     /**
     > `dictName gs`: Set the specified parameters in the graphics state.
     > `dictName` shall be the name of a graphics state parameter dictionary in
     > the ExtGState subdictionary of the current resource dictionary (see the
     > next sub-clause). (PDF 1.2)
+  
+    LW number (Optional; PDF 1.3) The line width
+    LC integer (Optional; PDF 1.3) The line cap style
+    LJ integer (Optional; PDF 1.3) The line join style
+    ML number (Optional; PDF 1.3) The miter limit
+    D array (Optional; PDF 1.3) The line dash pattern, expressed as an array of the form [dashArray dashPhase], where dashArray shall be itself an array and dashPhase shall be an integer
+    RI name (Optional; PDF 1.3) The name of the rendering intent
+    OP boolean (Optional) A flag specifying whether to apply overprint. In PDF 1.2 and earlier, there is a single overprint parameter that applies to all painting operations. Beginning with PDF 1.3, there shall be two separate overprint parameters: one for stroking and one for all other painting operations. Specifying an OP entry shall set both parameters unless there is also an op entry in the same graphics state parameter dictionary, in which case the OP entry shall set only the overprint parameter for stroking.
+    op boolean (Optional; PDF 1.3) A flag specifying whether to apply overprint for painting operations other than stroking. If this entry is absent, the OP entry, if any, shall also set this parameter.
+    OPM integer (Optional; PDF1.3) The overprint mode
+    Font array (Optional; PDF 1.3) An array of the form [font size], where font shall be an indirect reference to a font dictionary and size shall be a number expressed in text space units. These two objects correspond to the operands of the Tf operator (see 9.3, "Text State Parameters and Operators"); however, the first operand shall be an indirect object reference instead of a resource name.
+    BG function (Optional) The black-generation function, which maps the interval [0.0 1.0] to the interval [0.0 1.0]
+    BG2 function or name (Optional; PDF 1.3) Same as BG except that the value may also be the name Default, denoting the black-generation function that was in effect at the start of the page. If both BG and BG2 are present in the same graphics state parameter dictionary, BG2 shall take precedence.
+    UCR function (Optional) The undercolor-removal function, which maps the interval [0.0 1.0] to the interval [−1.0 1.0]
+    UCR2 function or name (Optional; PDF 1.3) Same as UCR except that the value may also be the name Default, denoting the undercolor-removal function that was in effect at the start of the page. If both UCR and UCR2 are present in the same graphics state parameter dictionary, UCR2 shall take precedence.
+    TR function, array, or name (Optional) The transfer function, which maps the interval [0.0 1.0] to the interval [0.0 1.0]. The value shall be either a single function (which applies to all process colorants) or an array of four functions (which apply to the process colorants individually). The name Identity may be used to represent the identity function.
+    TR2 function, array, or name (Optional; PDF 1.3) Same as TR except that the value may also be the name Default, denoting the transfer function that was in effect at the start of the page. If both TR and TR2 are present in the same graphics state parameter dictionary, TR2 shall take precedence.
+    HT dictionary, stream, or name (Optional) The halftone dictionary or stream or the name Default, denoting the halftone that was in effect at the start of the page.
+    FL number (Optional; PDF 1.3) The flatness tolerance
+    SM number (Optional; PDF1.3) The smoothness tolerance
+    SA boolean (Optional) A flag specifying whether to apply automatic stroke adjustment.
+    BM name or array (Optional; PDF 1.4) The current blend mode to be used in the transparent imaging model
+    SMask dictionary or name (Optional; PDF 1.4) The current soft mask, specifying the mask shape or mask opacity values that shall be used in the transparent imaging model (see 11.3.7.2, "Source Shape and Opacity" and 11.6.4.3, "Mask Shape and Opacity"). Although the current soft mask is sometimes referred to as a "soft clip," altering it with the gs operator completely replaces the old value with the new one, rather than intersecting the two as is done with the current clipping path parameter
+    CA number (Optional; PDF 1.4) The current stroking alpha constant, specifying the constant shape or constant opacity value that shall be used for stroking operations in the transparent imaging model
+    ca number (Optional; PDF 1.4) Same as CA, but for nonstroking operations.
+    AIS boolean (Optional; PDF1.4) The alpha source flag ("alpha is shape"), specifying whether the current soft mask and alpha constant shall be interpreted as shape values (true) or opacity values (false).
+    TK boolean (Optional; PDF1.4) The text knockout flag, shall determine the behaviour of overlapping glyphs within a text object in the transparent imaging model
     */
-    ContentStreamReader.prototype.setGraphicsStateParameters = function (dictName) {
-        logger.warn("Ignoring setGraphicsStateParameters(" + dictName + ") operation");
+    DrawingContext.prototype.setGraphicsStateParameters = function (dictName) {
+        var ExtGState = this.resources.getExtGState(dictName);
+        Object.keys(ExtGState.object).filter(function (key) { return key !== 'Type'; }).forEach(function (key) {
+            var value = ExtGState.get(key);
+            logger.silly("Ignoring setGraphicsStateParameters(" + dictName + ") operation: %s = %j", key, value);
+        });
     };
     // ---------------------------------------------------------------------------
     // Path construction (m, l, c, v, y, h, re) - see Table 59
     /**
     `x y m`
     */
-    ContentStreamReader.prototype.moveTo = function (x, y) {
+    DrawingContext.prototype.moveTo = function (x, y) {
         logger.silly("Ignoring moveTo(" + x + ", " + y + ") operation");
     };
     /**
     `x y l`
     */
-    ContentStreamReader.prototype.appendLine = function (x, y) {
+    DrawingContext.prototype.appendLine = function (x, y) {
         logger.silly("Ignoring appendLine(" + x + ", " + y + ") operation");
     };
     /**
     `x1 y1 x2 y2 x3 y3 c`
     */
-    ContentStreamReader.prototype.appendCurve123 = function (x1, y1, x2, y2, x3, y3) {
+    DrawingContext.prototype.appendCurve123 = function (x1, y1, x2, y2, x3, y3) {
         logger.silly("Ignoring appendCurve123(" + x1 + ", " + y1 + ", " + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `x2 y2 x3 y3 v`
     */
-    ContentStreamReader.prototype.appendCurve23 = function (x2, y2, x3, y3) {
+    DrawingContext.prototype.appendCurve23 = function (x2, y2, x3, y3) {
         logger.silly("Ignoring appendCurve23(" + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `x1 y1 x3 y3 y`
     */
-    ContentStreamReader.prototype.appendCurve13 = function (x1, y1, x3, y3) {
+    DrawingContext.prototype.appendCurve13 = function (x1, y1, x3, y3) {
         logger.silly("Ignoring appendCurve13(" + x1 + ", " + y1 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `h`
     */
-    ContentStreamReader.prototype.closePath = function () {
+    DrawingContext.prototype.closePath = function () {
         logger.silly("Ignoring closePath() operation");
     };
     /**
@@ -328,7 +295,7 @@ var ContentStreamReader = (function () {
     >     (x + width) (y + height) l x (y + height) l
     >     h
     */
-    ContentStreamReader.prototype.appendRectangle = function (x, y, width, height) {
+    DrawingContext.prototype.appendRectangle = function (x, y, width, height) {
         logger.silly("Ignoring appendRectangle(" + x + ", " + y + ", " + width + ", " + height + ") operation");
     };
     // ---------------------------------------------------------------------------
@@ -336,66 +303,66 @@ var ContentStreamReader = (function () {
     /**
     > `S`: Stroke the path.
     */
-    ContentStreamReader.prototype.stroke = function () {
+    DrawingContext.prototype.stroke = function () {
         logger.silly("Ignoring stroke() operation");
     };
     /** ALIAS
     > `s`: Close and stroke the path. This operator shall have the same effect as the sequence h S.
     */
-    ContentStreamReader.prototype.closeAndStroke = function () {
+    DrawingContext.prototype.closeAndStroke = function () {
         this.closePath();
         this.stroke();
     };
     /**
     > `f`: Fill the path, using the nonzero winding number rule to determine the region to fill. Any subpaths that are open shall be implicitly closed before being filled.
     */
-    ContentStreamReader.prototype.fill = function () {
+    DrawingContext.prototype.fill = function () {
         // this.closePath(); ?
         logger.silly("Ignoring fill() operation");
     };
     /** ALIAS
     > `F`: Equivalent to f; included only for compatibility. Although PDF reader applications shall be able to accept this operator, PDF writer applications should use f instead.
     */
-    ContentStreamReader.prototype.fillCompat = function () {
+    DrawingContext.prototype.fillCompat = function () {
         this.fill();
     };
     /**
     > `f*`: Fill the path, using the even-odd rule to determine the region to fill.
     */
-    ContentStreamReader.prototype.fillEvenOdd = function () {
+    DrawingContext.prototype.fillEvenOdd = function () {
         logger.silly("Ignoring fillEvenOdd() operation");
     };
     /**
     > `B`: Fill and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall produce the same result as constructing two identical path objects, painting the first with f and the second with S.
     > NOTE The filling and stroking portions of the operation consult different values of several graphics state parameters, such as the current colour.
     */
-    ContentStreamReader.prototype.fillThenStroke = function () {
+    DrawingContext.prototype.fillThenStroke = function () {
         logger.silly("Ignoring fillAndStroke() operation");
     };
     /**
     > `B*`: Fill and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall produce the same result as B, except that the path is filled as if with f* instead of f.
     */
-    ContentStreamReader.prototype.fillThenStrokeEvenOdd = function () {
+    DrawingContext.prototype.fillThenStrokeEvenOdd = function () {
         logger.silly("Ignoring fillAndStrokeEvenOdd() operation");
     };
     /** ALIAS
     > `b`: Close, fill, and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall have the same effect as the sequence h B.
     */
-    ContentStreamReader.prototype.closeAndFillThenStroke = function () {
+    DrawingContext.prototype.closeAndFillThenStroke = function () {
         this.closePath();
         this.fillThenStroke();
     };
     /** ALIAS
     > `b*`: Close, fill, and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall have the same effect as the sequence h B*.
     */
-    ContentStreamReader.prototype.closeAndFillThenStrokeEvenOdd = function () {
+    DrawingContext.prototype.closeAndFillThenStrokeEvenOdd = function () {
         this.closePath();
         this.fillThenStrokeEvenOdd();
     };
     /**
     > `n`: End the path object without filling or stroking it. This operator shall be a path- painting no-op, used primarily for the side effect of changing the current clipping path.
     */
-    ContentStreamReader.prototype.closePathNoop = function () {
+    DrawingContext.prototype.closePathNoop = function () {
         logger.silly("Ignoring closePathNoop() operation");
     };
     // ---------------------------------------------------------------------------
@@ -403,37 +370,37 @@ var ContentStreamReader = (function () {
     /**
     > `name CS`
     */
-    ContentStreamReader.prototype.setStrokeColorSpace = function (name) {
+    DrawingContext.prototype.setStrokeColorSpace = function (name) {
         logger.silly("Ignoring setStrokeColorSpace(" + name + ") operation");
     };
     /**
     > `name cs`: Same as CS but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillColorSpace = function (name) {
+    DrawingContext.prototype.setFillColorSpace = function (name) {
         logger.silly("Ignoring setFillColorSpace(" + name + ") operation");
     };
     /**
     > `c1 cn SC`
     */
-    ContentStreamReader.prototype.setStrokeColorSpace2 = function (c1, cn) {
+    DrawingContext.prototype.setStrokeColorSpace2 = function (c1, cn) {
         logger.silly("Ignoring setStrokeColorSpace2(" + c1 + ", " + cn + ") operation");
     };
     /**
     > `c1 cn [name] SCN`
     */
-    ContentStreamReader.prototype.setStrokeColorSpace3 = function (c1, cn, patternName) {
+    DrawingContext.prototype.setStrokeColorSpace3 = function (c1, cn, patternName) {
         logger.silly("Ignoring setStrokeColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
     };
     /**
     > `c1 cn sc`: Same as SC but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillColorSpace2 = function (c1, cn) {
+    DrawingContext.prototype.setFillColorSpace2 = function (c1, cn) {
         logger.silly("Ignoring setFillColorSpace2(" + c1 + ", " + cn + ") operation");
     };
     /**
     > `c1 cn [name] scn`: Same as SCN but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillColorSpace3 = function (c1, cn, patternName) {
+    DrawingContext.prototype.setFillColorSpace3 = function (c1, cn, patternName) {
         logger.silly("Ignoring setFillColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
     };
     /**
@@ -441,62 +408,74 @@ var ContentStreamReader = (function () {
     to use for stroking operations. `gray` shall be a number between 0.0 (black)
     and 1.0 (white).
     */
-    ContentStreamReader.prototype.setStrokeGray = function (gray) {
-        this.context.graphicsState.strokeColor = new color_1.GrayColor(gray);
+    DrawingContext.prototype.setStrokeGray = function (gray) {
+        this.graphicsState.strokeColor = new color_1.GrayColor(gray);
     };
     /**
     `gray g`: Same as G but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillGray = function (gray) {
-        this.context.graphicsState.fillColor = new color_1.GrayColor(gray);
+    DrawingContext.prototype.setFillGray = function (gray) {
+        this.graphicsState.fillColor = new color_1.GrayColor(gray);
     };
     /**
     `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
     */
-    ContentStreamReader.prototype.setStrokeColor = function (r, g, b) {
-        this.context.graphicsState.strokeColor = new color_1.RGBColor(r, g, b);
+    DrawingContext.prototype.setStrokeColor = function (r, g, b) {
+        this.graphicsState.strokeColor = new color_1.RGBColor(r, g, b);
     };
     /**
     `r g b rg`: Same as RG but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillColor = function (r, g, b) {
-        this.context.graphicsState.fillColor = new color_1.RGBColor(r, g, b);
+    DrawingContext.prototype.setFillColor = function (r, g, b) {
+        this.graphicsState.fillColor = new color_1.RGBColor(r, g, b);
     };
     /**
     > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
     */
-    ContentStreamReader.prototype.setStrokeCMYK = function (c, m, y, k) {
-        this.context.graphicsState.strokeColor = new color_1.CMYKColor(c, m, y, k);
+    DrawingContext.prototype.setStrokeCMYK = function (c, m, y, k) {
+        this.graphicsState.strokeColor = new color_1.CMYKColor(c, m, y, k);
     };
     /**
     > `c m y k k`: Same as K but used for nonstroking operations.
     */
-    ContentStreamReader.prototype.setFillCMYK = function (c, m, y, k) {
-        this.context.graphicsState.fillColor = new color_1.CMYKColor(c, m, y, k);
+    DrawingContext.prototype.setFillCMYK = function (c, m, y, k) {
+        this.graphicsState.fillColor = new color_1.CMYKColor(c, m, y, k);
+    };
+    // ---------------------------------------------------------------------------
+    // Inline Image Operators (BI, ID, EI)
+    DrawingContext.prototype.beginInlineImage = function () {
+        logger.silly("Ignoring beginInlineImage() operation");
+    };
+    DrawingContext.prototype.endInlineImage = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i - 0] = arguments[_i];
+        }
+        logger.silly("Ignoring endInlineImage() operation");
     };
     // ---------------------------------------------------------------------------
     // Clipping Path Operators (W, W*)
     /**
     > `W`: Modify the current clipping path by intersecting it with the current path, using the nonzero winding number rule to determine which regions lie inside the clipping path.
     */
-    ContentStreamReader.prototype.clip = function () {
+    DrawingContext.prototype.clip = function () {
         logger.silly("Ignoring clip() operation");
     };
     /**
     > `W*`: Modify the current clipping path by intersecting it with the current path, using the even-odd rule to determine which regions lie inside the clipping path.
     */
-    ContentStreamReader.prototype.clipEvenOdd = function () {
+    DrawingContext.prototype.clipEvenOdd = function () {
         logger.silly("Ignoring clipEvenOdd() operation");
     };
     // ---------------------------------------------------------------------------
     // Text objects (BT, ET)
     /** `BT` */
-    ContentStreamReader.prototype.startTextBlock = function () {
-        this.context.textMatrix = this.context.textLineMatrix = math_1.mat3ident;
+    DrawingContext.prototype.startTextBlock = function () {
+        this.textMatrix = this.textLineMatrix = math_1.mat3ident;
     };
     /** `ET` */
-    ContentStreamReader.prototype.endTextBlock = function () {
-        this.context.textMatrix = this.context.textLineMatrix = null;
+    DrawingContext.prototype.endTextBlock = function () {
+        this.textMatrix = this.textLineMatrix = undefined;
     };
     // ---------------------------------------------------------------------------
     // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
@@ -505,32 +484,32 @@ var ContentStreamReader = (function () {
     > be a number expressed in unscaled text space units. Character spacing shall
     > be used by the Tj, TJ, and ' operators. Initial value: 0.
     */
-    ContentStreamReader.prototype.setCharSpacing = function (charSpace) {
-        this.context.textState.charSpacing = charSpace;
+    DrawingContext.prototype.setCharSpacing = function (charSpace) {
+        this.graphicsState.textState.charSpacing = charSpace;
     };
     /**
     > `wordSpace Tw`: Set the word spacing, Tw, to wordSpace, which shall be a
     > number expressed in unscaled text space units. Word spacing shall be used
     > by the Tj, TJ, and ' operators. Initial value: 0.
     */
-    ContentStreamReader.prototype.setWordSpacing = function (wordSpace) {
-        this.context.textState.wordSpacing = wordSpace;
+    DrawingContext.prototype.setWordSpacing = function (wordSpace) {
+        this.graphicsState.textState.wordSpacing = wordSpace;
     };
     /**
     > `scale Tz`: Set the horizontal scaling, Th, to (scale ÷ 100). scale shall
     > be a number specifying the percentage of the normal width. Initial value:
     > 100 (normal width).
     */
-    ContentStreamReader.prototype.setHorizontalScale = function (scale) {
-        this.context.textState.horizontalScaling = scale;
+    DrawingContext.prototype.setHorizontalScale = function (scale) {
+        this.graphicsState.textState.horizontalScaling = scale;
     };
     /**
     > `leading TL`: Set the text leading, Tl, to leading, which shall be a number
     > expressed in unscaled text space units. Text leading shall be used only by
     > the T*, ', and " operators. Initial value: 0.
     */
-    ContentStreamReader.prototype.setLeading = function (leading) {
-        this.context.textState.leading = leading;
+    DrawingContext.prototype.setLeading = function (leading) {
+        this.graphicsState.textState.leading = leading;
     };
     /**
     > `font size Tf`: Set the text font, Tf, to font and the text font size,
@@ -540,22 +519,22 @@ var ContentStreamReader = (function () {
     > size; they shall be specified explicitly by using Tf before any text is
     > shown.
     */
-    ContentStreamReader.prototype.setFont = function (font, size) {
-        this.context.textState.fontName = font;
-        this.context.textState.fontSize = size;
+    DrawingContext.prototype.setFont = function (font, size) {
+        this.graphicsState.textState.fontName = font;
+        this.graphicsState.textState.fontSize = size;
     };
     /**
     > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
     > be an integer. Initial value: 0.
     */
-    ContentStreamReader.prototype.setRenderingMode = function (render) {
-        this.context.textState.renderingMode = render;
+    DrawingContext.prototype.setRenderingMode = function (render) {
+        this.graphicsState.textState.renderingMode = render;
     };
     /**
     > `rise Ts`: Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
     */
-    ContentStreamReader.prototype.setRise = function (rise) {
-        this.context.textState.rise = rise;
+    DrawingContext.prototype.setRise = function (rise) {
+        this.graphicsState.textState.rise = rise;
     };
     // ---------------------------------------------------------------------------
     // Text positioning operators (Td, TD, Tm, T*)
@@ -565,12 +544,12 @@ var ContentStreamReader = (function () {
     > unscaled text space units. More precisely, this operator shall perform
     > these assignments: Tm = Tlm = [ [1 0 0], [0 1 0], [x y 1] ] x Tlm
     */
-    ContentStreamReader.prototype.adjustCurrentPosition = function (x, y) {
+    DrawingContext.prototype.adjustCurrentPosition = function (x, y) {
         // y is usually 0, and never positive in normal text.
         var newTextMatrix = math_1.mat3mul([1, 0, 0,
             0, 1, 0,
-            x, y, 1], this.context.textLineMatrix);
-        this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
+            x, y, 1], this.textLineMatrix);
+        this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)
     > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -578,7 +557,7 @@ var ContentStreamReader = (function () {
     > leading parameter in the text state. This operator shall have the same
     > effect as this code: `-ty TL tx ty Td`
     */
-    ContentStreamReader.prototype.adjustCurrentPositionWithLeading = function (x, y) {
+    DrawingContext.prototype.adjustCurrentPositionWithLeading = function (x, y) {
         this.setLeading(-y); // TL
         this.adjustCurrentPosition(x, y); // Td
     };
@@ -591,13 +570,13 @@ var ContentStreamReader = (function () {
     > array. The matrix specified by the operands shall not be concatenated onto
     > the current text matrix, but shall replace it.
     */
-    ContentStreamReader.prototype.setTextMatrix = function (a, b, c, d, e, f) {
+    DrawingContext.prototype.setTextMatrix = function (a, b, c, d, e, f) {
         // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
         // e and f mark the x and y coordinates of the current position
         var newTextMatrix = [a, b, 0,
             c, d, 0,
             e, f, 1];
-        this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
+        this.textMatrix = this.textLineMatrix = newTextMatrix;
     };
     /** COMPLETE (ALIAS)
     > `T*`: Move to the start of the next line. This operator has the same effect
@@ -606,8 +585,8 @@ var ContentStreamReader = (function () {
     > expressed as a positive number. Going to the next line entails decreasing
     > the y coordinate.
     */
-    ContentStreamReader.prototype.newLine = function () {
-        this.adjustCurrentPosition(0, -this.context.textState.leading);
+    DrawingContext.prototype.newLine = function () {
+        this.adjustCurrentPosition(0, -this.graphicsState.textState.leading);
     };
     // ---------------------------------------------------------------------------
     // Text showing operators (Tj, TJ, ', ")
@@ -619,8 +598,8 @@ var ContentStreamReader = (function () {
     resolve the bytes into character codes until rendered in the context of a
     textState.
     */
-    ContentStreamReader.prototype.showString = function (string) {
-        this.context.drawGlyphs(string, this.getFont());
+    DrawingContext.prototype.showString = function (string) {
+        logger.error('Unimplemented "showString" operation');
     };
     /**
     > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -638,14 +617,14 @@ var ContentStreamReader = (function () {
     - large negative numbers equate to spaces
     - small positive amounts equate to kerning hacks
     */
-    ContentStreamReader.prototype.showStrings = function (array) {
-        this.context.drawTextArray(array, this.getFont());
+    DrawingContext.prototype.showStrings = function (array) {
+        logger.error('Unimplemented "showStrings" operation');
     };
     /** COMPLETE (ALIAS)
     > `string '` Move to the next line and show a text string. This operator shall have
     > the same effect as the code `T* string Tj`
     */
-    ContentStreamReader.prototype.newLineAndShowString = function (string) {
+    DrawingContext.prototype.newLineAndShowString = function (string) {
         this.newLine(); // T*
         this.showString(string); // Tj
     };
@@ -657,7 +636,7 @@ var ContentStreamReader = (function () {
     > space units. This operator shall have the same effect as this code:
     > `wordSpace Tw charSpace Tc text '`
     */
-    ContentStreamReader.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, string) {
+    DrawingContext.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, string) {
         this.setWordSpacing(wordSpace); // Tw
         this.setCharSpacing(charSpace); // Tc
         this.newLineAndShowString(string); // '
@@ -667,21 +646,227 @@ var ContentStreamReader = (function () {
     /**
     > `tag BMC`: Begin a marked-content sequence terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence.
     */
-    ContentStreamReader.prototype.beginMarkedContent = function (tag) {
+    DrawingContext.prototype.beginMarkedContent = function (tag) {
         logger.silly("Ignoring beginMarkedContent(" + tag + ") operation");
     };
     /**
     > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
     */
-    ContentStreamReader.prototype.beginMarkedContentWithDictionary = function (tag, dictionary) {
+    DrawingContext.prototype.beginMarkedContentWithDictionary = function (tag, dictionary) {
         logger.silly("Ignoring beginMarkedContentWithDictionary(" + tag + ", " + dictionary + ") operation");
     };
     /**
     > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
     */
-    ContentStreamReader.prototype.endMarkedContent = function () {
+    DrawingContext.prototype.endMarkedContent = function () {
         logger.silly("Ignoring endMarkedContent() operation");
     };
-    return ContentStreamReader;
+    return DrawingContext;
 })();
-exports.ContentStreamReader = ContentStreamReader;
+exports.DrawingContext = DrawingContext;
+/**
+Add Resources tracking and drawObject support.
+*/
+var RecursiveDrawingContext = (function (_super) {
+    __extends(RecursiveDrawingContext, _super);
+    function RecursiveDrawingContext(resources, depth) {
+        if (depth === void 0) { depth = 0; }
+        _super.call(this, resources, new GraphicsState());
+        this.depth = depth;
+    }
+    RecursiveDrawingContext.prototype.applyOperation = function (operator, operands) {
+        var func = this[operator];
+        if (func) {
+            func.apply(this, operands);
+        }
+        else {
+            logger.warn("Ignoring unrecognized operator \"" + operator + "\" [" + operands.join(', ') + "]");
+        }
+    };
+    RecursiveDrawingContext.prototype.applyContentStream = function (content_stream_string) {
+        var _this = this;
+        // read the operations and apply them
+        var operations = graphics_1.parseString(content_stream_string);
+        operations.forEach(function (operation) { return _this.applyOperation(operation.alias, operation.operands); });
+    };
+    /** Do */
+    RecursiveDrawingContext.prototype.drawObject = function (name) {
+        var XObjectStream = this.resources.getXObject(name);
+        if (XObjectStream === undefined) {
+            throw new Error("Cannot draw undefined XObject: " + name);
+        }
+        if (XObjectStream.Subtype !== 'Form') {
+            logger.silly("Ignoring \"" + name + " Do\" command; embedded XObject has unsupported Subtype \"" + XObjectStream.Subtype + "\"");
+            return;
+        }
+        var object_depth = this.depth + 1;
+        if (object_depth >= 5) {
+            logger.warn("Ignoring \"" + name + " Do\" command; embedded XObject is too deep; depth = " + object_depth);
+            return;
+        }
+        logger.debug("drawObject: rendering \"" + name + "\"");
+        // create a nested drawing context and use that
+        // a) copy the current state and push it on top of the state stack
+        this.pushGraphicsState();
+        // b) concatenate the dictionary.Matrix onto the graphics state
+        if (XObjectStream.dictionary.Matrix) {
+            this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
+        }
+        // c) clip according to the dictionary.BBox value
+        // ...meh, don't worry about that
+        // d) paint the XObject's content stream
+        this.resourcesStack.push(XObjectStream.Resources);
+        this.depth++;
+        var content_stream_string = XObjectStream.buffer.toString('binary');
+        this.applyContentStream(content_stream_string);
+        this.depth--;
+        this.resourcesStack.pop();
+        // e) pop the graphics state
+        this.popGraphicsState();
+        logger.debug("drawObject: finished drawing \"" + name + "\"");
+    };
+    return RecursiveDrawingContext;
+})(DrawingContext);
+exports.RecursiveDrawingContext = RecursiveDrawingContext;
+var CanvasDrawingContext = (function (_super) {
+    __extends(CanvasDrawingContext, _super);
+    function CanvasDrawingContext(canvas, resources) {
+        _super.call(this, resources);
+        this.canvas = canvas;
+    }
+    /**
+    advanceTextMatrix is only called from the various text drawing operations,
+    like showString and showStrings.
+    */
+    CanvasDrawingContext.prototype.advanceTextMatrix = function (width_units, chars, spaces) {
+        // width_units is positive, but we want to move forward, so tx should be positive too
+        var tx = (((width_units / 1000) * this.graphicsState.textState.fontSize) +
+            (this.graphicsState.textState.charSpacing * chars) +
+            (this.graphicsState.textState.wordSpacing * spaces)) *
+            (this.graphicsState.textState.horizontalScaling / 100.0);
+        this.textMatrix = math_1.mat3mul([1, 0, 0,
+            0, 1, 0,
+            tx, 0, 1], this.textMatrix);
+        return tx;
+    };
+    CanvasDrawingContext.prototype.getTextPosition = function () {
+        var fs = this.graphicsState.textState.fontSize;
+        var fsh = fs * (this.graphicsState.textState.horizontalScaling / 100.0);
+        var rise = this.graphicsState.textState.rise;
+        var base = [fsh, 0, 0,
+            0, fs, 0,
+            0, rise, 1];
+        // TODO: optimize this final matrix multiplication; we only need two of the
+        // entries, and we discard the rest, so we don't need to calculate them in
+        // the first place.
+        var composedTransformation = math_1.mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var textRenderingMatrix = math_1.mat3mul(base, composedTransformation);
+        return new geometry_1.Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+    };
+    CanvasDrawingContext.prototype.getTextSize = function () {
+        // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
+        var mat = math_1.mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+        var font_point = new geometry_1.Point(0, this.graphicsState.textState.fontSize);
+        return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
+    };
+    /** Tj
+  
+    drawGlyphs is called when processing a Tj ("showString") operation, and from
+    drawTextArray, in turn.
+  
+    For each item in `array`:
+      If item is a number[], that indicates a string of character codes
+      If item is a plain numbdrawGlyphser, that indicates a spacing shift
+    */
+    CanvasDrawingContext.prototype.showString = function (bytes) {
+        // the Font instance handles most of the character code resolution
+        var font = this.resources.getFont(this.graphicsState.textState.fontName);
+        if (font === null) {
+            // missing font -- will induce an error down the line pretty quickly
+            throw new Error("Cannot find font \"" + this.graphicsState.textState.fontName + "\" in Resources: " + JSON.stringify(this.resources));
+        }
+        var origin = this.getTextPosition();
+        var fontSize = this.getTextSize();
+        var string = font.decodeString(bytes);
+        var width_units = font.measureString(bytes);
+        var nchars = string.length;
+        var nspaces = util.countSpaces(string);
+        // adjust the text matrix accordingly (but not the text line matrix)
+        // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
+        this.advanceTextMatrix(width_units, nchars, nspaces);
+        // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
+        var width = this.getTextPosition().x - origin.x;
+        var height = Math.ceil(fontSize) | 0;
+        var size = new geometry_1.Size(width, height);
+        this.canvas.addSpan(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
+    };
+    /** TJ
+  
+    drawTextArray is called when processing a TJ ("showStrings") operation.
+  
+    For each item in `array`:
+      If item is a number[], that indicates a string of character codes
+      If item is a plain number, that indicates a spacing shift
+    */
+    CanvasDrawingContext.prototype.showStrings = function (array) {
+        var _this = this;
+        array.forEach(function (item) {
+            // each item is either a string (character code array) or a number
+            if (Array.isArray(item)) {
+                // if it's a character array, convert it to a unicode string and render it
+                var bytes = item;
+                _this.showString(bytes);
+            }
+            else if (typeof item === 'number') {
+                // negative numbers indicate forward (rightward) movement. if it's a
+                // very negative number, it's like inserting a space. otherwise, it
+                // only signifies a small manual spacing hack.
+                _this.advanceTextMatrix(-item, 0, 0);
+            }
+            else {
+                throw new Error("Unknown TJ argument type: \"" + item + "\" (array: " + JSON.stringify(array) + ")");
+            }
+        });
+    };
+    return CanvasDrawingContext;
+})(RecursiveDrawingContext);
+exports.CanvasDrawingContext = CanvasDrawingContext;
+var TextDrawingContext = (function (_super) {
+    __extends(TextDrawingContext, _super);
+    function TextDrawingContext(operations, resources) {
+        _super.call(this, resources);
+        this.operations = operations;
+    }
+    TextDrawingContext.prototype.showString = function (bytes) {
+        var font = this.resources.getFont(this.graphicsState.textState.fontName);
+        if (font === null) {
+            throw new Error("Cannot find font \"" + this.graphicsState.textState.fontName + "\" in Resources: " + JSON.stringify(this.resources));
+        }
+        var str = "(" + font.decodeString(bytes) + ")";
+        this.operations.push({
+            operator: 'showString',
+            fontName: this.graphicsState.textState.fontName,
+            characterByteLength: font.encoding.characterByteLength,
+            text: str,
+        });
+    };
+    TextDrawingContext.prototype.showStrings = function (array) {
+        var _this = this;
+        array.forEach(function (item) {
+            // each item is either a string (character code array) or a number
+            if (Array.isArray(item)) {
+                // if it's a character array, convert it to a unicode string and render it
+                _this.showString(item);
+            }
+            // negative numbers indicate forward (rightward) movement. if it's a
+            // very negative number, it's like inserting a space. otherwise, it
+            // only signifies a small manual spacing hack.
+            _this.operations.push({
+                operator: 'string',
+                text: item.toString(),
+            });
+        });
+    };
+    return TextDrawingContext;
+})(RecursiveDrawingContext);
+exports.TextDrawingContext = TextDrawingContext;

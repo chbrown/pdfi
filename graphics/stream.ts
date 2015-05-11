@@ -1,152 +1,120 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import logger = require('loge');
 import chalk = require('chalk');
-import lexing = require('lexing');
 
-import font = require('../font/index');
+import {Font} from '../font/index';
 import models = require('../models');
-import parser_states = require('../parsers/states');
+import util = require('../util');
+import {parseString, parseStringIterable, ContentStreamOperation} from '../parsers/graphics';
 
-import {DrawingContext, CanvasDrawingContext, RenderingMode, LineCapStyle, LineJoinStyle} from './context';
+import {Canvas} from './canvas';
 import {Point, Size, Rectangle} from './geometry';
 import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 import {mat3mul, mat3ident} from './math';
 
-var operator_aliases = {
-  // General graphics state
-  'w': 'setLineWidth',
-  'J': 'setLineCap',
-  'j': 'setLineJoin',
-  'M': 'setMiterLimit',
-  'd': 'setDashPattern',
-  'ri': 'setRenderingIntent',
-  'i': 'setFlatnessTolerance',
-  'gs': 'setGraphicsStateParameters',
-  // Special graphics state
-  'q': 'pushGraphicsState',
-  'Q': 'popGraphicsState',
-  'cm': 'setCTM',
-  // Path construction
-  'm': 'moveTo',
-  'l': 'appendLine',
-  'c': 'appendCurve123',
-  'v': 'appendCurve23',
-  'y': 'appendCurve13',
-  'h': 'closePath',
-  're': 'appendRectangle',
-  // Path painting
-  'S': 'stroke',
-  's': 'closeAndStroke',
-  'f': 'fill',
-  'F': 'fillCompat',
-  'f*': 'fillEvenOdd',
-  'B': 'fillThenStroke',
-  'B*': 'fillThenStrokeEvenOdd',
-  'b': 'closeAndFillThenStroke',
-  'b*': 'closeAndFillThenStrokeEvenOdd',
-  'n': 'closePathNoop',
-  // Clipping paths
-  'W': 'clip',
-  'W*': 'clipEvenOdd',
-  // Text objects
-  'BT': 'startTextBlock',
-  'ET': 'endTextBlock',
-  // Text state
-  'Tc': 'setCharSpacing',
-  'Tw': 'setWordSpacing',
-  'Tz': 'setHorizontalScale',
-  'TL': 'setLeading',
-  'Tf': 'setFont',
-  'Tr': 'setRenderingMode',
-  'Ts': 'setRise',
-  // Text positioning
-  'Td': 'adjustCurrentPosition',
-  'TD': 'adjustCurrentPositionWithLeading',
-  'Tm': 'setTextMatrix',
-  'T*': 'newLine',
-  // Text showing
-  'Tj': 'showString',
-  'TJ': 'showStrings',
-  "'": 'newLineAndShowString',
-  '"': 'newLineAndShowStringWithSpacing',
-  // Type 3 fonts
-    // incomplete: d0, d1
-  // Color
-  'CS': 'setStrokeColorSpace',
-  'cs': 'setFillColorSpace',
-  'SC': 'setStrokeColorSpace2',
-  'SCN': 'setStrokeColorSpace3',
-  'sc': 'setFillColorSpace2',
-  'scn': 'setFillColorSpace3',
-  'G': 'setStrokeGray',
-  'g': 'setFillGray',
-  'RG': 'setStrokeColor',
-  'rg': 'setFillColor',
-  'K': 'setStrokeCMYK',
-  'k': 'setFillCMYK',
-  // Shading patterns
-  'sh': 'shadingPattern',
-  // Inline images
-    // incomplete: BI, ID, EI
-  // XObjects
-  'Do': 'drawObject',
-  // Marked content
-    // incomplete: MP, DP
-  'BMC': 'beginMarkedContent',
-  'BDC': 'beginMarkedContentWithDictionary',
-  'EMC': 'endMarkedContent',
-  // Compatibility
-    // incomplete: BX, EX
-};
 
-export class ContentStreamReader {
-  private context: DrawingContext;
-  private _cached_fonts: {[index: string]: font.Font} = {};
-  constructor(public Resources: models.Resources, public depth = 0) { }
+// Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
+export enum RenderingMode {
+  Fill = 0,
+  Stroke = 1,
+  FillThenStroke = 2,
+  None = 3,
+  FillClipping = 4,
+  StrokeClipping = 5,
+  FillThenStrokeClipping = 6,
+  NoneClipping = 7,
+}
+
+// Line Cap Style: see PDF32000_2008.pdf:8.4.3.3, Table 54
+export enum LineCapStyle {
+  Butt = 0,
+  Round = 1,
+  ProjectingSquare = 2,
+}
+
+// Line Join Style: see PDF32000_2008.pdf:8.4.3.4, Table 55
+export enum LineJoinStyle {
+  Miter = 0,
+  Round = 1,
+  Bevel = 2,
+}
+
+class TextState {
+  charSpacing: number = 0;
+  wordSpacing: number = 0;
+  horizontalScaling: number = 100;
+  leading: number = 0;
+  fontName: string;
+  fontSize: number;
+  renderingMode: RenderingMode = RenderingMode.Fill;
+  rise: number = 0;
+
+  clone(): TextState {
+    return util.clone(this, new TextState());
+  }
+}
+
+/**
+We need to be able to clone it since we need a copy when we process a
+`pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
+were in the constructor, but there are a lot of variables!
+*/
+class GraphicsState {
+  ctMatrix: number[] = mat3ident; // defaults to the identity matrix
+  strokeColor: Color = new Color();
+  fillColor: Color = new Color();
+  lineWidth: number;
+  lineCap: LineCapStyle;
+  lineJoin: LineJoinStyle;
+  miterLimit: number;
+  dashArray: number[];
+  dashPhase: number;
+  renderingIntent: string; // not sure if it's actually this type?
+  flatnessTolerance: number;
+
+  textState: TextState = new TextState();
 
   /**
-  Retrieve a Font instance from the Resources' Font dictionary.
-
-  Returns null if the dictionary has no `name` key.
-
-  Caches Fonts (which is pretty hot when rendering a page),
-  even missing ones (as null).
+  clone() creates an blank new GraphicsState object and recursively copies all
+  of `this`'s properties to it.
   */
-  private getFont(): font.Font {
-    var name = this.context.textState.fontName;
-    var cached_font = this._cached_fonts[name];
-    if (cached_font === undefined) {
-      var Font_model = this.Resources.getFontModel(name);
-      if (Font_model.object !== undefined) {
-        var TypedFont_model = font.Font.fromModel(Font_model);
-        TypedFont_model.Name = name;
-        cached_font = this._cached_fonts[name] = TypedFont_model;
-      }
-      else {
-        cached_font = this._cached_fonts[name] = null;
-        // missing font -- will induce an error down the line pretty quickly
-        throw new Error(`Cannot find font "${name}" in Resources`);
-      }
-    }
-    return cached_font;
+  clone(): GraphicsState {
+    return util.clone(this, new GraphicsState());
+  }
+}
+
+/**
+DrawingContext is kind of like a Canvas state, keeping track of where we are in
+painting the canvas. It's an abstraction away from the content stream and the
+rest of the PDF.
+
+the textState persists across BT and ET markers, and can be modified anywhere
+the textMatrix and textLineMatrix do not persist between distinct BT ... ET blocks
+
+I don't think textState transfers to (or out of) "Do"-drawn XObjects.
+E.g., P13-4028.pdf breaks if textState carries out of the drawn object.
+*/
+export class DrawingContext {
+  resourcesStack: models.Resources[];
+  graphicsStateStack: GraphicsState[];
+  textMatrix: number[];
+  textLineMatrix: number[];
+
+  constructor(resources: models.Resources, graphicsState: GraphicsState) {
+    this.resourcesStack = [resources];
+    this.graphicsStateStack = [graphicsState];
   }
 
-  render(string_iterable: lexing.StringIterable, context: DrawingContext): void {
-    this.context = context;
-
-    var operations = new parser_states.CONTENT_STREAM(string_iterable, 1024).read();
-
-    operations.forEach(operation => {
-      var operator_alias = operator_aliases[operation.operator];
-      var operationFunction = this[operator_alias];
-      if (operationFunction) {
-        operationFunction.apply(this, operation.operands);
-      }
-      else {
-        logger.warn(`Ignoring unimplemented operator "${operation.operator}" [${operation.operands.join(', ')}]`);
-      }
-    });
+  get graphicsState(): GraphicsState {
+    return this.graphicsStateStack[this.graphicsStateStack.length - 1];
   }
+
+  get resources(): models.Resources {
+    return this.resourcesStack[this.resourcesStack.length - 1];
+  }
+
+  // ###########################################################################
+  // content stream operators interpreters
 
   // ---------------------------------------------------------------------------
   // Special graphics states (q, Q, cm)
@@ -154,14 +122,14 @@ export class ContentStreamReader {
   > `q`: Save the current graphics state on the graphics state stack (see 8.4.2).
   */
   pushGraphicsState() {
-    this.context.stateStack.push(this.context.graphicsState.clone());
+    this.graphicsStateStack.push(this.graphicsState.clone());
   }
   /**
   > `Q`: Restore the graphics state by removing the most recently saved state
   > from the stack and making it the current state (see 8.4.2).
   */
   popGraphicsState() {
-    this.context.graphicsState = this.context.stateStack.pop();
+    this.graphicsStateStack.pop();
   }
   /**
   > `a b c d e f cm`: Modify the current transformation matrix (CTM) by
@@ -181,9 +149,8 @@ export class ContentStreamReader {
   setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
     var newCTMatrix = mat3mul([a, b, 0,
                                c, d, 0,
-                               e, f, 1], this.context.graphicsState.ctMatrix);
-    // logger.info('ctMatrix = %j', newCTMatrix);
-    this.context.graphicsState.ctMatrix = newCTMatrix;
+                               e, f, 1], this.graphicsState.ctMatrix);
+    this.graphicsState.ctMatrix = newCTMatrix;
   }
   // ---------------------------------------------------------------------------
   // XObjects (Do)
@@ -203,42 +170,7 @@ export class ContentStreamReader {
   Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
   */
   drawObject(name: string) {
-    var XObjectStream = this.Resources.getXObject(name);
-    if (XObjectStream === undefined) {
-      throw new Error(`Cannot draw undefined XObject: ${name}`);
-    }
-
-    var object_depth = this.depth + 1;
-    if (object_depth >= 5) {
-      logger.warn(`Ignoring "${name} Do" command; embedded XObject is too deep; depth = ${object_depth}`);
-      return;
-    }
-
-    if (XObjectStream.Subtype !== 'Form') {
-      logger.silly(`Ignoring "${name} Do" command; embedded XObject has Subtype "${XObjectStream.Subtype}"`);
-      return;
-    }
-
-    logger.silly(`Drawing XObject: ${name}`);
-    // create a nested drawing context and use that
-
-    // a) copy the current state and push it on top of the state stack
-    this.pushGraphicsState();
-    // b) concatenate the dictionary.Matrix onto the graphics state
-    if (XObjectStream.dictionary.Matrix) {
-      this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
-    }
-    // c) clip according to the dictionary.BBox value
-    // ...meh, don't worry about that
-    // d) paint the XObject's content stream
-    var stream_string = XObjectStream.buffer.toString('binary');
-    var stream_string_iterable = new lexing.StringIterator(stream_string);
-    // var stream_string_iterable = lexing.StringIterator.fromBuffer(XObjectStream.buffer, 'binary');
-    var reader = new ContentStreamReader(XObjectStream.Resources, this.depth + 1);
-    reader.render(stream_string_iterable, this.context);
-    // e) pop the graphics state
-    this.popGraphicsState();
-
+    logger.error('Unimplemented "drawObject" operation');
   }
   // ---------------------------------------------------------------------------
   // General graphics state (w, J, j, M, d, ri, i, gs)
@@ -246,39 +178,39 @@ export class ContentStreamReader {
   > `lineWidth w`: Set the line width in the graphics state.
   */
   setLineWidth(lineWidth: number) {
-    this.context.graphicsState.lineWidth = lineWidth;
+    this.graphicsState.lineWidth = lineWidth;
   }
   /**
   > `lineCap J`: Set the line cap style in the graphics state.
   */
   setLineCap(lineCap: LineCapStyle) {
-    this.context.graphicsState.lineCap = lineCap;
+    this.graphicsState.lineCap = lineCap;
   }
   /**
   > `lineJoin j`: Set the line join style in the graphics state.
   */
   setLineJoin(lineJoin: LineJoinStyle) {
-    this.context.graphicsState.lineJoin = lineJoin;
+    this.graphicsState.lineJoin = lineJoin;
   }
   /**
   > `miterLimit M`: Set the miter limit in the graphics state.
   */
   setMiterLimit(miterLimit: number) {
-    this.context.graphicsState.miterLimit = miterLimit;
+    this.graphicsState.miterLimit = miterLimit;
   }
   /**
   > `dashArray dashPhase d`: Set the line dash pattern in the graphics state.
   */
   setDashPattern(dashArray: number[], dashPhase: number) {
-    this.context.graphicsState.dashArray = dashArray;
-    this.context.graphicsState.dashPhase = dashPhase;
+    this.graphicsState.dashArray = dashArray;
+    this.graphicsState.dashPhase = dashPhase;
   }
   /**
   > `intent ri`: Set the colour rendering intent in the graphics state.
   > (PDF 1.1)
   */
   setRenderingIntent(intent: string) {
-    this.context.graphicsState.renderingIntent = intent;
+    this.graphicsState.renderingIntent = intent;
   }
   /**
   > `flatness i`: Set the flatness tolerance in the graphics state. flatness is
@@ -286,16 +218,47 @@ export class ContentStreamReader {
   > device's default flatness tolerance.
   */
   setFlatnessTolerance(flatness: number) {
-    this.context.graphicsState.flatnessTolerance = flatness;
+    this.graphicsState.flatnessTolerance = flatness;
   }
   /**
   > `dictName gs`: Set the specified parameters in the graphics state.
   > `dictName` shall be the name of a graphics state parameter dictionary in
   > the ExtGState subdictionary of the current resource dictionary (see the
   > next sub-clause). (PDF 1.2)
+
+  LW number (Optional; PDF 1.3) The line width
+  LC integer (Optional; PDF 1.3) The line cap style
+  LJ integer (Optional; PDF 1.3) The line join style
+  ML number (Optional; PDF 1.3) The miter limit
+  D array (Optional; PDF 1.3) The line dash pattern, expressed as an array of the form [dashArray dashPhase], where dashArray shall be itself an array and dashPhase shall be an integer
+  RI name (Optional; PDF 1.3) The name of the rendering intent
+  OP boolean (Optional) A flag specifying whether to apply overprint. In PDF 1.2 and earlier, there is a single overprint parameter that applies to all painting operations. Beginning with PDF 1.3, there shall be two separate overprint parameters: one for stroking and one for all other painting operations. Specifying an OP entry shall set both parameters unless there is also an op entry in the same graphics state parameter dictionary, in which case the OP entry shall set only the overprint parameter for stroking.
+  op boolean (Optional; PDF 1.3) A flag specifying whether to apply overprint for painting operations other than stroking. If this entry is absent, the OP entry, if any, shall also set this parameter.
+  OPM integer (Optional; PDF1.3) The overprint mode
+  Font array (Optional; PDF 1.3) An array of the form [font size], where font shall be an indirect reference to a font dictionary and size shall be a number expressed in text space units. These two objects correspond to the operands of the Tf operator (see 9.3, "Text State Parameters and Operators"); however, the first operand shall be an indirect object reference instead of a resource name.
+  BG function (Optional) The black-generation function, which maps the interval [0.0 1.0] to the interval [0.0 1.0]
+  BG2 function or name (Optional; PDF 1.3) Same as BG except that the value may also be the name Default, denoting the black-generation function that was in effect at the start of the page. If both BG and BG2 are present in the same graphics state parameter dictionary, BG2 shall take precedence.
+  UCR function (Optional) The undercolor-removal function, which maps the interval [0.0 1.0] to the interval [−1.0 1.0]
+  UCR2 function or name (Optional; PDF 1.3) Same as UCR except that the value may also be the name Default, denoting the undercolor-removal function that was in effect at the start of the page. If both UCR and UCR2 are present in the same graphics state parameter dictionary, UCR2 shall take precedence.
+  TR function, array, or name (Optional) The transfer function, which maps the interval [0.0 1.0] to the interval [0.0 1.0]. The value shall be either a single function (which applies to all process colorants) or an array of four functions (which apply to the process colorants individually). The name Identity may be used to represent the identity function.
+  TR2 function, array, or name (Optional; PDF 1.3) Same as TR except that the value may also be the name Default, denoting the transfer function that was in effect at the start of the page. If both TR and TR2 are present in the same graphics state parameter dictionary, TR2 shall take precedence.
+  HT dictionary, stream, or name (Optional) The halftone dictionary or stream or the name Default, denoting the halftone that was in effect at the start of the page.
+  FL number (Optional; PDF 1.3) The flatness tolerance
+  SM number (Optional; PDF1.3) The smoothness tolerance
+  SA boolean (Optional) A flag specifying whether to apply automatic stroke adjustment.
+  BM name or array (Optional; PDF 1.4) The current blend mode to be used in the transparent imaging model
+  SMask dictionary or name (Optional; PDF 1.4) The current soft mask, specifying the mask shape or mask opacity values that shall be used in the transparent imaging model (see 11.3.7.2, "Source Shape and Opacity" and 11.6.4.3, "Mask Shape and Opacity"). Although the current soft mask is sometimes referred to as a "soft clip," altering it with the gs operator completely replaces the old value with the new one, rather than intersecting the two as is done with the current clipping path parameter
+  CA number (Optional; PDF 1.4) The current stroking alpha constant, specifying the constant shape or constant opacity value that shall be used for stroking operations in the transparent imaging model
+  ca number (Optional; PDF 1.4) Same as CA, but for nonstroking operations.
+  AIS boolean (Optional; PDF1.4) The alpha source flag ("alpha is shape"), specifying whether the current soft mask and alpha constant shall be interpreted as shape values (true) or opacity values (false).
+  TK boolean (Optional; PDF1.4) The text knockout flag, shall determine the behaviour of overlapping glyphs within a text object in the transparent imaging model
   */
   setGraphicsStateParameters(dictName: string) {
-    logger.warn(`Ignoring setGraphicsStateParameters(${dictName}) operation`);
+    var ExtGState = this.resources.getExtGState(dictName);
+    Object.keys(ExtGState.object).filter(key => key !== 'Type').forEach(key => {
+      var value = ExtGState.get(key);
+      logger.silly(`Ignoring setGraphicsStateParameters(${dictName}) operation: %s = %j`, key, value);
+    });
   }
   // ---------------------------------------------------------------------------
   // Path construction (m, l, c, v, y, h, re) - see Table 59
@@ -458,37 +421,45 @@ export class ContentStreamReader {
   and 1.0 (white).
   */
   setStrokeGray(gray: number) {
-    this.context.graphicsState.strokeColor = new GrayColor(gray);
+    this.graphicsState.strokeColor = new GrayColor(gray);
   }
   /**
   `gray g`: Same as G but used for nonstroking operations.
   */
   setFillGray(gray: number) {
-    this.context.graphicsState.fillColor = new GrayColor(gray);
+    this.graphicsState.fillColor = new GrayColor(gray);
   }
   /**
   `r g b RG`: Set the stroking colour space to DeviceRGB (or the DefaultRGB colour space; see 8.6.5.6, "Default Colour Spaces") and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (minimum intensity) and 1.0 (maximum intensity).
   */
   setStrokeColor(r: number, g: number, b: number) {
-    this.context.graphicsState.strokeColor = new RGBColor(r, g, b);
+    this.graphicsState.strokeColor = new RGBColor(r, g, b);
   }
   /**
   `r g b rg`: Same as RG but used for nonstroking operations.
   */
   setFillColor(r: number, g: number, b: number) {
-    this.context.graphicsState.fillColor = new RGBColor(r, g, b);
+    this.graphicsState.fillColor = new RGBColor(r, g, b);
   }
   /**
   > `c m y k K`: Set the stroking colour space to DeviceCMYK (or the DefaultCMYK colour space) and set the colour to use for stroking operations. Each operand shall be a number between 0.0 (zero concentration) and 1.0 (maximum concentration).
   */
   setStrokeCMYK(c: number, m: number, y: number, k: number) {
-    this.context.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
+    this.graphicsState.strokeColor = new CMYKColor(c, m, y, k);
   }
   /**
   > `c m y k k`: Same as K but used for nonstroking operations.
   */
   setFillCMYK(c: number, m: number, y: number, k: number) {
-    this.context.graphicsState.fillColor = new CMYKColor(c, m, y, k);
+    this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
+  }
+  // ---------------------------------------------------------------------------
+  // Inline Image Operators (BI, ID, EI)
+  beginInlineImage() {
+    logger.silly(`Ignoring beginInlineImage() operation`);
+  }
+  endInlineImage(...args: any[]) {
+    logger.silly(`Ignoring endInlineImage() operation`);
   }
   // ---------------------------------------------------------------------------
   // Clipping Path Operators (W, W*)
@@ -508,11 +479,11 @@ export class ContentStreamReader {
   // Text objects (BT, ET)
   /** `BT` */
   startTextBlock() {
-    this.context.textMatrix = this.context.textLineMatrix = mat3ident;
+    this.textMatrix = this.textLineMatrix = mat3ident;
   }
   /** `ET` */
   endTextBlock() {
-    this.context.textMatrix = this.context.textLineMatrix = null;
+    this.textMatrix = this.textLineMatrix = undefined;
   }
   // ---------------------------------------------------------------------------
   // Text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts) - see PDF32000_2008.pdf:9.3.1
@@ -522,7 +493,7 @@ export class ContentStreamReader {
   > be used by the Tj, TJ, and ' operators. Initial value: 0.
   */
   setCharSpacing(charSpace: number) {
-    this.context.textState.charSpacing = charSpace;
+    this.graphicsState.textState.charSpacing = charSpace;
   }
   /**
   > `wordSpace Tw`: Set the word spacing, Tw, to wordSpace, which shall be a
@@ -530,7 +501,7 @@ export class ContentStreamReader {
   > by the Tj, TJ, and ' operators. Initial value: 0.
   */
   setWordSpacing(wordSpace: number) {
-    this.context.textState.wordSpacing = wordSpace;
+    this.graphicsState.textState.wordSpacing = wordSpace;
   }
   /**
   > `scale Tz`: Set the horizontal scaling, Th, to (scale ÷ 100). scale shall
@@ -538,7 +509,7 @@ export class ContentStreamReader {
   > 100 (normal width).
   */
   setHorizontalScale(scale: number) { // a percentage
-    this.context.textState.horizontalScaling = scale;
+    this.graphicsState.textState.horizontalScaling = scale;
   }
   /**
   > `leading TL`: Set the text leading, Tl, to leading, which shall be a number
@@ -546,7 +517,7 @@ export class ContentStreamReader {
   > the T*, ', and " operators. Initial value: 0.
   */
   setLeading(leading: number) {
-    this.context.textState.leading = leading;
+    this.graphicsState.textState.leading = leading;
   }
   /**
   > `font size Tf`: Set the text font, Tf, to font and the text font size,
@@ -557,21 +528,21 @@ export class ContentStreamReader {
   > shown.
   */
   setFont(font: string, size: number) {
-    this.context.textState.fontName = font;
-    this.context.textState.fontSize = size;
+    this.graphicsState.textState.fontName = font;
+    this.graphicsState.textState.fontSize = size;
   }
   /**
   > `render Tr`: Set the text rendering mode, Tmode, to render, which shall
   > be an integer. Initial value: 0.
   */
   setRenderingMode(render: RenderingMode) {
-    this.context.textState.renderingMode = render;
+    this.graphicsState.textState.renderingMode = render;
   }
   /**
   > `rise Ts`: Set the text rise, Trise, to rise, which shall be a number expressed in unscaled text space units. Initial value: 0.
   */
   setRise(rise: number) {
-    this.context.textState.rise = rise;
+    this.graphicsState.textState.rise = rise;
   }
   // ---------------------------------------------------------------------------
   // Text positioning operators (Td, TD, Tm, T*)
@@ -585,8 +556,8 @@ export class ContentStreamReader {
     // y is usually 0, and never positive in normal text.
     var newTextMatrix = mat3mul([1, 0, 0,
                                  0, 1, 0,
-                                 x, y, 1], this.context.textLineMatrix);
-    this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
+                                 x, y, 1], this.textLineMatrix);
+    this.textMatrix = this.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -613,7 +584,7 @@ export class ContentStreamReader {
     var newTextMatrix = [a, b, 0,
                          c, d, 0,
                          e, f, 1];
-    this.context.textMatrix = this.context.textLineMatrix = newTextMatrix;
+    this.textMatrix = this.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
   > `T*`: Move to the start of the next line. This operator has the same effect
@@ -623,7 +594,7 @@ export class ContentStreamReader {
   > the y coordinate.
   */
   newLine() {
-    this.adjustCurrentPosition(0, -this.context.textState.leading);
+    this.adjustCurrentPosition(0, -this.graphicsState.textState.leading);
   }
   // ---------------------------------------------------------------------------
   // Text showing operators (Tj, TJ, ', ")
@@ -636,7 +607,7 @@ export class ContentStreamReader {
   textState.
   */
   showString(string: number[]) {
-    this.context.drawGlyphs(string, this.getFont());
+    logger.error('Unimplemented "showString" operation');
   }
   /**
   > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -655,7 +626,7 @@ export class ContentStreamReader {
   - small positive amounts equate to kerning hacks
   */
   showStrings(array: Array<number[] | number>) {
-    this.context.drawTextArray(array, this.getFont());
+    logger.error('Unimplemented "showStrings" operation');
   }
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
@@ -697,5 +668,228 @@ export class ContentStreamReader {
   */
   endMarkedContent() {
     logger.silly(`Ignoring endMarkedContent() operation`);
+  }
+}
+
+/**
+Add Resources tracking and drawObject support.
+*/
+export class RecursiveDrawingContext extends DrawingContext {
+  constructor(resources: models.Resources, public depth = 0) {
+    super(resources, new GraphicsState());
+  }
+
+  applyOperation(operator: string, operands: any[]) {
+    var func = this[operator];
+    if (func) {
+      func.apply(this, operands);
+    }
+    else {
+      logger.warn(`Ignoring unrecognized operator "${operator}" [${operands.join(', ')}]`);
+    }
+  }
+
+  applyContentStream(content_stream_string: string) {
+    // read the operations and apply them
+    var operations = parseString(content_stream_string);
+    operations.forEach(operation => this.applyOperation(operation.alias, operation.operands)) ;
+  }
+
+  /** Do */
+  drawObject(name: string) {
+    var XObjectStream = this.resources.getXObject(name);
+    if (XObjectStream === undefined) {
+      throw new Error(`Cannot draw undefined XObject: ${name}`);
+    }
+
+    if (XObjectStream.Subtype !== 'Form') {
+      logger.silly(`Ignoring "${name} Do" command; embedded XObject has unsupported Subtype "${XObjectStream.Subtype}"`);
+      return;
+    }
+
+    var object_depth = this.depth + 1;
+    if (object_depth >= 5) {
+      logger.warn(`Ignoring "${name} Do" command; embedded XObject is too deep; depth = ${object_depth}`);
+      return;
+    }
+
+    logger.debug(`drawObject: rendering "${name}"`);
+
+    // create a nested drawing context and use that
+    // a) copy the current state and push it on top of the state stack
+    this.pushGraphicsState();
+    // b) concatenate the dictionary.Matrix onto the graphics state
+    if (XObjectStream.dictionary.Matrix) {
+      this.setCTM.apply(this, XObjectStream.dictionary.Matrix);
+    }
+    // c) clip according to the dictionary.BBox value
+    // ...meh, don't worry about that
+    // d) paint the XObject's content stream
+    this.resourcesStack.push(XObjectStream.Resources);
+    this.depth++;
+
+    var content_stream_string = XObjectStream.buffer.toString('binary');
+    this.applyContentStream(content_stream_string);
+
+    this.depth--;
+    this.resourcesStack.pop();
+    // e) pop the graphics state
+    this.popGraphicsState();
+
+    logger.debug(`drawObject: finished drawing "${name}"`);
+  }
+}
+
+
+export class CanvasDrawingContext extends RecursiveDrawingContext {
+  constructor(public canvas: Canvas, resources: models.Resources) {
+    super(resources);
+  }
+
+  /**
+  advanceTextMatrix is only called from the various text drawing operations,
+  like showString and showStrings.
+  */
+  private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
+    // width_units is positive, but we want to move forward, so tx should be positive too
+    var tx = (((width_units / 1000) * this.graphicsState.textState.fontSize) +
+        (this.graphicsState.textState.charSpacing * chars) +
+        (this.graphicsState.textState.wordSpacing * spaces)) *
+      (this.graphicsState.textState.horizontalScaling / 100.0);
+    this.textMatrix = mat3mul([  1, 0, 0,
+                                 0, 1, 0,
+                                tx, 0, 1], this.textMatrix);
+    return tx;
+  }
+
+  private getTextPosition(): Point {
+    var fs = this.graphicsState.textState.fontSize;
+    var fsh = fs * (this.graphicsState.textState.horizontalScaling / 100.0);
+    var rise = this.graphicsState.textState.rise;
+    var base = [fsh,    0, 0,
+                  0,   fs, 0,
+                  0, rise, 1];
+
+    // TODO: optimize this final matrix multiplication; we only need two of the
+    // entries, and we discard the rest, so we don't need to calculate them in
+    // the first place.
+    var composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+    var textRenderingMatrix = mat3mul(base, composedTransformation);
+    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+  }
+
+  private getTextSize(): number {
+    // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
+    var mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
+    var font_point = new Point(0, this.graphicsState.textState.fontSize);
+    return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
+  }
+
+  /** Tj
+
+  drawGlyphs is called when processing a Tj ("showString") operation, and from
+  drawTextArray, in turn.
+
+  For each item in `array`:
+    If item is a number[], that indicates a string of character codes
+    If item is a plain numbdrawGlyphser, that indicates a spacing shift
+  */
+  showString(bytes: number[]) {
+    // the Font instance handles most of the character code resolution
+    var font = this.resources.getFont(this.graphicsState.textState.fontName);
+    if (font === null) {
+      // missing font -- will induce an error down the line pretty quickly
+      throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
+    }
+
+    var origin = this.getTextPosition();
+    var fontSize = this.getTextSize();
+
+    var string = font.decodeString(bytes);
+    var width_units = font.measureString(bytes);
+    var nchars = string.length;
+    var nspaces = util.countSpaces(string);
+
+    // adjust the text matrix accordingly (but not the text line matrix)
+    // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
+    this.advanceTextMatrix(width_units, nchars, nspaces);
+    // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
+    var width = this.getTextPosition().x - origin.x;
+    var height = Math.ceil(fontSize) | 0;
+    var size = new Size(width, height);
+
+    this.canvas.addSpan(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
+  }
+
+  /** TJ
+
+  drawTextArray is called when processing a TJ ("showStrings") operation.
+
+  For each item in `array`:
+    If item is a number[], that indicates a string of character codes
+    If item is a plain number, that indicates a spacing shift
+  */
+  showStrings(array: Array<number[] | number>) {
+    array.forEach(item => {
+      // each item is either a string (character code array) or a number
+      if (Array.isArray(item)) {
+        // if it's a character array, convert it to a unicode string and render it
+        var bytes = <number[]>item;
+        this.showString(bytes);
+      }
+      else if (typeof item === 'number') {
+        // negative numbers indicate forward (rightward) movement. if it's a
+        // very negative number, it's like inserting a space. otherwise, it
+        // only signifies a small manual spacing hack.
+        this.advanceTextMatrix(-item, 0, 0);
+      }
+      else {
+        throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
+      }
+    })
+  }
+}
+
+export interface TextOperation {
+  operator: string;
+  fontName?: string;
+  characterByteLength?: number;
+  text: string;
+}
+
+export class TextDrawingContext extends RecursiveDrawingContext {
+  constructor(public operations: TextOperation[], resources: models.Resources) {
+    super(resources);
+  }
+
+  showString(bytes: number[]) {
+    var font = this.resources.getFont(this.graphicsState.textState.fontName);
+    if (font === null) {
+      throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
+    }
+    var str = `(${font.decodeString(bytes)})`;
+    this.operations.push({
+      operator: 'showString',
+      fontName: this.graphicsState.textState.fontName,
+      characterByteLength: font.encoding.characterByteLength,
+      text: str,
+    });
+  }
+
+  showStrings(array: Array<number[] | number>) {
+    array.forEach(item => {
+      // each item is either a string (character code array) or a number
+      if (Array.isArray(item)) {
+        // if it's a character array, convert it to a unicode string and render it
+        this.showString(<number[]>item)
+      }
+      // negative numbers indicate forward (rightward) movement. if it's a
+      // very negative number, it's like inserting a space. otherwise, it
+      // only signifies a small manual spacing hack.
+      this.operations.push({
+        operator: 'string',
+        text: item.toString(),
+      });
+    });
   }
 }

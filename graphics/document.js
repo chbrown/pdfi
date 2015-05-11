@@ -94,8 +94,14 @@ the left bound of its elements.
 This is useful when we want to determine whether a given line is atypical
 within its specific container.
 */
-function medianLeftOffset(container, elements) {
+function typicalLeftOffset(container, elements) {
     var leftOffsets = elements.map(function (element) { return element.minX - container.minX; });
+    // special handling to avoid taking the mean of two elements:
+    if (elements.length == 2) {
+        // consider the first of the two (or the single line) to be the "atypical"
+        // one, so that it signals a paragraph change
+        return leftOffsets[1];
+    }
     return Arrays.median(leftOffsets);
 }
 /**
@@ -105,15 +111,17 @@ normalize(...) ensures that there is no whitespace, besides SPACE, in the result
 */
 function flattenLine(textSpans, spaceWidth) {
     if (spaceWidth === void 0) { spaceWidth = 1; }
-    var previousTextSpan;
-    var line = textSpans.map(function (currentTextSpan) {
+    var line = textSpans.map(function (currentTextSpan, i) {
+        var previousTextSpan = textSpans[i - 1];
         // dX measures the distance between the right bound of the previous span
         // and the left bound of the current one. It may be negative.
-        var dX = previousTextSpan ? (currentTextSpan.minX - previousTextSpan.maxX) : -Infinity;
-        // save the previous span for future reference
-        previousTextSpan = currentTextSpan;
-        // if it's far enough away (horizontally) from the last box, we add a space
-        return (dX > spaceWidth) ? (' ' + currentTextSpan.string) : currentTextSpan.string;
+        if (previousTextSpan) {
+            // if it's far enough away (horizontally) from the last box, we add a space
+            if ((currentTextSpan.minX - previousTextSpan.maxX) > spaceWidth) {
+                return ' ' + currentTextSpan.string;
+            }
+        }
+        return currentTextSpan.string;
     }).join('');
     return index_1.normalize(line).trim();
 }
@@ -157,7 +165,7 @@ var DocumentCanvas = (function (_super) {
     DocumentCanvas.prototype.autodetectLayout = function () {
         // threshold_dx: number = 20, threshold_dy: number = 5
         // 1. first pass -- linear aggregation
-        var containers = groupContiguousTextSpans(this.spans, 20, 5);
+        var containers = groupContiguousTextSpans(this.spans, 15, 5);
         // 2. second pass -- exhaustive aggregation
         // containers = mergeAdjoiningContainers(containers, threshold_dx, threshold_dy);
         return containers;
@@ -248,24 +256,22 @@ compare its left offset to the left offsets of other lines in the same layout co
 */
 function detectParagaphs(linesOfTextSpans, min_indent) {
     if (min_indent === void 0) { min_indent = 8; }
-    var lines = linesOfTextSpans.map(function (textSpans) {
-        return new Line(textSpans);
-    });
+    var lines = linesOfTextSpans.map(function (textSpans) { return new Line(textSpans); });
     var paragraphs = [];
-    var currentParagraph;
+    var currentParagraph = [];
     lines.forEach(function (currentLine) {
         // lineContainer's elements represent a single line of text
         var layoutContainerLines = lines.filter(function (line) { return line.layoutContainer == currentLine.layoutContainer; });
-        // medianLineLeftOffset measures the typical left offset of each line
-        // relative to the lines' layoutContainer
+        // typicalLineLeftOffset measures the typical (like, median) left offset of
+        // each line relative to the lines' layoutContainer
         // TODO: implement caching somehow
-        var medianLineLeftOffset = medianLeftOffset(currentLine.layoutContainer, layoutContainerLines);
+        var typicalLineLeftOffset = typicalLeftOffset(currentLine.layoutContainer, layoutContainerLines);
         var lineLeftOffset = currentLine.minX - currentLine.layoutContainer.minX;
-        var diff_leftOffset = currentParagraph ? Math.abs(medianLineLeftOffset - lineLeftOffset) : Infinity;
+        var diff_leftOffset = currentParagraph ? Math.abs(typicalLineLeftOffset - lineLeftOffset) : Infinity;
         // a large diff_leftOffset (set to infinity if the current paragraph has
         // not been initialized) indicates that we should start a new paragraph
         if (diff_leftOffset > min_indent) {
-            if (currentParagraph) {
+            if (currentParagraph.length > 0) {
                 paragraphs.push(currentParagraph);
             }
             currentParagraph = [];
@@ -275,7 +281,9 @@ function detectParagaphs(linesOfTextSpans, min_indent) {
         currentParagraph.push(lineString);
     });
     // flush the current paragraph
-    paragraphs.push(currentParagraph);
+    if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph);
+    }
     return paragraphs;
 }
 var Multiset = (function () {
@@ -399,8 +407,31 @@ function joinLines(lines, bag_of_words) {
         var nhyphenated = bag_of_words.get(hyphenated);
         var dehyphenated = m1 + m2;
         var ndehyphenated = bag_of_words.get(dehyphenated);
-        var result = (nhyphenated > ndehyphenated) ? hyphenated : dehyphenated;
-        return result;
+        // logger.debug(`${_.replace(/\n/, ' ')} -> ${nhyphenated} <> ${ndehyphenated}`);
+        if (nhyphenated > ndehyphenated) {
+            return hyphenated;
+        }
+        else if (ndehyphenated > nhyphenated) {
+            return dehyphenated;
+        }
+        // otherwise, they're equal (both 0, usually), which is tougher
+        // 1. if the second of the two parts is capitalized (Uppercase-lowercase),
+        //    it's probably a hyphenated name, so keep it hyphenated
+        var capitalized = (m2[0] === m2[0].toUpperCase());
+        if (capitalized) {
+            return hyphenated;
+        }
+        // TODO: what about Uppercase-lowercase? Can we assume anything?
+        // 2. if the two parts are reasonable words in themselves, keep them
+        //    hyphenated (it's probably something like "one-vs-all", or "bag-of-words")
+        var common_parts = (bag_of_words.get(m1) + bag_of_words.get(m2)) > 2;
+        if (common_parts) {
+            // logger.debug(`${_.replace(/\n/, ' ')} -> ${bag_of_words.get(m1)} + ${bag_of_words.get(m2)} => ${hyphenated}`);
+            return hyphenated;
+        }
+        // finally, default to dehyphenation, which is by far more common than
+        // hyphenation (though it's more destructive of an assumption when wrong)
+        return dehyphenated;
     });
     // the remaining line breaks are legimate breaks between words, so we simply
     // replace them with a plain SPACE
