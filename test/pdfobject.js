@@ -10,7 +10,7 @@ function check(input, expected_output, start) {
 describe('pdfobject parser: general objects', function () {
     it('should parse short binary string', function () {
         var input = "<ea68d4>";
-        // var output = ['ea', '68', 'd4'].map(function(pair) { return parseInt(pair, 16) }
+        // var output = ['ea', '68', 'd4'].map(pair => { return parseInt(pair, 16) }
         var output = [234, 104, 212];
         check(input, output);
     });
