@@ -47,3 +47,42 @@ describe('pdf filters/decoders: ASCII85Decode', () => {
     var input = "<< /Length 534 /Filter [/ASCII85Decode /LZWDecode] >> stream J..)6T`?p&<!J9%_[umg\"B7/Z7KNXbN'S+,*Q/&\"OLT'F LIDK#!n`$\"<Atdi`\\Vn%b%)&'cA*VnK\\CJY(sF>c!Jnl@ RM]WM;jjH6Gnc75idkL5]+cPZKEBPWdR>FF(kj1_R%W_d &/jS!;iuad7h?[L-F$+]]0A3Ck*$I0KZ?;<)CJtqi65Xb Vc3\\n5ua:Q/=0$W<#N3U;H,MQKqfg1?:lUpR;6oN[C2E4 ZNr8Udn.'p+?#X+1>0Kuk$bCDF/(3fL5]Oq)^kJZ!C2H1 'TO]Rl?Q:&'<5&iP!$Rq;BXRecDN[IJB`,)o8XJOSJ9sD S]hQ;Rj@!ND)bD_q&C\\g:inYC%)&u#:u,M6Bm%IY!Kb1+ \":aAa'S`ViJglLb8<W9k6Yl\\\\0McJQkDeLWdPN?9A'jX* al>iG1p&i;eVoK&juJHs9%;Xomop\"5KatWRT\"JQ#qYuL, JD?M$0QP)lKn06l1apKDC@\\qJ4B!!(5m+j.7F790m(Vj8 8l8Q:_CZ(Gm1%X\\N1&u!FKHMB~>\nendstream";
   });
 });
+
+describe('pdf filters/decoders: LZWDecode', () => {
+  /**
+  |               8F              |               67              |
+  |       8               F       |       6               7       |
+  |_______________________________|_______________________________|
+  | 1 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 0 | 1 | 1 | 0 | 0 | 1 | 1 | 1 |
+  | 0b100011110 = 286 = 0x11E         | 0b11 =| 00111 = 7 = 0x7   |
+  |                                   | 4 =   |                   |
+  |                                   | 0x4   |                   |
+  */
+  it('should iterate through a bit string correctly', () => {
+    var buffer = new Buffer([0x8F, 0x67]);
+    var bits = new decoders.BitIterator(buffer);
+    //
+    var actual: number[] = [bits.next(9), bits.next(2), bits.next(5)];
+    assert.deepEqual(actual, [286, 3, 7]);
+  });
+
+  it('should iterate through another bit string correctly', () => {
+    var buffer = new Buffer([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
+    var bit_iterator = new decoders.BitIterator(buffer);
+    //
+    var actual: number[] = [];
+    while (bit_iterator.length > bit_iterator.offset) {
+      var code = bit_iterator.next(9);
+      actual.push(code);
+    }
+    var expected = [256, 45, 258, 258, 65, 259, 66, 257];
+    assert.deepEqual(actual, expected);
+  });
+
+  it('should LZW decode the example from the PDF spec (7.4.4.2, Example 2)', () => {
+    var encoded = new Buffer([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
+    var actual = decoders.LZWDecode(encoded);
+    var expected = new Buffer([45, 45, 45, 45, 45, 65, 45, 45, 45, 66]);
+    assert.deepEqual(actual, expected);
+  });
+});

@@ -1,5 +1,5 @@
 /// <reference path="../type_declarations/index.d.ts" />
-var zlib = require('zlib');
+import zlib = require('zlib');
 
 /**
 
@@ -202,5 +202,131 @@ export function ASCIIHexDecode(ascii: Buffer): Buffer {
 }
 
 export function FlateDecode(buffer: Buffer): Buffer {
-  return zlib.inflateSync(buffer);
+  return zlib['inflateSync'](buffer);
+}
+
+export class BitIterator {
+  /** Internal binary representation from which we read bit strings */
+  private buffer: Buffer
+  /** The number of bits from the front of the buffer */
+  offset: number = 0;
+  /** The total number of bits available in buffer */
+  length: number;
+  constructor(buffer: Buffer) {
+    this.buffer = buffer;
+    this.length = buffer.length * 8;
+  }
+
+  /**
+  Read the next `n` bits from the underlying buffer, but do not advance the offset.
+  */
+  peek(n: number): number {
+    var start = Math.floor(this.offset / 8);
+    var end = Math.ceil((this.offset + n) / 8);
+    var byteLength = end - start;
+    // (end - start) is the number of bytes we need to read to extract the
+    // desired bits.
+    var bytes = this.buffer.slice(start, end);
+    // readUIntBE(offset: number, byteLength: number, noAssert?: boolean): number;
+    var uint = this.buffer['readUIntBE'](start, byteLength);
+    // first, we push some bits off the right edge.
+    //   offset % 8 is distance to our bits from the left edge of uint
+    //   so ((offset % 8) + n) is the distance from the left edge of uint to the right edge of our bits
+    //   and (byteLength * 8) - ((offset % 8) + n) is the distance from the right edge to the right edge of our bits
+    var base = uint >> (byteLength * 8) - ((this.offset % 8) + n);
+    // we need to chop off some bits from the front. The max number we can return
+    // if we are asking for n bits, is 2^n - 1 == (2 << (n - 1)) - 1
+    var code = base & ((2 << (n - 1)) - 1);
+    return code;
+  }
+
+  /**
+  Read the next `n` bits from the underlying buffer and advance the offset by `n`.
+  */
+  next(n: number): number {
+    var code = this.peek(n);
+    // advance
+    this.offset += n;
+    return code;
+  }
+}
+
+/**
+Each code shall represent:
+* a single character of input data (0–255)
+* a clear-table marker (256)
+* an EOD marker (257)
+* a table entry representing a multiple-character sequence that has been encountered previously in the input (258 or greater).
+
+The encoder shall execute the following sequence of steps to generate each output code:
+a) Accumulate a sequence of one or more input characters matching a sequence already present in the table. For maximum compression, the encoder looks for the longest such sequence.
+b) Emit the code corresponding to that sequence.
+c) Create a new table entry for the first unused code. Its value is the sequence found in step (a) followed by the next input character.
+
+From Wikipedia's http://en.wikipedia.org/wiki/Lempel-Ziv-Welch:
+> In order to rebuild the dictionary in the same way as it was built during encoding, it also obtains the next value from the input and adds to the dictionary the concatenation of the current string and the first character of the string obtained by decoding the next input value, or THE FIRST CHARACTER OF THE STRING JUST OUTPUT IF THE NEXT VALUE CAN NOT BE DECODED (If the next value is unknown to the decoder, then it must be the value that will be added to the dictionary this iteration, and so its first character must be the same as the first character of the current string being sent to decoded output). The decoder then proceeds to the next input value (which was already read in as the "next value" in the previous pass) and repeats the process until there is no more input, at which point the final input value is decoded without any more additions to the dictionary.
+*/
+export function LZWDecode(buffer: Buffer): Buffer {
+  // console.error(`Using LZWDecode on buffer of length ${buffer.length}`);
+  var bits = new BitIterator(buffer);
+
+  var tableMax: number;
+  var table: {[index: number]: Buffer};
+
+  var chunks: Buffer[] = [];
+
+  var codeLength = 9;
+
+  while (bits.length > bits.offset) {
+    var code = bits.next(codeLength);
+    if (code == 256) { // clear table marker
+      table = {};
+      tableMax = 257;
+    }
+    else if (code == 257) { // EOD marker
+      break;
+    }
+    else {
+      // emit the table buffer, or a single character if there is no table entry
+      var outputChunk = (code < 255) ? new Buffer([code]) : table[code];
+      chunks.push(outputChunk);
+      // add the corresponding new table entry
+      var nextCode = bits.peek(codeLength);
+      // the default next code is a basic character code in the range 0-255
+      var nextPrefix: number = nextCode;
+      // but it may be outside that range
+      if (nextCode === 256 || nextCode === 257) {
+        // it's a control code; so it doesn't really matter
+        nextPrefix = 0;
+      }
+      else if (nextCode > tableMax) {
+        // if we don't know the next code, it must be a doubling table entry,
+        // which equates to: outputChunk + outputChunk[0]
+        nextPrefix = outputChunk[0];
+      }
+      else if (nextCode > 257)  {
+        // otherwise we can look it up from the table entry
+        nextPrefix = table[nextCode][0];
+      }
+      var tableChunk = Buffer.concat([outputChunk, new Buffer([nextPrefix])]);
+      var tableIndex = tableMax + 1;
+      table[tableIndex] = tableChunk;
+
+      // The first output code that is 10 bits long shall be the one following the creation of table entry 511, and similarly for 11 (1023) and 12 (2047) bits. Codes shall never be longer than 12 bits; therefore, entry 4095 is the last entry of the LZW table.
+      if (tableIndex == 511) {
+        codeLength++;
+      }
+      else if (tableIndex == 1023) {
+        codeLength++;
+      }
+      else if (tableIndex == 2047) {
+        codeLength++;
+      }
+
+      // finally, increment our table entry cursor
+      tableMax++;
+    }
+  }
+
+  return Buffer.concat(chunks);
 }
