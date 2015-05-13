@@ -24,3 +24,23 @@ function clone(source, target) {
     return target;
 }
 exports.clone = clone;
+/**
+Search the codebase for @util.memoize or @memoize for usage examples.
+*/
+function memoize(target, propertyKey, descriptor) {
+    var get = descriptor.get;
+    var memoizedPropertyKey = "_memoized_" + propertyKey;
+    descriptor.get = function () {
+        var got = memoizedPropertyKey in this;
+        // `got` will be true if this memoize has been called before, even if
+        // the result at the time was `undefined`.
+        // I.e., after calling `obj['myProp'] = undefined`, `'myProp' in obj`
+        // will be true.
+        if (!got) {
+            this[memoizedPropertyKey] = get.call(this);
+        }
+        return this[memoizedPropertyKey];
+    };
+    return descriptor;
+}
+exports.memoize = memoize;
