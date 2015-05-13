@@ -9,6 +9,7 @@ var models_1 = require('../models');
 var argvparser = yargs
     .usage('Usage: pdfi -f <filename> <command>')
     .command('text', 'Extract text')
+    .command('json', 'Extract text as JSON')
     .command('metadata', 'Print trailer as JSON')
     .command('xref', 'Print cross references as JSON')
     .command('pages', 'Print content for all pages')
@@ -51,6 +52,9 @@ else {
     var command = argv._[0];
     if (command === 'text') {
         text(pdf);
+    }
+    else if (command === 'json') {
+        json(pdf);
     }
     else if (command === 'metadata') {
         stdout(JSON.stringify(pdf.trailer));
@@ -96,4 +100,8 @@ function text(pdf) {
             stdout("    " + paragraph);
         });
     });
+}
+function json(pdf) {
+    var paper = pdf.getDocument();
+    stdout(JSON.stringify(paper));
 }
