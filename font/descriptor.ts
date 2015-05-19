@@ -14,10 +14,6 @@ export class FontDescriptor extends Model {
     return CharSet ? CharSet.slice(1).split('/') : [];
   }
 
-  get FontName(): string {
-    return this.get('FontName');
-  }
-
   /**
   From PDF32000_2008.pdf:Table 122
   > The weight (thickness) component of the fully-qualified font name or font
@@ -28,9 +24,9 @@ export class FontDescriptor extends Model {
   > * 700 shall indicate bold.
   > The specific interpretation of these values varies from font to font.
   */
-  get FontWeight(): number {
-    return this.get('FontWeight');
-  }
+  // get FontWeight(): number {
+  //   return this.get('FontWeight');
+  // }
 
   /**
   From PDF32000_2008.pdf:Table 122
@@ -39,12 +35,31 @@ export class FontDescriptor extends Model {
   > and the 3-o'clock position is –90 degrees. The value shall be negative for
   > fonts that slope to the right, as almost all italic fonts do.
   */
-  get ItalicAngle(): number {
-    return this.get('ItalicAngle');
+  // get ItalicAngle(): number {
+  //   return this.get('ItalicAngle');
+  // }
+
+  // get MissingWidth(): number {
+  //   return this.get('MissingWidth');
+  // }
+
+  private getType1FontProgramClearText(): string {
+    var Type1FontProgram = new ContentStream(this._pdf, this.object['FontFile']);
+    if (Type1FontProgram.object) {
+      var Length1 = <number>Type1FontProgram.dictionary['Length1'];
+      return Type1FontProgram.buffer.toString('ascii', 0, Length1);
+    }
   }
 
-  get MissingWidth(): number {
-    return this.get('MissingWidth');
+  getWeight(): string {
+    var Type1FontProgram_string = this.getType1FontProgramClearText();
+    if (Type1FontProgram_string) {
+      var weightRegExp = /\/Weight\s+\(([^\)]+)\)/;
+      var weightMatch = Type1FontProgram_string.match(weightRegExp);
+      if (weightMatch !== null) {
+        return weightMatch[1];
+      }
+    }
   }
 
   /**
@@ -55,33 +70,32 @@ export class FontDescriptor extends Model {
   > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
   */
   getEncoding(): Encoding {
-    var FontFile = new ContentStream(this._pdf, this.object['FontFile']);
-    var cleartext_length = <number>FontFile.dictionary['Length1'];
-    // var string_iterable = lexing.StringIterator.fromBuffer(FontFile.buffer, 'ascii');
-    var FontFile_string = FontFile.buffer.toString('ascii', 0, cleartext_length);
-    var start_index = FontFile_string.indexOf('/Encoding');
-    var Encoding_string = FontFile_string.slice(start_index);
-
     var encoding = new Encoding();
 
-    var encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
-    var encodingNameMatch = Encoding_string.match(encodingNameRegExp);
-    if (encodingNameMatch !== null) {
-      var encodingName = encodingNameMatch[1];
-      encoding.mergeLatinCharset(encodingName);
-    }
+    var Type1FontProgram_string = this.getType1FontProgramClearText();
+    if (Type1FontProgram_string) {
+      var Encoding_start_index = Type1FontProgram_string.indexOf('/Encoding');
+      var Encoding_string = Type1FontProgram_string.slice(Encoding_start_index);
 
-    var charRegExp = /dup (\d+) \/(\w+) put/g;
-    var match;
-    while ((match = charRegExp.exec(Encoding_string))) {
-      var index = parseInt(match[1], 10);
-      var glyphname = match[2];
-      var str = decodeGlyphname(glyphname);
-      if (str !== undefined) {
-        encoding.mapping[index] = str;
+      var encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
+      var encodingNameMatch = Encoding_string.match(encodingNameRegExp);
+      if (encodingNameMatch !== null) {
+        var encodingName = encodingNameMatch[1];
+        encoding.mergeLatinCharset(encodingName);
       }
-      else {
-        logger.warn(`Ignoring FontDescriptor mapping ${index} -> ${glyphname}, which is not a valid glyphname`);
+
+      var charRegExp = /dup (\d+) \/(\w+) put/g;
+      var match;
+      while ((match = charRegExp.exec(Encoding_string))) {
+        var index = parseInt(match[1], 10);
+        var glyphname = match[2];
+        var str = decodeGlyphname(glyphname);
+        if (str !== undefined) {
+          encoding.mapping[index] = str;
+        }
+        else {
+          logger.warn(`Ignoring FontDescriptor mapping ${index} -> ${glyphname}, which is not a valid glyphname`);
+        }
       }
     }
 

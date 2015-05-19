@@ -21,6 +21,7 @@ class PDF {
   // _cached_objects is a cache of PDF objects indexed by
   // "${object_number}:${generation_number}" identifiers
   private _cached_objects: {[index: string]: pdfdom.PDFObject} = {};
+  private _cached_models: {[index: string]: models.Model} = {};
 
   constructor(public file: File) { }
 
@@ -114,6 +115,26 @@ class PDF {
       cached_object = this._cached_objects[object_id] = this._readObject(object_number, generation_number);
     }
     return cached_object;
+  }
+
+  /**
+  If getModel is called multiple times with the same object:generation number
+  pair, the ctor should be the same, or at least, if the ctor is different, it
+  should have a different name.
+  */
+  getModel<T extends models.Model>(object_number: number,
+                                   generation_number: number,
+                                   ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
+
+    var model_id = `${ctor['name']}(${object_number}:${generation_number})`;
+    // the type coersion below assumes that the caller read the doc comment
+    // on this function.
+    var cached_model: T = <T>this._cached_models[model_id];
+    if (cached_model === undefined) {
+      var object = this.getObject(object_number, generation_number);
+      cached_model = this._cached_models[model_id] = new ctor(this, object);
+    }
+    return cached_model;
   }
 
   /**

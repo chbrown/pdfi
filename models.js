@@ -355,23 +355,31 @@ var Resources = (function (_super) {
     Caches Fonts (which is pretty hot when rendering a page),
     even missing ones (as null).
   
-    Returns `null` if the Font dictionary has no matching `name` key.
+    Using PDF#getModel() allows reuse of all the memoizing each Font instance does.
+    Otherwise, we have to create a new Font instance (albeit, perhaps using the
+    PDF's object cache, which is helpful) for each Resources.
+  
+    throws an Error if the Font dictionary has no matching `name` key.
     */
     Resources.prototype.getFont = function (name) {
         var cached_font = this._cached_fonts[name];
         if (cached_font === undefined) {
             var Font_dictionary = this.get('Font');
-            var object = Font_dictionary[name];
-            if (object) {
-                var model = new Model(this._pdf, object);
-                cached_font = this._cached_fonts[name] = index_1.Font.fromModel(model);
+            var dictionary_value = Font_dictionary[name];
+            var font_object = new Model(this._pdf, dictionary_value).object;
+            var ctor = index_1.Font.getConstructor(font_object['Subtype']);
+            // this `object` will usually be an indirect reference.
+            if (IndirectReference.isIndirectReference(dictionary_value)) {
+                cached_font = this._cached_fonts[name] = this._pdf.getModel(dictionary_value['object_number'], dictionary_value['generation_number'], ctor);
                 cached_font.Name = name;
             }
+            else if (font_object) {
+                // if `object` is not an indirect reference, the only caching we can do
+                // is on this Resources object.
+                cached_font = this._cached_fonts[name] = new ctor(this._pdf, font_object);
+            }
             else {
-                // if (!font) {
-                //   throw new Error(`Cannot find font "${name}" in Resources: ${JSON.stringify(this.resources)}`);
-                // }
-                cached_font = this._cached_fonts[name] = null;
+                throw new Error("Cannot find font \"" + name + "\" in Resources: " + JSON.stringify(this));
             }
         }
         return cached_font;

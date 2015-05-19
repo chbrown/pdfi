@@ -2,8 +2,11 @@
 import * as logger from 'loge';
 import * as afm from 'afm';
 
+import {memoize} from '../util';
+import pdfdom = require('../pdfdom');
+
 import {FontDescriptor} from './descriptor';
-import {Model, ContentStream, Resources} from '../models';
+import {PDF, Model, ContentStream, Resources} from '../models';
 import {glyphlist, Encoding, decodeGlyphname} from '../encoding/index';
 
 /**
@@ -17,14 +20,8 @@ Beyond the `object` property, common to all Model instances, Font also has a
 `Name` field, which is populated when the Font is instantiated from within
 Resources#getFont(), for easier debugging. It should not be used for any
 material purposes (and is not necessary for any).
-
-# Cached objects
-
-* `_cached_encoding: Encoding` is a cached mapping from in-PDF character codes to native
-  Javascript (unicode) strings.
 */
 export class Font extends Model {
-  private _cached_encoding: Encoding;
   public Name: string;
 
   /**
@@ -69,6 +66,7 @@ export class Font extends Model {
   2. The FontDescriptor.FontName may contain the string "Bold"
   3. The FontDescriptor.FontWeight may be 700 or higher
   */
+  @memoize
   get bold(): boolean {
     var BaseFont = this.BaseFont;
     if (BaseFont && BaseFont.match(/bold/i)) {
@@ -76,16 +74,25 @@ export class Font extends Model {
     }
     var FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      if (FontDescriptor.FontName && FontDescriptor.FontName.match(/bold/i)) {
+      var FontName = FontDescriptor.get('FontName');
+      if (FontName && FontName.match(/bold/i)) {
         return true;
       }
-      if (FontDescriptor.FontWeight && FontDescriptor.FontWeight >= 700) {
+
+      var FontWeight: number = FontDescriptor.get('FontWeight');
+      if (FontWeight && FontWeight >= 700) {
+        return true;
+      }
+
+      var Weight = FontDescriptor.getWeight();
+      if (Weight && Weight == 'Bold') {
         return true;
       }
     }
     return false;
   }
 
+  @memoize
   get italic(): boolean {
     var BaseFont = this.BaseFont;
     if (BaseFont && BaseFont.match(/italic/i)) {
@@ -93,12 +100,14 @@ export class Font extends Model {
     }
     var FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      if (FontDescriptor.FontName && FontDescriptor.FontName.match(/italic/i)) {
+      var FontName = FontDescriptor.get('FontName');
+      if (FontName && FontName.match(/italic/i)) {
         return true;
       }
       // should I have a threshold on italics? Are there small italic angles,
       // e.g., with script-type fonts, but which don't really designate italics?
-      if (FontDescriptor.ItalicAngle && FontDescriptor.ItalicAngle !== 0) {
+      var ItalicAngle: number = FontDescriptor.get('ItalicAngle');
+      if (ItalicAngle && ItalicAngle !== 0) {
         return true;
       }
     }
@@ -106,14 +115,15 @@ export class Font extends Model {
   }
 
   /**
-  This is used / exposed by the `encoding` getter, which caches the result.
-
   We need the Font's Encoding to map character codes into the glyph name (which
   can then easily be mapped to the unicode string representation of that glyph).
 
+  The `encoding` getter memoizes the result.
+
   Encoding and ToUnicode are not always specified.
   */
-  protected detectEncoding(): Encoding {
+  @memoize
+  get encoding(): Encoding {
     var encoding = new Encoding()
 
     // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
@@ -210,14 +220,6 @@ export class Font extends Model {
     return encoding;
   }
 
-  get encoding(): Encoding {
-    // initialize if needed
-    if (this._cached_encoding === undefined) {
-      this._cached_encoding = this.detectEncoding();
-    }
-    return this._cached_encoding;
-  }
-
   /**
   Returns a native (unicode) Javascript string representing the given character
   codes. These character codes may have nothing to do with Latin-1, directly,
@@ -225,11 +227,9 @@ export class Font extends Model {
   fields, and can be assigned widths via the Font dictionary's Widths or
   BaseFont fields.
 
-  Uses a cached mapping via the charCodeMapping getter.
-
   Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
   be resolved to a string (unless the `skipMissing` argument is set to `true`,
-  in which case, it simply skips those characters.
+  in which case, it simply skips those characters).
   */
   decodeString(bytes: number[], skipMissing = false): string {
     return this.encoding.decodeCharCodes(bytes).map(charCode => {
@@ -268,26 +268,29 @@ export class Font extends Model {
     return object['Type'] === 'Font';
   }
 
-  static fromModel(model: Model): Font {
-    // var Font_model = new font.Font(this._pdf, Font_dictionary[name]);
-    // See Table 110 – Font types:
-    //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
-    if (model.object['Subtype'] === 'Type0') {
-      return model.asType(Type0Font);
+  /**
+  See Table 110 – Font types:
+    Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+
+  <T extends Font>
+  */
+  static getConstructor(Subtype: string): { new(pdf: PDF, object: pdfdom.PDFObject): Font } {
+    if (Subtype === 'Type0') {
+      return Type0Font;
     }
-    else if (model.object['Subtype'] === 'Type1') {
-      return model.asType(Type1Font);
+    else if (Subtype === 'Type1') {
+      return Type1Font;
     }
-    else if (model.object['Subtype'] === 'TrueType') {
+    else if (Subtype === 'TrueType') {
       // apparently TrueType and Type 1 fonts are pretty much the same.
-      return model.asType(Type1Font);
+      return Type1Font;
     }
-    else if (model.object['Subtype'] === 'Type3') {
+    else if (Subtype === 'Type3') {
       // And Type 3 isn't too far off, either
-      return model.asType(Type1Font);
+      return Type1Font;
     }
-    return null;
     // TODO: add the other types of fonts
+    return Font;
   }
 }
 
@@ -380,8 +383,9 @@ export class Type1Font extends Font {
       });
       // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
       var FontDescriptor = this.FontDescriptor;
-      if (FontDescriptor && FontDescriptor.MissingWidth) {
-        this._defaultWidth = FontDescriptor.MissingWidth;
+      var MissingWidth = FontDescriptor && FontDescriptor.get('MissingWidth');
+      if (MissingWidth) {
+        this._defaultWidth = MissingWidth;
       }
       else {
         logger.silly(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);

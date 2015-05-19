@@ -4,9 +4,18 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
+if (typeof __decorate !== "function") __decorate = function (decorators, target, key, desc) {
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") return Reflect.decorate(decorators, target, key, desc);
+    switch (arguments.length) {
+        case 2: return decorators.reduceRight(function(o, d) { return (d && d(o)) || o; }, target);
+        case 3: return decorators.reduceRight(function(o, d) { return (d && d(target, key)), void 0; }, void 0);
+        case 4: return decorators.reduceRight(function(o, d) { return (d && d(target, key, o)) || o; }, desc);
+    }
+};
 /// <reference path="../type_declarations/index.d.ts" />
 var logger = require('loge');
 var afm = require('afm');
+var util_1 = require('../util');
 var descriptor_1 = require('./descriptor');
 var models_1 = require('../models');
 var index_1 = require('../encoding/index');
@@ -21,11 +30,6 @@ Beyond the `object` property, common to all Model instances, Font also has a
 `Name` field, which is populated when the Font is instantiated from within
 Resources#getFont(), for easier debugging. It should not be used for any
 material purposes (and is not necessary for any).
-
-# Cached objects
-
-* `_cached_encoding: Encoding` is a cached mapping from in-PDF character codes to native
-  Javascript (unicode) strings.
 */
 var Font = (function (_super) {
     __extends(Font, _super);
@@ -94,10 +98,16 @@ var Font = (function (_super) {
             }
             var FontDescriptor = this.FontDescriptor;
             if (FontDescriptor) {
-                if (FontDescriptor.FontName && FontDescriptor.FontName.match(/bold/i)) {
+                var FontName = FontDescriptor.get('FontName');
+                if (FontName && FontName.match(/bold/i)) {
                     return true;
                 }
-                if (FontDescriptor.FontWeight && FontDescriptor.FontWeight >= 700) {
+                var FontWeight = FontDescriptor.get('FontWeight');
+                if (FontWeight && FontWeight >= 700) {
+                    return true;
+                }
+                var Weight = FontDescriptor.getWeight();
+                if (Weight && Weight == 'Bold') {
                     return true;
                 }
             }
@@ -114,12 +124,14 @@ var Font = (function (_super) {
             }
             var FontDescriptor = this.FontDescriptor;
             if (FontDescriptor) {
-                if (FontDescriptor.FontName && FontDescriptor.FontName.match(/italic/i)) {
+                var FontName = FontDescriptor.get('FontName');
+                if (FontName && FontName.match(/italic/i)) {
                     return true;
                 }
                 // should I have a threshold on italics? Are there small italic angles,
                 // e.g., with script-type fonts, but which don't really designate italics?
-                if (FontDescriptor.ItalicAngle && FontDescriptor.ItalicAngle !== 0) {
+                var ItalicAngle = FontDescriptor.get('ItalicAngle');
+                if (ItalicAngle && ItalicAngle !== 0) {
                     return true;
                 }
             }
@@ -128,105 +140,98 @@ var Font = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    /**
-    This is used / exposed by the `encoding` getter, which caches the result.
-  
-    We need the Font's Encoding to map character codes into the glyph name (which
-    can then easily be mapped to the unicode string representation of that glyph).
-  
-    Encoding and ToUnicode are not always specified.
-    */
-    Font.prototype.detectEncoding = function () {
-        var _this = this;
-        var encoding = new index_1.Encoding();
-        // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
-        var BaseEncoding = this.BaseEncoding;
-        // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
-        if (index_1.Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
-            encoding.mergeLatinCharset(BaseEncoding);
-        }
-        else if (BaseEncoding == 'Identity-H') {
-            logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
-            encoding.characterByteLength = 2;
-        }
-        else if (BaseEncoding !== undefined) {
-            logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
-        }
-        // ToUnicode is a better encoding indicator, but it is not always present,
-        // and even when it is, it may be only complementary to the
-        // Encoding/BaseEncoding value
-        var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
-        if (ToUnicode.object) {
-            encoding.mergeCMapContentStream(ToUnicode);
-        }
-        // still no luck? try the FontDescriptor
-        var FontDescriptor = this.FontDescriptor;
-        if (FontDescriptor) {
-            logger.silly("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
-            // check for the easy-out: 1-character fonts
-            var FirstChar = this.get('FirstChar');
-            var LastChar = this.get('LastChar');
-            var CharSet = FontDescriptor.CharSet;
-            if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-                encoding.mapping[FirstChar] = index_1.decodeGlyphname(CharSet[0]);
+    Object.defineProperty(Font.prototype, "encoding", {
+        /**
+        We need the Font's Encoding to map character codes into the glyph name (which
+        can then easily be mapped to the unicode string representation of that glyph).
+      
+        The `encoding` getter memoizes the result.
+      
+        Encoding and ToUnicode are not always specified.
+        */
+        get: function () {
+            var _this = this;
+            var encoding = new index_1.Encoding();
+            // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
+            var BaseEncoding = this.BaseEncoding;
+            // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
+            if (index_1.Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
+                encoding.mergeLatinCharset(BaseEncoding);
             }
-            else if (FontDescriptor.get('FontFile')) {
-                FontDescriptor.getEncoding().mapping.forEach(function (str, charCode) {
-                    if (str !== null && str !== undefined) {
-                        encoding.mapping[charCode] = str;
+            else if (BaseEncoding == 'Identity-H') {
+                logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
+                encoding.characterByteLength = 2;
+            }
+            else if (BaseEncoding !== undefined) {
+                logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
+            }
+            // ToUnicode is a better encoding indicator, but it is not always present,
+            // and even when it is, it may be only complementary to the
+            // Encoding/BaseEncoding value
+            var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
+            if (ToUnicode.object) {
+                encoding.mergeCMapContentStream(ToUnicode);
+            }
+            // still no luck? try the FontDescriptor
+            var FontDescriptor = this.FontDescriptor;
+            if (FontDescriptor) {
+                logger.silly("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
+                // check for the easy-out: 1-character fonts
+                var FirstChar = this.get('FirstChar');
+                var LastChar = this.get('LastChar');
+                var CharSet = FontDescriptor.CharSet;
+                if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
+                    encoding.mapping[FirstChar] = index_1.decodeGlyphname(CharSet[0]);
+                }
+                else if (FontDescriptor.get('FontFile')) {
+                    FontDescriptor.getEncoding().mapping.forEach(function (str, charCode) {
+                        if (str !== null && str !== undefined) {
+                            encoding.mapping[charCode] = str;
+                        }
+                    });
+                }
+            }
+            // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
+            // if (this.object['FontName']) {
+            //   var [prefix, name] = this.object['FontName'].split('+');
+            //   if (name) {
+            //     // try to lookup an AFM file to resolve characters to glyphnames
+            //   }
+            // }
+            var usingStandardEncoding = encoding.mapping.length === 0;
+            if (usingStandardEncoding) {
+                encoding.mergeLatinCharset('StandardEncoding');
+            }
+            // Finally, apply differences, if there are any.
+            // even if ToUnicode is specified, there might still be Differences to incorporate.
+            var differences = this.Differences;
+            if (differences && differences.length > 0) {
+                var current_character_code = 0;
+                differences.forEach(function (difference) {
+                    if (typeof difference === 'number') {
+                        current_character_code = difference;
+                    }
+                    else {
+                        // difference is a glyph name, but we want a mapping from character
+                        // codes to native unicode strings, so we resolve the glyphname via the
+                        // PDF standard glyphlist
+                        var glyphname = difference;
+                        var str = index_1.decodeGlyphname(glyphname);
+                        encoding.mapping[current_character_code] = str;
+                        // TODO: handle missing glyphnames
+                        if (str === undefined && glyphname !== '.notdef') {
+                            logger.warn("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
+                        }
+                        current_character_code++;
                     }
                 });
             }
-        }
-        // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-        // if (this.object['FontName']) {
-        //   var [prefix, name] = this.object['FontName'].split('+');
-        //   if (name) {
-        //     // try to lookup an AFM file to resolve characters to glyphnames
-        //   }
-        // }
-        var usingStandardEncoding = encoding.mapping.length === 0;
-        if (usingStandardEncoding) {
-            encoding.mergeLatinCharset('StandardEncoding');
-        }
-        // Finally, apply differences, if there are any.
-        // even if ToUnicode is specified, there might still be Differences to incorporate.
-        var differences = this.Differences;
-        if (differences && differences.length > 0) {
-            var current_character_code = 0;
-            differences.forEach(function (difference) {
-                if (typeof difference === 'number') {
-                    current_character_code = difference;
+            else {
+                if (usingStandardEncoding) {
+                    logger.warn("[Font=" + this.Name + "] Could not find any character code mapping; using \"StandardEncoding\" Latin charset, but confidence is low");
                 }
-                else {
-                    // difference is a glyph name, but we want a mapping from character
-                    // codes to native unicode strings, so we resolve the glyphname via the
-                    // PDF standard glyphlist
-                    var glyphname = difference;
-                    var str = index_1.decodeGlyphname(glyphname);
-                    encoding.mapping[current_character_code] = str;
-                    // TODO: handle missing glyphnames
-                    if (str === undefined && glyphname !== '.notdef') {
-                        logger.warn("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
-                    }
-                    current_character_code++;
-                }
-            });
-        }
-        else {
-            if (usingStandardEncoding) {
-                logger.warn("[Font=" + this.Name + "] Could not find any character code mapping; using \"StandardEncoding\" Latin charset, but confidence is low");
             }
-        }
-        return encoding;
-    };
-    Object.defineProperty(Font.prototype, "encoding", {
-        get: function () {
-            // initialize if needed
-            if (this._cached_encoding === undefined) {
-                this._cached_encoding = this.detectEncoding();
-            }
-            return this._cached_encoding;
+            return encoding;
         },
         enumerable: true,
         configurable: true
@@ -238,11 +243,9 @@ var Font = (function (_super) {
     fields, and can be assigned widths via the Font dictionary's Widths or
     BaseFont fields.
   
-    Uses a cached mapping via the charCodeMapping getter.
-  
     Uses ES6-like `\u{...}`-style escape sequences if the character code cannot
     be resolved to a string (unless the `skipMissing` argument is set to `true`,
-    in which case, it simply skips those characters.
+    in which case, it simply skips those characters).
     */
     Font.prototype.decodeString = function (bytes, skipMissing) {
         var _this = this;
@@ -280,27 +283,42 @@ var Font = (function (_super) {
             return false;
         return object['Type'] === 'Font';
     };
-    Font.fromModel = function (model) {
-        // var Font_model = new font.Font(this._pdf, Font_dictionary[name]);
-        // See Table 110 – Font types:
-        //   Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
-        if (model.object['Subtype'] === 'Type0') {
-            return model.asType(Type0Font);
+    /**
+    See Table 110 – Font types:
+      Type0 | Type1 | MMType1 | Type3 | TrueType | CIDFontType0 | CIDFontType2
+  
+    <T extends Font>
+    */
+    Font.getConstructor = function (Subtype) {
+        if (Subtype === 'Type0') {
+            return Type0Font;
         }
-        else if (model.object['Subtype'] === 'Type1') {
-            return model.asType(Type1Font);
+        else if (Subtype === 'Type1') {
+            return Type1Font;
         }
-        else if (model.object['Subtype'] === 'TrueType') {
+        else if (Subtype === 'TrueType') {
             // apparently TrueType and Type 1 fonts are pretty much the same.
-            return model.asType(Type1Font);
+            return Type1Font;
         }
-        else if (model.object['Subtype'] === 'Type3') {
+        else if (Subtype === 'Type3') {
             // And Type 3 isn't too far off, either
-            return model.asType(Type1Font);
+            return Type1Font;
         }
-        return null;
         // TODO: add the other types of fonts
+        return Font;
     };
+    Object.defineProperty(Font.prototype, "bold",
+        __decorate([
+            util_1.memoize
+        ], Font.prototype, "bold", Object.getOwnPropertyDescriptor(Font.prototype, "bold")));
+    Object.defineProperty(Font.prototype, "italic",
+        __decorate([
+            util_1.memoize
+        ], Font.prototype, "italic", Object.getOwnPropertyDescriptor(Font.prototype, "italic")));
+    Object.defineProperty(Font.prototype, "encoding",
+        __decorate([
+            util_1.memoize
+        ], Font.prototype, "encoding", Object.getOwnPropertyDescriptor(Font.prototype, "encoding")));
     return Font;
 })(models_1.Model);
 exports.Font = Font;
@@ -395,8 +413,9 @@ var Type1Font = (function (_super) {
             });
             // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
             var FontDescriptor = this.FontDescriptor;
-            if (FontDescriptor && FontDescriptor.MissingWidth) {
-                this._defaultWidth = FontDescriptor.MissingWidth;
+            var MissingWidth = FontDescriptor && FontDescriptor.get('MissingWidth');
+            if (MissingWidth) {
+                this._defaultWidth = MissingWidth;
             }
             else {
                 logger.silly("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");
