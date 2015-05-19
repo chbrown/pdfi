@@ -13,24 +13,24 @@ dictionary. That Resources dictionary may contain XObject streams that are
 embedded as `Do` operations in the main contents, as well as sub-Resources
 in those XObjects.
 */
-export function renderPage(page: Page): DocumentCanvas {
+export function renderPage(page: Page, skipMissingCharacters = true, depth = 0): DocumentCanvas {
   // prepare the canvas that we will draw on
   var pageBox = new Rectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
   var canvas = new DocumentCanvas(pageBox);
 
-  var context = new CanvasDrawingContext(canvas, page.Resources, true);
+  var context = new CanvasDrawingContext(canvas, page.Resources, skipMissingCharacters, depth);
   var content_stream_string = page.joinContents('\n')
   // read the content stream and render it to the canvas, via the context
   context.applyContentStream(content_stream_string);
   return canvas;
 }
 
-export function renderContentStream(content_stream: ContentStream): DocumentCanvas {
+export function renderContentStream(content_stream: ContentStream, skipMissingCharacters = true, depth = 0): DocumentCanvas {
   var BBox = content_stream.dictionary['BBox'];
   var outerBounds = new Rectangle(BBox[0], BBox[1], BBox[2], BBox[3]);
   var canvas = new DocumentCanvas(outerBounds);
 
-  var context = new CanvasDrawingContext(canvas, content_stream.Resources, true);
+  var context = new CanvasDrawingContext(canvas, content_stream.Resources, skipMissingCharacters, depth);
   context.applyContentStream(content_stream.buffer.toString('binary'));
   return canvas;
 }
@@ -45,7 +45,7 @@ It returns a list of objects like:
 export function renderContentStreamText(content_stream: ContentStream): TextOperation[] {
   // prepare the list that we will "render" to
   var text_operations: TextOperation[] = [];
-  var context = new TextDrawingContext(text_operations, content_stream.Resources);
+  var context = new TextDrawingContext(text_operations, content_stream.Resources, false);
   context.applyContentStream(content_stream.buffer.toString('binary'));
   return text_operations;
 }

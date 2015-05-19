@@ -454,6 +454,16 @@ export class DrawingContext {
     this.graphicsState.fillColor = new CMYKColor(c, m, y, k);
   }
   // ---------------------------------------------------------------------------
+  // Shading Pattern Operator (sh)
+  /**
+  > `name sh`: Paint the shape and colour shading described by a shading dictionary, subject to the current clipping path. The current colour in the graphics state is neither used nor altered. The effect is different from that of painting a path using a shading pattern as the current colour.
+  > name is the name of a shading dictionary resource in the Shading subdictionary of the current resource dictionary. All coordinates in the shading dictionary are interpreted relative to the current user space. (By contrast, when a shading dictionary is used in a type 2 pattern, the coordinates are expressed in pattern space.) All colours are interpreted in the colour space identified by the shading dictionary’s ColorSpace entry. The Background entry, if present, is ignored.
+  > This operator should be applied only to bounded or geometrically defined shadings. If applied to an unbounded shading, it paints the shading’s gradient fill across the entire clipping region, which may be time-consuming.
+  */
+  shadingPattern(name: string) {
+    logger.debug(`Ignoring shadingPattern(${name}) operation`);
+  }
+  // ---------------------------------------------------------------------------
   // Inline Image Operators (BI, ID, EI)
   beginInlineImage() {
     logger.silly(`Ignoring beginInlineImage() operation`);
@@ -713,7 +723,7 @@ export class RecursiveDrawingContext extends DrawingContext {
       return;
     }
 
-    logger.debug(`drawObject: rendering "${name}"`);
+    logger.debug(`drawObject: rendering "${name}" at depth=${object_depth}`);
 
     // create a nested drawing context and use that
     // a) copy the current state and push it on top of the state stack
@@ -744,8 +754,9 @@ export class RecursiveDrawingContext extends DrawingContext {
 export class CanvasDrawingContext extends RecursiveDrawingContext {
   constructor(public canvas: Canvas,
               resources: models.Resources,
-              public skipMissingCharacters = false) {
-    super(resources);
+              public skipMissingCharacters = false,
+              depth = 0) {
+    super(resources, depth);
   }
 
   /**
@@ -853,14 +864,18 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
 }
 
 export interface TextOperation {
-  operator: string;
+  action: string;
+  argument: string;
+  // optional:
   fontName?: string;
   characterByteLength?: number;
-  text: string;
+  bytes?: number[];
 }
 
 export class TextDrawingContext extends RecursiveDrawingContext {
-  constructor(public operations: TextOperation[], resources: models.Resources) {
+  constructor(public operations: TextOperation[],
+              resources: models.Resources,
+              public skipMissingCharacters = false) {
     super(resources);
   }
 
@@ -869,12 +884,14 @@ export class TextDrawingContext extends RecursiveDrawingContext {
     if (font === null) {
       throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
-    var str = font.decodeString(bytes);
+    var str = font.decodeString(bytes, this.skipMissingCharacters);
     this.operations.push({
-      operator: 'showString',
+      action: 'showString',
+      argument: `(${str})`,
+      // details:
       fontName: this.graphicsState.textState.fontName,
       characterByteLength: font.encoding.characterByteLength,
-      text: `(${str})`,
+      bytes: bytes,
     });
   }
 
@@ -883,15 +900,17 @@ export class TextDrawingContext extends RecursiveDrawingContext {
       // each item is either a string (character code array) or a number
       if (Array.isArray(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        this.showString(<number[]>item)
+        this.showString(<number[]>item);
       }
-      // negative numbers indicate forward (rightward) movement. if it's a
-      // very negative number, it's like inserting a space. otherwise, it
-      // only signifies a small manual spacing hack.
-      this.operations.push({
-        operator: 'string',
-        text: item.toString(),
-      });
+      else {
+        // negative numbers indicate forward (rightward) movement. if it's a
+        // very negative number, it's like inserting a space. otherwise, it
+        // only signifies a small manual spacing hack.
+        this.operations.push({
+          action: 'advanceTextMatrix',
+          argument: item.toString(),
+        });
+      }
     });
   }
 }

@@ -165,7 +165,7 @@ var DocumentCanvas = (function (_super) {
     DocumentCanvas.prototype.autodetectLayout = function () {
         // threshold_dx: number = 20, threshold_dy: number = 5
         // 1. first pass -- linear aggregation
-        var containers = groupContiguousTextSpans(this.spans, 15, 5);
+        var containers = groupContiguousTextSpans(this.spans, 10, 5);
         // 2. second pass -- exhaustive aggregation
         // containers = mergeAdjoiningContainers(containers, threshold_dx, threshold_dy);
         return containers;
@@ -301,7 +301,10 @@ var Multiset = (function () {
     return Multiset;
 })();
 /**
-Despite being an array, `headerLines` will most often be 1-long.
+Despite being an array, `headerElements` will most often be 1-long.
+
+`headerElements` is eventually flattened into `title`,
+and `contentElements` into `paragraphs`.
 */
 var Section = (function () {
     function Section(headerElements, contentElements) {
@@ -333,7 +336,12 @@ function documentFromContainers(containers) {
     containers.forEach(function (container) {
         container.getElements().forEach(function (textSpan) {
             // new sections can be distinguished by larger sizes
-            if (textSpan.fontSize > header_fontSize) {
+            var isHeaderSized = textSpan.fontSize > header_fontSize;
+            // or by leading boldface (boldface within other normal content does not
+            // trigger a new section
+            var isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
+            // logger.info(`textSpan isHeaderSized=${isHeaderSized} isLeadingBold=${isLeadingBold}: ${textSpan.string}`);
+            if (isHeaderSized || isLeadingBold) {
                 // start a new section if the current section has any content
                 if (currentSection.contentElements.length > 0) {
                     // flush the current section

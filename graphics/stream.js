@@ -442,6 +442,16 @@ var DrawingContext = (function () {
         this.graphicsState.fillColor = new color_1.CMYKColor(c, m, y, k);
     };
     // ---------------------------------------------------------------------------
+    // Shading Pattern Operator (sh)
+    /**
+    > `name sh`: Paint the shape and colour shading described by a shading dictionary, subject to the current clipping path. The current colour in the graphics state is neither used nor altered. The effect is different from that of painting a path using a shading pattern as the current colour.
+    > name is the name of a shading dictionary resource in the Shading subdictionary of the current resource dictionary. All coordinates in the shading dictionary are interpreted relative to the current user space. (By contrast, when a shading dictionary is used in a type 2 pattern, the coordinates are expressed in pattern space.) All colours are interpreted in the colour space identified by the shading dictionary’s ColorSpace entry. The Background entry, if present, is ignored.
+    > This operator should be applied only to bounded or geometrically defined shadings. If applied to an unbounded shading, it paints the shading’s gradient fill across the entire clipping region, which may be time-consuming.
+    */
+    DrawingContext.prototype.shadingPattern = function (name) {
+        logger.debug("Ignoring shadingPattern(" + name + ") operation");
+    };
+    // ---------------------------------------------------------------------------
     // Inline Image Operators (BI, ID, EI)
     DrawingContext.prototype.beginInlineImage = function () {
         logger.silly("Ignoring beginInlineImage() operation");
@@ -704,7 +714,7 @@ var RecursiveDrawingContext = (function (_super) {
             logger.warn("Ignoring \"" + name + " Do\" command; embedded XObject is too deep; depth = " + object_depth);
             return;
         }
-        logger.debug("drawObject: rendering \"" + name + "\"");
+        logger.debug("drawObject: rendering \"" + name + "\" at depth=" + object_depth);
         // create a nested drawing context and use that
         // a) copy the current state and push it on top of the state stack
         this.pushGraphicsState();
@@ -730,9 +740,10 @@ var RecursiveDrawingContext = (function (_super) {
 exports.RecursiveDrawingContext = RecursiveDrawingContext;
 var CanvasDrawingContext = (function (_super) {
     __extends(CanvasDrawingContext, _super);
-    function CanvasDrawingContext(canvas, resources, skipMissingCharacters) {
+    function CanvasDrawingContext(canvas, resources, skipMissingCharacters, depth) {
         if (skipMissingCharacters === void 0) { skipMissingCharacters = false; }
-        _super.call(this, resources);
+        if (depth === void 0) { depth = 0; }
+        _super.call(this, resources, depth);
         this.canvas = canvas;
         this.skipMissingCharacters = skipMissingCharacters;
     }
@@ -835,21 +846,25 @@ var CanvasDrawingContext = (function (_super) {
 exports.CanvasDrawingContext = CanvasDrawingContext;
 var TextDrawingContext = (function (_super) {
     __extends(TextDrawingContext, _super);
-    function TextDrawingContext(operations, resources) {
+    function TextDrawingContext(operations, resources, skipMissingCharacters) {
+        if (skipMissingCharacters === void 0) { skipMissingCharacters = false; }
         _super.call(this, resources);
         this.operations = operations;
+        this.skipMissingCharacters = skipMissingCharacters;
     }
     TextDrawingContext.prototype.showString = function (bytes) {
         var font = this.resources.getFont(this.graphicsState.textState.fontName);
         if (font === null) {
             throw new Error("Cannot find font \"" + this.graphicsState.textState.fontName + "\" in Resources: " + JSON.stringify(this.resources));
         }
-        var str = font.decodeString(bytes);
+        var str = font.decodeString(bytes, this.skipMissingCharacters);
         this.operations.push({
-            operator: 'showString',
+            action: 'showString',
+            argument: "(" + str + ")",
+            // details:
             fontName: this.graphicsState.textState.fontName,
             characterByteLength: font.encoding.characterByteLength,
-            text: "(" + str + ")",
+            bytes: bytes,
         });
     };
     TextDrawingContext.prototype.showStrings = function (array) {
@@ -860,13 +875,15 @@ var TextDrawingContext = (function (_super) {
                 // if it's a character array, convert it to a unicode string and render it
                 _this.showString(item);
             }
-            // negative numbers indicate forward (rightward) movement. if it's a
-            // very negative number, it's like inserting a space. otherwise, it
-            // only signifies a small manual spacing hack.
-            _this.operations.push({
-                operator: 'string',
-                text: item.toString(),
-            });
+            else {
+                // negative numbers indicate forward (rightward) movement. if it's a
+                // very negative number, it's like inserting a space. otherwise, it
+                // only signifies a small manual spacing hack.
+                _this.operations.push({
+                    action: 'advanceTextMatrix',
+                    argument: item.toString(),
+                });
+            }
         });
     };
     return TextDrawingContext;
