@@ -44,3 +44,26 @@ function memoize(target, propertyKey, descriptor) {
     return descriptor;
 }
 exports.memoize = memoize;
+/**
+Parse a string of hexadecimal characters by slicing off substrings that are
+`byteLength`-long, and then using parseInt with a base of 16.
+
+Returns an array of character codes, not a string.
+*/
+function parseHexCodes(hexstring, byteLength) {
+    var charCodes = [];
+    for (var i = 0; i < hexstring.length; i += byteLength) {
+        var charHexadecimal = hexstring.slice(i, i + byteLength);
+        charCodes.push(parseInt(charHexadecimal, 16));
+    }
+    return charCodes;
+}
+exports.parseHexCodes = parseHexCodes;
+/**
+Create a string from the given character code array using String.fromCharCode.
+Each character code should be at most 16 bits, i.e., less than 65536.
+*/
+function makeString(charCodes) {
+    return String.fromCharCode.apply(null, charCodes);
+}
+exports.makeString = makeString;

@@ -3,22 +3,10 @@ import lexing = require('lexing');
 import logger = require('loge');
 
 import Arrays = require('../Arrays');
+import util = require('../util');
 
 var Rule = lexing.MachineRule;
 var Token = lexing.Token;
-
-function parseHex(hexadecimal: string): number {
-  return parseInt(hexadecimal, 16);
-}
-
-function parseHexstring(hexstring: string, byteLength: number): string {
-  var charCodes: number[] = [];
-  for (var i = 0; i < hexstring.length; i += byteLength) {
-    var charHexadecimal = hexstring.slice(i, i + byteLength);
-    charCodes.push(parseHex(charHexadecimal));
-  }
-  return Arrays.mkString(charCodes);
-}
 
 var default_rules: lexing.RegexRule<any>[] = [
   [/^$/, match => Token('EOF') ],
@@ -68,6 +56,7 @@ var combiner_rules: lexing.CombinerRule<any, any>[] = [
     return Token('CODESPACERANGES', codespaceranges);
   }],
   // the typical BFRANGE looks like "<0000> <005E> <0020>"
+  //   which means map 0000 -> 0020, 0001 -> 0021, 0002 -> 0022, and so on, up to 005E -> 007E
   // the other kind of BFRANGE looks like "<005F> <0061> [<00660066> <00660069> <00660066006C>]"
   ['BFRANGE', tokens => {
     // tokens: [HEX, HEX, HEX | ARRAY<HEX>]+
@@ -121,9 +110,19 @@ export class CMap {
   addCodeSpace(start: number, end: number): void {
     this.codeSpaces.push([start, end]);
   }
-  addRangeOffset(start: number, end: number, offset: number): void {
+  addRangeOffset(start: number, end: number, charCodes: number[]): void {
+    /* if I'm interpreting PDF32000_2008.pdf:9.10.3 correctly, we can be lazy
+    in incrementing the offset. It reads:
+    > When defining ranges of this type, the value of the last byte in the
+    > string shall be less than or equal to 255 - (end - start). This ensures
+    > that the last byte of the string shall not be incremented past 255;
+    > otherwise, the result of mapping is undefined.
+    */
+    var headCharCodes = charCodes.slice(0, -1);
+    var lastCharCode = charCodes[charCodes.length - 1];
     for (var i = 0; (start + i) <= end; i++) {
-      this.mapping[start + i] = Arrays.mkString([offset + i]);
+      var offset = headCharCodes.concat(lastCharCode + i);
+      this.mapping[start + i] = util.makeString(offset);
     }
   }
   addRangeArray(start: number, end: number, array: string[]): void {
@@ -159,24 +158,25 @@ class CMapParser {
       }
       else if (token.name === 'CODESPACERANGES') {
         token.value.forEach(tuple => {
-          var start = parseHex(tuple[0]);
-          var end = parseHex(tuple[1]);
+          var start = parseInt(tuple[0], 16);
+          var end = parseInt(tuple[1], 16);
           cmap.byteLength = tuple[1].length / 2;
           cmap.addCodeSpace(start, end);
         });
       }
       else if (token.name === 'BFRANGES') {
         token.value.forEach(triple => {
-          var start = parseHex(triple[0]);
-          var end = parseHex(triple[1]);
+          var start = parseInt(triple[0], 16);
+          var end = parseInt(triple[1], 16);
           var arg = triple[2];
           if (Array.isArray(arg)) {
             // arg is an array of bytes
-            var array = arg.map(item => parseHexstring(item, 4));
+            var array = arg.map(item => util.makeString(util.parseHexCodes(item, 4)));
             cmap.addRangeArray(start, end, array);
           }
           else {
-            var offset = parseHex(arg);
+            // TODO: can we just assume 4?
+            var offset = util.parseHexCodes(arg, 4);
             cmap.addRangeOffset(start, end, offset);
           }
         });
@@ -184,8 +184,8 @@ class CMapParser {
       else if (token.name === 'BFCHARS') {
         token.value.forEach(tuple => {
           cmap.byteLength = tuple[0].length / 2;
-          var from = parseHex(tuple[0]);
-          var to = parseHexstring(tuple[1], 4);
+          var from = parseInt(tuple[0], 16);
+          var to = util.makeString(util.parseHexCodes(tuple[1], 4));
           cmap.addChar(from, to);
         });
       }

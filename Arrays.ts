@@ -36,11 +36,13 @@ export function median(xs: number[]): number {
 /**
 Returns an array of numbers that is (q + 1)-long (it includes the endpoints).
 */
-export function quantile(xs: number[], q: number): number[] {
-  xs.sort((a, b) => a - b);
+export function quantile(xs: number[], q: number, sort = true): number[] {
   const length = xs.length;
   const step = length / q;
   var quantile: number[] = [];
+  if (sort) {
+    xs.sort((a, b) => a - b);
+  }
   for (var sample = 0; sample < length; sample += step) {
     quantile.push(xs[sample | 0]);
   }
@@ -48,20 +50,26 @@ export function quantile(xs: number[], q: number): number[] {
   return quantile;
 }
 
+/**
+Return the mean of an array of numbers by calling sum() and dividing by the
+length. No special accomodation is made for NaN's.
+*/
 export function mean(xs: number[]): number {
   return sum(xs) / xs.length;
 }
 
+/**
+Return the minimum of an array of numbers using Math.min.
+*/
 export function min(xs: number[]): number {
   return Math.min.apply(null, xs);
 }
 
+/**
+Return the maximum of an array of numbers using Math.max.
+*/
 export function max(xs: number[]): number {
   return Math.max.apply(null, xs);
-}
-
-export function mkString(charCodes: number[]): string {
-  return String.fromCharCode.apply(null, charCodes);
 }
 
 /**
