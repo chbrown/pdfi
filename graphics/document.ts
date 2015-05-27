@@ -341,8 +341,9 @@ export function documentFromContainers(containers: Container<TextSpan>[]): acade
       // or by leading boldface (boldface within other normal content does not
       // trigger a new section
       var isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
-      // logger.info(`textSpan isHeaderSized=${isHeaderSized} isLeadingBold=${isLeadingBold}: ${textSpan.string}`);
-      if (isHeaderSized || isLeadingBold) {
+      var isWhiteSpace = !textSpan.string.match(/\S/);
+      // logger.info(`textSpan isHeaderSized=${isHeaderSized} && isLeadingBold=${isLeadingBold} ||! ${isWhiteSpace}: "${textSpan.string}"`);
+      if ((isHeaderSized || isLeadingBold) && !isWhiteSpace) {
         // start a new section if the current section has any content
         if (currentSection.contentElements.length > 0) {
           // flush the current section
