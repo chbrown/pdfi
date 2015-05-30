@@ -2,9 +2,7 @@ var chalk = require('chalk');
 var logger = require('loge');
 var lexing = require('lexing');
 var File = require('./File');
-var Arrays = require('./Arrays');
 var models = require('./models');
-var document = require('./graphics/document');
 var graphics = require('./graphics/index');
 var PDFObjectParser = require('./parsers/PDFObjectParser');
 var PDF = (function () {
@@ -168,20 +166,8 @@ var PDF = (function () {
   
     If `section_names` is empty, return all sections.
     */
-    PDF.prototype.getDocument = function () {
-        var containers = Arrays.flatMap(this.pages, function (page, i, pages) {
-            logger.debug("getDocument: rendering page " + (i + 1) + "/" + pages.length);
-            var documentCanvas = graphics.renderPage(page);
-            // autodetectLayout(): Container<TextSpan>[]
-            return documentCanvas.autodetectLayout();
-        });
-        // containers is now an array of basic Container<TextSpan>'s for the whole
-        // PDF, but now each TextSpan is also aware of its container
-        return document.documentFromContainers(containers);
-    };
-    PDF.prototype.renderPage = function (page_index) {
-        var page = this.pages[page_index];
-        return graphics.renderPage(page);
+    PDF.prototype.renderPaper = function () {
+        return graphics.renderPaper(this.pages);
     };
     /**
     Resolves a potential IndirectReference to the target object.

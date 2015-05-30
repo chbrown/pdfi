@@ -23,11 +23,11 @@ function objects(pdf: PDF,
     stderr(reference.toString());
     var object = new Model(pdf, reference).object
 
-    if (decode) {
-      if (ContentStream.isContentStream(object)) {
-        // the buffer getter handles all the decoding
-        object = new ContentStream(pdf, object).buffer;
-      }
+    if (decode && ContentStream.isContentStream(object)) {
+      // the buffer getter handles all the decoding
+      var buffer: Buffer = new ContentStream(pdf, object).buffer;
+      process.stdout.write(buffer);
+      return;
     }
 
     process.stdout.write(JSON.stringify(object) + '\n');
@@ -35,7 +35,7 @@ function objects(pdf: PDF,
 }
 
 function text(pdf: PDF) {
-  var document = pdf.getDocument();
+  var document = pdf.renderPaper();
   document.sections.forEach(section => {
     stdout(`# ${section.title}`);
     section.paragraphs.forEach(paragraph => {
@@ -45,7 +45,7 @@ function text(pdf: PDF) {
 }
 
 function paper(pdf: PDF) {
-  var paper = pdf.getDocument();
+  var paper = pdf.renderPaper();
   stdout(JSON.stringify(paper));
 }
 

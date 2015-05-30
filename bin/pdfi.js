@@ -17,17 +17,17 @@ function objects(pdf, references, decode) {
     references.forEach(function (reference) {
         stderr(reference.toString());
         var object = new models_1.Model(pdf, reference).object;
-        if (decode) {
-            if (models_1.ContentStream.isContentStream(object)) {
-                // the buffer getter handles all the decoding
-                object = new models_1.ContentStream(pdf, object).buffer;
-            }
+        if (decode && models_1.ContentStream.isContentStream(object)) {
+            // the buffer getter handles all the decoding
+            var buffer = new models_1.ContentStream(pdf, object).buffer;
+            process.stdout.write(buffer);
+            return;
         }
         process.stdout.write(JSON.stringify(object) + '\n');
     });
 }
 function text(pdf) {
-    var document = pdf.getDocument();
+    var document = pdf.renderPaper();
     document.sections.forEach(function (section) {
         stdout("# " + section.title);
         section.paragraphs.forEach(function (paragraph) {
@@ -36,7 +36,7 @@ function text(pdf) {
     });
 }
 function paper(pdf) {
-    var paper = pdf.getDocument();
+    var paper = pdf.renderPaper();
     stdout(JSON.stringify(paper));
 }
 function main() {

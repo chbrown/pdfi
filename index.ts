@@ -53,7 +53,7 @@ export function readFileSync(filename: string, options: ReadOptions): any {
   if (options === null) {
     options = {type: 'string'};
   }
-  var paper = pdf.getDocument();
+  var paper = pdf.renderPaper();
   if (options.type == 'paper') {
     return paper;
   }

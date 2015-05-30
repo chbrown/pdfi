@@ -179,21 +179,8 @@ class PDF {
 
   If `section_names` is empty, return all sections.
   */
-  getDocument(): academia.types.Paper {
-    var containers = Arrays.flatMap(this.pages, (page, i, pages) => {
-      logger.debug(`getDocument: rendering page ${i + 1}/${pages.length}`);
-      var documentCanvas = graphics.renderPage(page);
-      // autodetectLayout(): Container<TextSpan>[]
-      return documentCanvas.autodetectLayout();
-    });
-    // containers is now an array of basic Container<TextSpan>'s for the whole
-    // PDF, but now each TextSpan is also aware of its container
-    return document.documentFromContainers(containers);
-  }
-
-  renderPage(page_index: number): document.DocumentCanvas {
-    var page = this.pages[page_index];
-    return graphics.renderPage(page);
+  renderPaper(): academia.types.Paper {
+    return graphics.renderPaper(this.pages);
   }
 
   /**
