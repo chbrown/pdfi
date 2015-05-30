@@ -48,7 +48,7 @@ var Container = (function (_super) {
     */
     Container.prototype.merge = function (other) {
         var _this = this;
-        other.elements.forEach(function (element) { return _this.push(element); });
+        other.elements.forEach(function (element) { return _this.elements.push(element); });
         this.expandToContain(other);
     };
     return Container;
@@ -80,3 +80,33 @@ var TextSpan = (function (_super) {
     return TextSpan;
 })(geometry_1.Rectangle);
 exports.TextSpan = TextSpan;
+/**
+Canvas is used as the target of a series of content stream drawing operations.
+The origin (0, 0) is located at the top left.
+
+outerBounds is usually set by the Page's MediaBox rectangle. It does not depend
+on the elements contained by the page.
+*/
+var Canvas = (function (_super) {
+    __extends(Canvas, _super);
+    function Canvas(outerBounds) {
+        _super.call(this);
+        this.outerBounds = outerBounds;
+    }
+    Canvas.prototype.drawText = function (string, origin, size, fontSize, fontBold, fontItalic, fontName) {
+        // transform into origin at top left
+        var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY);
+        var span = new TextSpan(string, canvas_origin.x, canvas_origin.y, canvas_origin.x + size.width, canvas_origin.y + size.height, fontSize, fontBold, fontItalic);
+        // span.details is an option for debugging
+        span.details = span.toString(0) + " fontName=" + fontName;
+        this.push(span);
+    };
+    Canvas.prototype.toJSON = function () {
+        return {
+            textSpans: this.elements,
+            outerBounds: this.outerBounds,
+        };
+    };
+    return Canvas;
+})(Container);
+exports.Canvas = Canvas;

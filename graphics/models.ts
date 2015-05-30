@@ -1,4 +1,4 @@
-import {Rectangle} from './geometry';
+import {Point, Size, Rectangle} from './geometry';
 
 export class Container<T extends Rectangle> extends Rectangle {
   protected elements: T[] = [];
@@ -38,7 +38,7 @@ export class Container<T extends Rectangle> extends Rectangle {
   This is a mutating method.
   */
   merge(other: Container<T>): void {
-    other.elements.forEach(element => this.push(element));
+    other.elements.forEach(element => this.elements.push(element));
     this.expandToContain(other);
   }
 }
@@ -70,4 +70,45 @@ export class TextSpan extends Rectangle {
       details: this.details,
     }
   }
+}
+
+/**
+Canvas is used as the target of a series of content stream drawing operations.
+The origin (0, 0) is located at the top left.
+
+outerBounds is usually set by the Page's MediaBox rectangle. It does not depend
+on the elements contained by the page.
+*/
+export class Canvas extends Container<TextSpan> {
+  constructor(public outerBounds: Rectangle) { super() }
+
+  drawText(string: string, origin: Point, size: Size,
+           fontSize: number, fontBold: boolean, fontItalic: boolean, fontName: string) {
+    // transform into origin at top left
+    var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
+    var span = new TextSpan(string,
+                            canvas_origin.x,
+                            canvas_origin.y,
+                            canvas_origin.x + size.width,
+                            canvas_origin.y + size.height,
+                            fontSize,
+                            fontBold,
+                            fontItalic);
+    // span.details is an option for debugging
+    span.details = `${span.toString(0)} fontName=${fontName}`;
+    this.push(span);
+  }
+
+  toJSON() {
+    return {
+      textSpans: this.elements,
+      outerBounds: this.outerBounds,
+    }
+  }
+}
+
+export interface Layout {
+  textSpans: TextSpan[];
+  outerBounds: Rectangle;
+  containers: Container<TextSpan>[];
 }
