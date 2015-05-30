@@ -222,7 +222,7 @@ export class CONTENT_STREAM extends Collection<ContentStreamOperation[], Content
     Rule(/^-?\d+/, this.captureInt),
     Rule(/^%%EOF/, this.ignore), // WTF?
     // maybe create a regex based on the valid operators?
-    Rule(/^[A-Za-z'"]+\*?/, this.captureOperator),
+    Rule(/^[A-Za-z'"]+[01*]?/, this.captureOperator),
   ]
   captureOperator(matchValue: RegExpMatchArray) {
     this.value.push({

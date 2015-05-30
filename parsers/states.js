@@ -235,7 +235,7 @@ var CONTENT_STREAM = (function (_super) {
             Rule(/^-?\d+/, this.captureInt),
             Rule(/^%%EOF/, this.ignore),
             // maybe create a regex based on the valid operators?
-            Rule(/^[A-Za-z'"]+\*?/, this.captureOperator),
+            Rule(/^[A-Za-z'"]+[01*]?/, this.captureOperator),
         ];
     }
     CONTENT_STREAM.prototype.captureOperator = function (matchValue) {
