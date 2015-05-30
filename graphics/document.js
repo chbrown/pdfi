@@ -8,52 +8,27 @@ var Arrays = require('../Arrays');
 var index_1 = require('../encoding/index');
 var models_1 = require('./models');
 var geometry_1 = require('./geometry');
-var canvas_1 = require('./canvas');
 /**
-We can't throw out empty spans entirely, but we can keep them from affecting
-the bounds.
+Group horizontally contiguous elements into containers. Usually this is called
+with an array of all TextSpans on a single page.
 */
-var TextSpanContainer = (function (_super) {
-    __extends(TextSpanContainer, _super);
-    function TextSpanContainer() {
-        _super.apply(this, arguments);
-    }
-    TextSpanContainer.prototype.push = function (element) {
-        this.elements.push(element);
-        // if (element.string.match(/\S/)) {
-        if (element.string.trim().length > 0) {
-            this.expandToContain(element);
-        }
-    };
-    return TextSpanContainer;
-})(models_1.Container);
-exports.TextSpanContainer = TextSpanContainer;
-/**
-Group contiguous elements into containers. Rough first pass.
-
-Reasonable (?) defaults are:
-  threshold_dx = 20
-  threshold_dy = 5
-*/
-function groupContiguousTextSpans(elements, threshold_dx, threshold_dy) {
+function groupHorizontallyContiguousElements(elements) {
     var containers = [];
     var currentContainer;
     elements.forEach(function (element) {
-        var _a = currentContainer ? currentContainer.distance(element) : [Infinity, Infinity], dx = _a[0], dy = _a[1];
-        // large dx / dy indicate that the current element is far from the
-        // currentContainer, meaning we should initialize a new container
-        if (dx > threshold_dx || dy > threshold_dy) {
+        var dy = currentContainer ? (element.minY - currentContainer.minY) : Infinity;
+        // 5 is approximately half the mean font size
+        var new_container = Math.abs(dy) > 5;
+        if (new_container) {
             // flush current container
             if (currentContainer) {
                 containers.push(currentContainer);
             }
-            currentContainer = new TextSpanContainer();
+            currentContainer = new models_1.Container();
         }
-        // TextSpan's optional `layoutContainer` field gets set here
-        element.layoutContainer = currentContainer;
         currentContainer.push(element);
     });
-    // flush final container if it exists --- if this.spans is empty,
+    // flush final container if it exists --- if `elements` is empty,
     // currentContainer will still be undefined
     if (currentContainer) {
         containers.push(currentContainer);
@@ -61,32 +36,73 @@ function groupContiguousTextSpans(elements, threshold_dx, threshold_dy) {
     return containers;
 }
 /**
-Exhaustively merge proximal containers.
-
-Mutates `containers` in-place.
+Merge containers that are vertically overlapping in incremental text mode.
 */
-function mergeAdjoiningContainers(containers, threshold_dx, threshold_dy) {
+function mergeVerticallyContiguousContainers(containers, threshold_dx, threshold_dy) {
     var mergedContainers = [];
-    while (containers.length > 0) {
-        var currentContainer = containers.shift();
-        do {
-            var initialLength = containers.length;
-            // only look at subsequent containers (distance is transitive)
-            containers = containers.filter(function (otherContainer) {
-                var _a = currentContainer.distance(otherContainer), dx = _a[0], dy = _a[1];
-                if (dx < threshold_dx && dy < threshold_dy) {
-                    // okay, other container is close enough, merge it
-                    currentContainer.merge(otherContainer);
-                    // remove otherContainer from containers by returning false
-                    return false;
-                }
-                return true;
-            });
-        } while (containers.length < initialLength);
+    var currentContainer;
+    var previousBounds;
+    containers.forEach(function (container) {
+        var _a = previousBounds ? previousBounds.distance(container) : [Infinity, Infinity], dx = _a[0], dy = _a[1];
+        var new_container = dx > threshold_dx || dy > threshold_dy;
+        if (new_container) {
+            // flush current container
+            if (currentContainer) {
+                mergedContainers.push(currentContainer);
+            }
+            currentContainer = new models_1.Container();
+        }
+        currentContainer.merge(container);
+        previousBounds = container;
+    });
+    // flush final container if it exists --- if `containers` is empty,
+    // currentContainer will still be undefined
+    if (currentContainer) {
         mergedContainers.push(currentContainer);
     }
     return mergedContainers;
 }
+/**
+Flexibly partition all of this Canvas's spans into contiguous-ish groups.
+
+1. first pass: linear aggregation
+
+containers = empty list of containers
+currentContainer = uninitialized empty container
+for each span in spans:
+  if container is uninitialized
+    initialize new currentContainer with span
+  else
+    if span is within (dx, dy) of currentContainer
+      add it to the currentContainer
+    else
+      add currentContainer to containers
+      initialize new currentContainer with span
+
+we now have a collection of containers; some of them may overlap (but I think
+no two consecutive containers will overlap? don't count on that though -- I
+can think of perverse layouts that might do so)
+
+2. second pass: exhaustive aggregation
+
+for each container in containers:
+  for each otherContainer in containers:
+    if otherContainer is within (dx, dy) of container
+      merge otherContainer into containers
+      # maybe: restart the loop over otherContainers?
+      # or instead: restart the loop over otherContainers when we reach the
+      #             end ONLY if there have been any merges?
+
+*/
+function autodetectLayout(textSpans) {
+    // threshold_dx: number = 20, threshold_dy: number = 5
+    // 1. first pass -- linear aggregation
+    var containers = groupHorizontallyContiguousElements(textSpans);
+    // 2. second pass -- exhaustive aggregation
+    var merged_containers = mergeVerticallyContiguousContainers(containers, 0, 5);
+    return merged_containers;
+}
+exports.autodetectLayout = autodetectLayout;
 /**
 Returns the median distance between this container's left (inner) bound and
 the left bound of its elements.
@@ -125,63 +141,6 @@ function flattenLine(textSpans, spaceWidth) {
     }).join('');
     return index_1.normalize(line).trim();
 }
-var DocumentCanvas = (function (_super) {
-    __extends(DocumentCanvas, _super);
-    function DocumentCanvas() {
-        _super.apply(this, arguments);
-    }
-    /**
-    Flexibly partition all of this Canvas's spans into contiguous-ish groups.
-  
-    1. first pass: linear aggregation
-  
-    containers = empty list of containers
-    currentContainer = uninitialized empty container
-    for each span in spans:
-      if container is uninitialized
-        initialize new currentContainer with span
-      else
-        if span is within (dx, dy) of currentContainer
-          add it to the currentContainer
-        else
-          add currentContainer to containers
-          initialize new currentContainer with span
-  
-    we now have a collection of containers; some of them may overlap (but I think
-    no two consecutive containers will overlap? don't count on that though -- I
-    can think of perverse layouts that might do so)
-  
-    2. second pass: exhaustive aggregation
-  
-    for each container in containers:
-      for each otherContainer in containers:
-        if otherContainer is within (dx, dy) of container
-          merge otherContainer into containers
-          # maybe: restart the loop over otherContainers?
-          # or instead: restart the loop over otherContainers when we reach the
-          #             end ONLY if there have been any merges?
-  
-    */
-    DocumentCanvas.prototype.autodetectLayout = function () {
-        // threshold_dx: number = 20, threshold_dy: number = 5
-        // 1. first pass -- linear aggregation
-        var containers = groupContiguousTextSpans(this.spans, 10, 5);
-        // 2. second pass -- exhaustive aggregation
-        // containers = mergeAdjoiningContainers(containers, threshold_dx, threshold_dy);
-        return containers;
-    };
-    DocumentCanvas.prototype.toJSON = function () {
-        return {
-            // native properties
-            spans: this.spans,
-            outerBounds: this.outerBounds,
-            // computed values
-            layout: this.autodetectLayout(),
-        };
-    };
-    return DocumentCanvas;
-})(canvas_1.Canvas);
-exports.DocumentCanvas = DocumentCanvas;
 /**
 Given a single flat Array of TextSpans (which are aware of their original layout
 component), divide it into an Array of Arrays of TextSpans, such that each
@@ -319,7 +278,7 @@ exports.Section = Section;
 /**
 Recombine an array of arbitrary TextSpan Containers into an array of Sections
 */
-function documentFromContainers(containers) {
+function paperFromContainers(containers) {
     // containers is an array of basic Containers for the whole PDF / document
     // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
     // 1. the easiest first step is to get the mean and median font size
@@ -340,9 +299,19 @@ function documentFromContainers(containers) {
             // or by leading boldface (boldface within other normal content does not
             // trigger a new section
             var isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
+            // logger.info(`textSpan isHeaderSized=${isHeaderSized}; isLeadingBold=${isLeadingBold}; isWhiteSpace=${isWhiteSpace}; content length=${currentSection.contentElements.length}: "${textSpan.string}"`);
             var isWhiteSpace = !textSpan.string.match(/\S/);
-            // logger.info(`textSpan isHeaderSized=${isHeaderSized} && isLeadingBold=${isLeadingBold} ||! ${isWhiteSpace}: "${textSpan.string}"`);
-            if ((isHeaderSized || isLeadingBold) && !isWhiteSpace) {
+            if (isWhiteSpace) {
+                // whitespace never triggers a new section or a transition to content section
+                // we just have to determine which it goes in: header or content
+                if (currentSection.contentElements.length > 0) {
+                    currentSection.contentElements.push(textSpan);
+                }
+                else {
+                    currentSection.headerElements.push(textSpan);
+                }
+            }
+            else if (isHeaderSized || isLeadingBold) {
                 // start a new section if the current section has any content
                 if (currentSection.contentElements.length > 0) {
                     // flush the current section
@@ -384,14 +353,16 @@ function documentFromContainers(containers) {
     return {
         sections: sections.map(function (section) {
             // TODO: handle multi-line section headers better
-            var title = flattenLine(section.headerElements).trim();
+            var title_lines = groupIntoLines(section.headerElements);
+            var title_paragraphs = detectParagaphs(title_lines);
+            var title = title_paragraphs.map(function (lines) { return joinLines(lines, bag_of_words); }).join(' ');
             // finish up: convert each paragraph (list of strings) to a single string
             var paragraphs = section.paragraphs.map(function (lines) { return joinLines(lines, bag_of_words); });
             return { title: title, paragraphs: paragraphs };
         })
     };
 }
-exports.documentFromContainers = documentFromContainers;
+exports.paperFromContainers = paperFromContainers;
 /**
 If a line ends with a hyphen, we remove the hyphen and join it to
 the next line directly; otherwise, join them with a space.

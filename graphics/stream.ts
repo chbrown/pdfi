@@ -7,7 +7,7 @@ import models = require('../models');
 import util = require('../util');
 import {parseString, parseStringIterable, ContentStreamOperation} from '../parsers/graphics';
 
-import {Canvas} from './canvas';
+import {Canvas} from './models';
 import {Point, Size, Rectangle} from './geometry';
 import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 import {mat3mul, mat3ident} from './math';
@@ -831,7 +831,7 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     var height = Math.ceil(fontSize) | 0;
     var size = new Size(width, height);
 
-    this.canvas.addSpan(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
+    this.canvas.drawText(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
   }
 
   /** TJ

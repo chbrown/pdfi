@@ -811,7 +811,7 @@ var CanvasDrawingContext = (function (_super) {
         var width = this.getTextPosition().x - origin.x;
         var height = Math.ceil(fontSize) | 0;
         var size = new geometry_1.Size(width, height);
-        this.canvas.addSpan(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
+        this.canvas.drawText(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
     };
     /** TJ
   
