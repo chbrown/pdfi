@@ -3,7 +3,7 @@ TYPESCRIPT := $(wildcard *.ts bin/*.ts encoding/*.ts filters/*.ts font/*.ts grap
 DTS := async/async lodash/lodash mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
 
 .PHONY: all
-all: $(TYPESCRIPT:%.ts=%.js)
+all: $(TYPESCRIPT:%.ts=%.js) encoding/glyphlist.json
 
 type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
 
@@ -29,7 +29,8 @@ encoding/texglyphlist.txt:
 	curl -s https://www.tug.org/texlive/Contents/live/texmf-dist/fonts/map/glyphlist/texglyphlist.txt > $@
 
 # texglyphlist uses some unconventional characters, so we read the standard glyphlist last
-encoding/glyphlist.json: encoding/additional_glyphlist.txt encoding/texglyphlist.txt encoding/glyphlist.txt
+encoding/glyphlist.json: encoding/cmr-glyphlist.txt encoding/additional_glyphlist.txt \
+                         encoding/texglyphlist.txt encoding/glyphlist.txt
 	cat $^ | node dev/read_glyphlist.js >$@
 
 encoding/latin_charset.json: encoding/latin_charset.tsv
