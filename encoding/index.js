@@ -182,9 +182,15 @@ exports.normalize = normalize;
 /**
 A FontDescriptor stream will sometimes map character codes to unicode character
 codes, embedded as hexadecimal in a string prefixed by 'uni'. As far as I can
-tell, these are always 4 characters (so: in the BMP).
+tell, these are always 4 characters (so: in the BMP), and always capitalized.
 */
 var glyphUniRegExp = /^uni([0-9A-F]+)$/;
+/**
+Similar to the 'uni' prefix, some fonts use 'char' prefixes. These always supply
+the character code with two lowercase hexadecimal digits. They are handled in
+exactly the same way as the 'uni'-prefixed glyph names.
+*/
+var glyphCharRegExp = /^char([0-9a-f]{2})$/;
 /**
 Use the glyphlist to convert an ASCII glyphname to the appropriate unicode
 string, or via the special "uni<hexadecimal code>" specification format.
@@ -203,6 +209,11 @@ function decodeGlyphname(glyphname) {
     var uniMatch = glyphname.match(glyphUniRegExp);
     if (uniMatch !== null) {
         var charCode = parseInt(uniMatch[1], 16);
+        return String.fromCharCode(charCode);
+    }
+    var charMatch = glyphname.match(glyphCharRegExp);
+    if (charMatch !== null) {
+        var charCode = parseInt(charMatch[1], 16);
         return String.fromCharCode(charCode);
     }
 }
