@@ -387,3 +387,5 @@ supersetornotdbleql;2ACC
 upslope;29F8
 # More characters that have come up
 mapsto;21A6
+llbracket;27E6
+rrbracket;27E7
