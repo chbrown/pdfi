@@ -247,10 +247,10 @@ var Font = (function (_super) {
     be resolved to a string (unless the `skipMissing` argument is set to `true`,
     in which case, it simply skips those characters).
     */
-    Font.prototype.decodeString = function (bytes, skipMissing) {
+    Font.prototype.decodeString = function (buffer, skipMissing) {
         var _this = this;
         if (skipMissing === void 0) { skipMissing = false; }
-        return this.encoding.decodeCharCodes(bytes).map(function (charCode) {
+        return this.encoding.decodeCharCodes(buffer).map(function (charCode) {
             var string = _this.encoding.decodeCharacter(charCode);
             if (string === undefined) {
                 if (skipMissing) {
@@ -268,7 +268,7 @@ var Font = (function (_super) {
     This should be overridden by subclasses to return a total width, in text units
     (usually somewhere in the range of 250-750 for each character/glyph).
     */
-    Font.prototype.measureString = function (bytes) {
+    Font.prototype.measureString = function (buffer) {
         throw new Error("Cannot measureString() in base Font class (Subtype: " + this.get('Subtype') + ", Name: " + this.Name + ")");
     };
     Font.prototype.toJSON = function () {
@@ -378,12 +378,12 @@ var Type1Font = (function (_super) {
     function Type1Font() {
         _super.apply(this, arguments);
     }
-    Type1Font.prototype.measureString = function (bytes) {
+    Type1Font.prototype.measureString = function (buffer) {
         var _this = this;
         if (this._widthMapping === undefined || this._defaultWidth === undefined) {
             this._initializeWidthMapping();
         }
-        return this.encoding.decodeCharCodes(bytes).reduce(function (sum, charCode) {
+        return this.encoding.decodeCharCodes(buffer).reduce(function (sum, charCode) {
             var string = _this.encoding.decodeCharacter(charCode);
             var width = (string in _this._widthMapping) ? _this._widthMapping[string] : _this._defaultWidth;
             return sum + width;
@@ -478,12 +478,12 @@ var Type0Font = (function (_super) {
         this._widthMapping = this.DescendantFont.getWidthMapping();
         this._defaultWidth = this.DescendantFont.getDefaultWidth();
     };
-    Type0Font.prototype.measureString = function (bytes) {
+    Type0Font.prototype.measureString = function (buffer) {
         var _this = this;
         if (this._widthMapping === undefined || this._defaultWidth === undefined) {
             this._initializeWidthMapping();
         }
-        return this.encoding.decodeCharCodes(bytes).reduce(function (sum, charCode) {
+        return this.encoding.decodeCharCodes(buffer).reduce(function (sum, charCode) {
             var width = (charCode in _this._widthMapping) ? _this._widthMapping[charCode] : _this._defaultWidth;
             return sum + width;
         }, 0);

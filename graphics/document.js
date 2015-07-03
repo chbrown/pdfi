@@ -214,7 +214,7 @@ determining the oddity of the left offset of any given line, we only want to
 compare its left offset to the left offsets of other lines in the same layout component.
 */
 function detectParagaphs(linesOfTextSpans, min_indent) {
-    if (min_indent === void 0) { min_indent = 8; }
+    if (min_indent === void 0) { min_indent = 5; }
     var lines = linesOfTextSpans.map(function (textSpans) { return new Line(textSpans); });
     var paragraphs = [];
     var currentParagraph = [];

@@ -1,4 +1,4 @@
-TYPESCRIPT := $(wildcard *.ts bin/*.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
+TYPESCRIPT := $(wildcard *.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
 
 DTS := async/async lodash/lodash mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
 

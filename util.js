@@ -67,3 +67,11 @@ function makeString(charCodes) {
     return String.fromCharCode.apply(null, charCodes);
 }
 exports.makeString = makeString;
+function decodeBuffer(buffer) {
+    var charCodes = [];
+    for (var i = 0; i < buffer.length; i += 2) {
+        charCodes.push(buffer.readUInt16BE(i));
+    }
+    return makeString(charCodes);
+}
+exports.decodeBuffer = decodeBuffer;

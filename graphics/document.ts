@@ -221,7 +221,7 @@ The given lines will come from a variety of different layout components, but in
 determining the oddity of the left offset of any given line, we only want to
 compare its left offset to the left offsets of other lines in the same layout component.
 */
-function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 8): string[][] {
+function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 5): string[][] {
   var lines = linesOfTextSpans.map(textSpans => new Line(textSpans));
 
   var paragraphs: string[][] = [];

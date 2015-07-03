@@ -18,7 +18,6 @@
     "afm": "*",
     "async": "*",
     "chalk": "*",
-    "jison": "*",
     "lexing": "*",
     "lodash": "*",
     "loge": "*",

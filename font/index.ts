@@ -231,8 +231,8 @@ export class Font extends Model {
   be resolved to a string (unless the `skipMissing` argument is set to `true`,
   in which case, it simply skips those characters).
   */
-  decodeString(bytes: number[], skipMissing = false): string {
-    return this.encoding.decodeCharCodes(bytes).map(charCode => {
+  decodeString(buffer: Buffer, skipMissing = false): string {
+    return this.encoding.decodeCharCodes(buffer).map(charCode => {
       var string = this.encoding.decodeCharacter(charCode);
       if (string === undefined) {
         if (skipMissing) {
@@ -251,7 +251,7 @@ export class Font extends Model {
   This should be overridden by subclasses to return a total width, in text units
   (usually somewhere in the range of 250-750 for each character/glyph).
   */
-  measureString(bytes: number[]): number {
+  measureString(buffer: Buffer): number {
     throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.get('Subtype')}, Name: ${this.Name})`);
   }
 
@@ -349,11 +349,11 @@ export class Type1Font extends Font {
   private _widthMapping: {[index: string]: number};
   private _defaultWidth: number;
 
-  measureString(bytes: number[]): number {
+  measureString(buffer: Buffer): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encoding.decodeCharCodes(bytes).reduce((sum, charCode) => {
+    return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
       var string = this.encoding.decodeCharacter(charCode);
       var width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
       return sum + width;
@@ -445,11 +445,11 @@ export class Type0Font extends Font {
     this._defaultWidth = this.DescendantFont.getDefaultWidth();
   }
 
-  measureString(bytes: number[]): number {
+  measureString(buffer: Buffer): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encoding.decodeCharCodes(bytes).reduce((sum, charCode) => {
+    return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
       var width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
       return sum + width;
     }, 0);

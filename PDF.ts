@@ -13,7 +13,10 @@ import models = require('./models');
 import document = require('./graphics/document');
 import graphics = require('./graphics/index');
 
-import PDFObjectParser = require('./parsers/PDFObjectParser');
+import {parsePDFObject} from './parsers/index';
+import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
+
+import {MachineState, MachineStateConstructor} from 'lexing';
 
 class PDF {
   private _trailer: models.Trailer;
@@ -42,12 +45,12 @@ class PDF {
     if (startxref_position === null) {
       throw new Error('Could not find "startxref" marker in file');
     }
-    var next_xref_position = <number>this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
+    var next_xref_position = <number>this.parseStateAt(STARTXREF, startxref_position);
 
     this._trailer = new models.Trailer(this)
     while (next_xref_position) { // !== null
       // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
-      var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
+      var xref_trailer = this.parseStateAt(XREF_WITH_TRAILER, next_xref_position);
       // TODO: are there really chains of trailers and multiple `Prev` links?
       next_xref_position = xref_trailer['trailer']['Prev'];
       // merge the cross references
@@ -149,7 +152,7 @@ class PDF {
   */
   private _readObject(object_number: number, generation_number: number): pdfdom.PDFObject {
     var cross_reference = this.findCrossReference(object_number, generation_number);
-    var indirect_object = this.parseIndirectObjectAt(cross_reference.offset);
+    var indirect_object = <pdfdom.IndirectObject>this.parseStateAt(OBJECT, cross_reference.offset);
     // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
     // and generation number; that's how we found it. We only want the value of
     // the object. But we might as well double check that what we got is what
@@ -212,12 +215,10 @@ class PDF {
     console.log('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
   }
 
-  parseObjectAt(position: number, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
+  parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): pdfdom.PDFObject {
     var iterable = new lexing.FileStringIterator(this.file.fd, 'ascii', position);
-    var parser = new PDFObjectParser(this, start);
-
     try {
-      return parser.parse(iterable);
+      return new STATE(iterable, peek_length).read();
     }
     catch (exc) {
       console.log(chalk.red(exc.message));
@@ -225,16 +226,6 @@ class PDF {
 
       throw exc;
     }
-  }
-
-  parseIndirectObjectAt(position: number): pdfdom.IndirectObject {
-    return <pdfdom.IndirectObject>this.parseObjectAt(position, "INDIRECT_OBJECT");
-  }
-
-  parseString(input: string, start: string = "OBJECT_HACK"): pdfdom.PDFObject {
-    var iterable = new lexing.StringIterator(input);
-    var parser = new PDFObjectParser(this, start);
-    return parser.parse(iterable);
   }
 }
 

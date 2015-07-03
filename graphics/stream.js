@@ -7,7 +7,7 @@ var __extends = this.__extends || function (d, b) {
 /// <reference path="../type_declarations/index.d.ts" />
 var logger = require('loge');
 var util = require('../util');
-var graphics_1 = require('../parsers/graphics');
+var index_1 = require('../parsers/index');
 var geometry_1 = require('./geometry');
 var color_1 = require('./color');
 var math_1 = require('./math');
@@ -608,7 +608,7 @@ var DrawingContext = (function () {
     resolve the bytes into character codes until rendered in the context of a
     textState.
     */
-    DrawingContext.prototype.showString = function (string) {
+    DrawingContext.prototype.showString = function (buffer) {
         logger.error('Unimplemented "showString" operation');
     };
     /**
@@ -634,9 +634,9 @@ var DrawingContext = (function () {
     > `string '` Move to the next line and show a text string. This operator shall have
     > the same effect as the code `T* string Tj`
     */
-    DrawingContext.prototype.newLineAndShowString = function (string) {
+    DrawingContext.prototype.newLineAndShowString = function (buffer) {
         this.newLine(); // T*
-        this.showString(string); // Tj
+        this.showString(buffer); // Tj
     };
     /** COMPLETE (ALIAS)
     > `wordSpace charSpace text "` Move to the next line and show a text string,
@@ -646,10 +646,10 @@ var DrawingContext = (function () {
     > space units. This operator shall have the same effect as this code:
     > `wordSpace Tw charSpace Tc text '`
     */
-    DrawingContext.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, string) {
+    DrawingContext.prototype.newLineAndShowStringWithSpacing = function (wordSpace, charSpace, buffer) {
         this.setWordSpacing(wordSpace); // Tw
         this.setCharSpacing(charSpace); // Tc
-        this.newLineAndShowString(string); // '
+        this.newLineAndShowString(buffer); // '
     };
     // ---------------------------------------------------------------------------
     // Marked content (BMC, BDC, EMC)
@@ -696,7 +696,7 @@ var RecursiveDrawingContext = (function (_super) {
     RecursiveDrawingContext.prototype.applyContentStream = function (content_stream_string) {
         var _this = this;
         // read the operations and apply them
-        var operations = graphics_1.parseString(content_stream_string);
+        var operations = index_1.parseContentStream(content_stream_string);
         operations.forEach(function (operation) { return _this.applyOperation(operation.alias, operation.operands); });
     };
     /** Do */
@@ -787,11 +787,11 @@ var CanvasDrawingContext = (function (_super) {
     drawGlyphs is called when processing a Tj ("showString") operation, and from
     drawTextArray, in turn.
   
-    For each item in `array`:
-      If item is a number[], that indicates a string of character codes
-      If item is a plain numbdrawGlyphser, that indicates a spacing shift
+    In the case of composite Fonts, each byte in `buffer` may not correspond to a
+    single glyph, but for "simple" fonts, that is the case.
+  
     */
-    CanvasDrawingContext.prototype.showString = function (bytes) {
+    CanvasDrawingContext.prototype.showString = function (buffer) {
         // the Font instance handles most of the character code resolution
         var font = this.resources.getFont(this.graphicsState.textState.fontName);
         if (font === null) {
@@ -800,8 +800,8 @@ var CanvasDrawingContext = (function (_super) {
         }
         var origin = this.getTextPosition();
         var fontSize = this.getTextSize();
-        var string = font.decodeString(bytes, this.skipMissingCharacters);
-        var width_units = font.measureString(bytes);
+        var string = font.decodeString(buffer, this.skipMissingCharacters);
+        var width_units = font.measureString(buffer);
         var nchars = string.length;
         var nspaces = util.countSpaces(string);
         // adjust the text matrix accordingly (but not the text line matrix)
@@ -825,10 +825,9 @@ var CanvasDrawingContext = (function (_super) {
         var _this = this;
         array.forEach(function (item) {
             // each item is either a string (character code array) or a number
-            if (Array.isArray(item)) {
+            if (Buffer.isBuffer(item)) {
                 // if it's a character array, convert it to a unicode string and render it
-                var bytes = item;
-                _this.showString(bytes);
+                _this.showString(item);
             }
             else if (typeof item === 'number') {
                 // negative numbers indicate forward (rightward) movement. if it's a
@@ -852,26 +851,26 @@ var TextDrawingContext = (function (_super) {
         this.operations = operations;
         this.skipMissingCharacters = skipMissingCharacters;
     }
-    TextDrawingContext.prototype.showString = function (bytes) {
+    TextDrawingContext.prototype.showString = function (buffer) {
         var font = this.resources.getFont(this.graphicsState.textState.fontName);
         if (font === null) {
             throw new Error("Cannot find font \"" + this.graphicsState.textState.fontName + "\" in Resources: " + JSON.stringify(this.resources));
         }
-        var str = font.decodeString(bytes, this.skipMissingCharacters);
+        var str = font.decodeString(buffer, this.skipMissingCharacters);
         this.operations.push({
             action: 'showString',
             argument: "(" + str + ")",
             // details:
             fontName: this.graphicsState.textState.fontName,
             characterByteLength: font.encoding.characterByteLength,
-            bytes: bytes,
+            buffer: buffer,
         });
     };
     TextDrawingContext.prototype.showStrings = function (array) {
         var _this = this;
         array.forEach(function (item) {
             // each item is either a string (character code array) or a number
-            if (Array.isArray(item)) {
+            if (Buffer.isBuffer(item)) {
                 // if it's a character array, convert it to a unicode string and render it
                 _this.showString(item);
             }
@@ -879,9 +878,10 @@ var TextDrawingContext = (function (_super) {
                 // negative numbers indicate forward (rightward) movement. if it's a
                 // very negative number, it's like inserting a space. otherwise, it
                 // only signifies a small manual spacing hack.
+                var adjustment = item;
                 _this.operations.push({
                     action: 'advanceTextMatrix',
-                    argument: item.toString(),
+                    argument: adjustment.toString(),
                 });
             }
         });

@@ -5,7 +5,8 @@ import unorm = require('unorm');
 
 import Arrays = require('../Arrays');
 import {ContentStream} from '../models';
-import cmap = require('../parsers/cmap');
+import {parseCMap} from '../parsers/index';
+import util = require('../util');
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -26,9 +27,17 @@ var latin_charset: CharacterSpecification[] = require('./latin_charset');
 `bytes` should be Big-endian, e.g., [0xFF, 0x0F] is bigger than [0x0F, 0xFF]
 `bytes` should be all in the range: [0, 256)
 
-decodeNumber([0xFE]) => 254 == 0xFE
-decodeNumber([0xFF, 0x0F]) => 65295 == 0xFF0F
-decodeNumber([0xAD, 0x95, 0xCC]) => 11376076 == 0xAD95CC
+    decodeNumber([0xFE]) => 254 == 0xFE
+    decodeNumber([0xFF, 0x0F]) => 65295 == 0xFF0F
+    decodeNumber([0xAD, 0x95, 0xCC]) => 11376076 == 0xAD95CC
+
+Actually, this is pretty similar to Node's built-in
+Buffer#readUIntBE(offset, byteLength), where byteLength == bytes.length; e.g.:
+
+    new Buffer([0xFE]).readUIntBE(0, 1) => 254
+    new Buffer([0xFF, 0x0F]).readUIntBE(0, 2) => 65295
+    new Buffer([0xAD, 0x95, 0xCC]).readUIntBE(0, 3) => 11376076
+
 */
 function decodeNumber(bytes: number[]): number {
   var sum = 0;
@@ -86,12 +95,13 @@ export class Encoding {
   */
   mergeCMapContentStream(contentStream: ContentStream): void {
     var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
-    var cMap = cmap.CMap.parseStringIterable(string_iterable);
+    var cMap = parseCMap(string_iterable);
     this.characterByteLength = cMap.byteLength;
-    cMap.mapping.forEach((str, charCode) => {
-      if (str !== null && str !== undefined) {
-        this.mapping[charCode] = str;
-      }
+    cMap.mapping.forEach(([from_buffer, to_buffer]) => {
+      // cMap.byteLength should be the same as from_buffer.length
+      var from_charCode = from_buffer.readUIntBE(0, cMap.byteLength);
+      var str = util.decodeBuffer(to_buffer);
+      this.mapping[from_charCode] = str;
     });
   }
 
@@ -100,8 +110,16 @@ export class Encoding {
 
   `bytes` should all be in the range: 0 ≤ byte < 256
   */
-  decodeCharCodes(bytes: number[]): number[] {
-    return Arrays.groups(bytes, this.characterByteLength).map(decodeNumber);
+  decodeCharCodes(buffer: Buffer): number[] {
+    var charCodes: number[] = [];
+    var index = 0;
+    var offset = 0;
+    const length = buffer.length;
+    for (var offset = 0; offset < length; offset += this.characterByteLength) {
+      var charCode = buffer.readUIntBE(offset, this.characterByteLength);
+      charCodes.push(charCode);
+    }
+    return charCodes;
   }
 
   /**

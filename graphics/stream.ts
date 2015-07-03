@@ -5,7 +5,7 @@ import chalk = require('chalk');
 import {Font} from '../font/index';
 import models = require('../models');
 import util = require('../util');
-import {parseString, parseStringIterable, ContentStreamOperation} from '../parsers/graphics';
+import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
 import {Canvas} from './models';
 import {Point, Size, Rectangle} from './geometry';
@@ -616,7 +616,7 @@ export class DrawingContext {
   resolve the bytes into character codes until rendered in the context of a
   textState.
   */
-  showString(string: number[]) {
+  showString(buffer: Buffer) {
     logger.error('Unimplemented "showString" operation');
   }
   /**
@@ -635,16 +635,16 @@ export class DrawingContext {
   - large negative numbers equate to spaces
   - small positive amounts equate to kerning hacks
   */
-  showStrings(array: Array<number[] | number>) {
+  showStrings(array: Array<Buffer | number>) {
     logger.error('Unimplemented "showStrings" operation');
   }
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
   > the same effect as the code `T* string Tj`
   */
-  newLineAndShowString(string: number[]) {
+  newLineAndShowString(buffer: Buffer) {
     this.newLine(); // T*
-    this.showString(string); // Tj
+    this.showString(buffer); // Tj
   }
   /** COMPLETE (ALIAS)
   > `wordSpace charSpace text "` Move to the next line and show a text string,
@@ -654,10 +654,10 @@ export class DrawingContext {
   > space units. This operator shall have the same effect as this code:
   > `wordSpace Tw charSpace Tc text '`
   */
-  newLineAndShowStringWithSpacing(wordSpace: number, charSpace: number, string: number[]) {
+  newLineAndShowStringWithSpacing(wordSpace: number, charSpace: number, buffer: Buffer) {
     this.setWordSpacing(wordSpace); // Tw
     this.setCharSpacing(charSpace); // Tc
-    this.newLineAndShowString(string); // '
+    this.newLineAndShowString(buffer); // '
   }
   // ---------------------------------------------------------------------------
   // Marked content (BMC, BDC, EMC)
@@ -701,7 +701,7 @@ export class RecursiveDrawingContext extends DrawingContext {
 
   applyContentStream(content_stream_string: string) {
     // read the operations and apply them
-    var operations = parseString(content_stream_string);
+    var operations = parseContentStream(content_stream_string);
     operations.forEach(operation => this.applyOperation(operation.alias, operation.operands)) ;
   }
 
@@ -803,11 +803,11 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
   drawGlyphs is called when processing a Tj ("showString") operation, and from
   drawTextArray, in turn.
 
-  For each item in `array`:
-    If item is a number[], that indicates a string of character codes
-    If item is a plain numbdrawGlyphser, that indicates a spacing shift
+  In the case of composite Fonts, each byte in `buffer` may not correspond to a
+  single glyph, but for "simple" fonts, that is the case.
+
   */
-  showString(bytes: number[]) {
+  showString(buffer: Buffer) {
     // the Font instance handles most of the character code resolution
     var font = this.resources.getFont(this.graphicsState.textState.fontName);
     if (font === null) {
@@ -818,8 +818,8 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     var origin = this.getTextPosition();
     var fontSize = this.getTextSize();
 
-    var string = font.decodeString(bytes, this.skipMissingCharacters);
-    var width_units = font.measureString(bytes);
+    var string = font.decodeString(buffer, this.skipMissingCharacters);
+    var width_units = font.measureString(buffer);
     var nchars = string.length;
     var nspaces = util.countSpaces(string);
 
@@ -842,13 +842,12 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     If item is a number[], that indicates a string of character codes
     If item is a plain number, that indicates a spacing shift
   */
-  showStrings(array: Array<number[] | number>) {
+  showStrings(array: Array<Buffer | number>) {
     array.forEach(item => {
       // each item is either a string (character code array) or a number
-      if (Array.isArray(item)) {
+      if (Buffer.isBuffer(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        var bytes = <number[]>item;
-        this.showString(bytes);
+        this.showString(<Buffer>item);
       }
       else if (typeof item === 'number') {
         // negative numbers indicate forward (rightward) movement. if it's a
@@ -869,7 +868,7 @@ export interface TextOperation {
   // optional:
   fontName?: string;
   characterByteLength?: number;
-  bytes?: number[];
+  buffer?: Buffer;
 }
 
 export class TextDrawingContext extends RecursiveDrawingContext {
@@ -879,36 +878,37 @@ export class TextDrawingContext extends RecursiveDrawingContext {
     super(resources);
   }
 
-  showString(bytes: number[]) {
+  showString(buffer: Buffer) {
     var font = this.resources.getFont(this.graphicsState.textState.fontName);
     if (font === null) {
       throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
-    var str = font.decodeString(bytes, this.skipMissingCharacters);
+    var str = font.decodeString(buffer, this.skipMissingCharacters);
     this.operations.push({
       action: 'showString',
       argument: `(${str})`,
       // details:
       fontName: this.graphicsState.textState.fontName,
       characterByteLength: font.encoding.characterByteLength,
-      bytes: bytes,
+      buffer: buffer,
     });
   }
 
-  showStrings(array: Array<number[] | number>) {
+  showStrings(array: Array<Buffer | number>) {
     array.forEach(item => {
       // each item is either a string (character code array) or a number
-      if (Array.isArray(item)) {
+      if (Buffer.isBuffer(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        this.showString(<number[]>item);
+        this.showString(<Buffer>item);
       }
       else {
         // negative numbers indicate forward (rightward) movement. if it's a
         // very negative number, it's like inserting a space. otherwise, it
         // only signifies a small manual spacing hack.
+        var adjustment = <number>item;
         this.operations.push({
           action: 'advanceTextMatrix',
-          argument: item.toString(),
+          argument: adjustment.toString(),
         });
       }
     });

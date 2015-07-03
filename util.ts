@@ -67,3 +67,11 @@ Each character code should be at most 16 bits, i.e., less than 65536.
 export function makeString(charCodes: number[]): string {
   return String.fromCharCode.apply(null, charCodes);
 }
+
+export function decodeBuffer(buffer: Buffer): string {
+  var charCodes: number[] = [];
+  for (var i = 0; i < buffer.length; i += 2) {
+    charCodes.push(buffer.readUInt16BE(i));
+  }
+  return makeString(charCodes);
+}

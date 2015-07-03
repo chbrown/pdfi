@@ -18,7 +18,7 @@ var FontDescriptor = (function (_super) {
     Object.defineProperty(FontDescriptor.prototype, "CharSet", {
         get: function () {
             var CharSet = this.get('CharSet');
-            return CharSet ? CharSet.slice(1).split('/') : [];
+            return CharSet ? CharSet.toString().slice(1).split('/') : [];
         },
         enumerable: true,
         configurable: true

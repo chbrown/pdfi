@@ -4,7 +4,7 @@ var lexing = require('lexing');
 var File = require('./File');
 var models = require('./models');
 var graphics = require('./graphics/index');
-var PDFObjectParser = require('./parsers/PDFObjectParser');
+var states_1 = require('./parsers/states');
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
@@ -33,11 +33,11 @@ var PDF = (function () {
         if (startxref_position === null) {
             throw new Error('Could not find "startxref" marker in file');
         }
-        var next_xref_position = this.parseObjectAt(startxref_position, "STARTXREF_ONLY");
+        var next_xref_position = this.parseStateAt(states_1.STARTXREF, startxref_position);
         this._trailer = new models.Trailer(this);
         while (next_xref_position) {
             // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
-            var xref_trailer = this.parseObjectAt(next_xref_position, "XREF_TRAILER_ONLY");
+            var xref_trailer = this.parseStateAt(states_1.XREF_WITH_TRAILER, next_xref_position);
             // TODO: are there really chains of trailers and multiple `Prev` links?
             next_xref_position = xref_trailer['trailer']['Prev'];
             // merge the cross references
@@ -137,7 +137,7 @@ var PDF = (function () {
     */
     PDF.prototype._readObject = function (object_number, generation_number) {
         var cross_reference = this.findCrossReference(object_number, generation_number);
-        var indirect_object = this.parseIndirectObjectAt(cross_reference.offset);
+        var indirect_object = this.parseStateAt(states_1.OBJECT, cross_reference.offset);
         // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
         // and generation number; that's how we found it. We only want the value of
         // the object. But we might as well double check that what we got is what
@@ -197,27 +197,17 @@ var PDF = (function () {
         // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
         console.log('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
     };
-    PDF.prototype.parseObjectAt = function (position, start) {
-        if (start === void 0) { start = "OBJECT_HACK"; }
+    PDF.prototype.parseStateAt = function (STATE, position, peek_length) {
+        if (peek_length === void 0) { peek_length = 1024; }
         var iterable = new lexing.FileStringIterator(this.file.fd, 'ascii', position);
-        var parser = new PDFObjectParser(this, start);
         try {
-            return parser.parse(iterable);
+            return new STATE(iterable, peek_length).read();
         }
         catch (exc) {
             console.log(chalk.red(exc.message));
             this.printContext(position, iterable.position);
             throw exc;
         }
-    };
-    PDF.prototype.parseIndirectObjectAt = function (position) {
-        return this.parseObjectAt(position, "INDIRECT_OBJECT");
-    };
-    PDF.prototype.parseString = function (input, start) {
-        if (start === void 0) { start = "OBJECT_HACK"; }
-        var iterable = new lexing.StringIterator(input);
-        var parser = new PDFObjectParser(this, start);
-        return parser.parse(iterable);
     };
     return PDF;
 })();

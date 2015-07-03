@@ -11,7 +11,7 @@ See PDF32000_2008.pdf:9.8 Font Descriptors
 export class FontDescriptor extends Model {
   get CharSet(): string[] {
     var CharSet = this.get('CharSet');
-    return CharSet ? CharSet.slice(1).split('/') : [];
+    return CharSet ? CharSet.toString().slice(1).split('/') : [];
   }
 
   /**
