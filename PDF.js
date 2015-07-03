@@ -1,10 +1,24 @@
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
 var chalk = require('chalk');
 var logger = require('loge');
-var lexing = require('lexing');
 var File = require('./File');
 var models = require('./models');
 var graphics = require('./graphics/index');
 var states_1 = require('./parsers/states');
+var lexing_1 = require('lexing');
+var PDFStringIterator = (function (_super) {
+    __extends(PDFStringIterator, _super);
+    function PDFStringIterator(_fd, _encoding, _position, pdf) {
+        _super.call(this, _fd, _encoding, _position);
+        this.pdf = pdf;
+    }
+    return PDFStringIterator;
+})(lexing_1.FileStringIterator);
 var PDF = (function () {
     function PDF(file) {
         this.file = file;
@@ -199,7 +213,7 @@ var PDF = (function () {
     };
     PDF.prototype.parseStateAt = function (STATE, position, peek_length) {
         if (peek_length === void 0) { peek_length = 1024; }
-        var iterable = new lexing.FileStringIterator(this.file.fd, 'ascii', position);
+        var iterable = new PDFStringIterator(this.file.fd, 'ascii', position, this);
         try {
             return new STATE(iterable, peek_length).read();
         }

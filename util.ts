@@ -1,3 +1,6 @@
+/// <reference path="type_declarations/index.d.ts" />
+import * as logger from 'loge';
+
 export function countSpaces(haystack: string): number {
   var matches = haystack.match(/ /g);
   return matches ? matches.length : 0;
@@ -68,10 +71,13 @@ export function makeString(charCodes: number[]): string {
   return String.fromCharCode.apply(null, charCodes);
 }
 
-export function decodeBuffer(buffer: Buffer): string {
+/**
+byteLength should be either 1 or 2, no larger.
+*/
+export function decodeBuffer(buffer: Buffer, byteLength: number): string {
   var charCodes: number[] = [];
   for (var i = 0; i < buffer.length; i += 2) {
-    charCodes.push(buffer.readUInt16BE(i));
+    charCodes.push(buffer.readUIntBE(i, byteLength));
   }
   return makeString(charCodes);
 }

@@ -82,7 +82,7 @@ var Encoding = (function () {
             var from_buffer = _a[0], to_buffer = _a[1];
             // cMap.byteLength should be the same as from_buffer.length
             var from_charCode = from_buffer.readUIntBE(0, cMap.byteLength);
-            var str = util.decodeBuffer(to_buffer);
+            var str = util.decodeBuffer(to_buffer, _this.characterByteLength);
             _this.mapping[from_charCode] = str;
         });
     };

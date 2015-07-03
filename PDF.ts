@@ -2,7 +2,6 @@
 import fs = require('fs');
 import chalk = require('chalk');
 import logger = require('loge');
-import lexing = require('lexing');
 import academia = require('academia');
 
 import File = require('./File');
@@ -16,7 +15,13 @@ import graphics = require('./graphics/index');
 import {parsePDFObject} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
 
-import {MachineState, MachineStateConstructor} from 'lexing';
+import {MachineState, MachineStateConstructor, FileStringIterator} from 'lexing';
+
+class PDFStringIterator extends FileStringIterator {
+  constructor(_fd: number, _encoding: string, _position: number, public pdf: PDF) {
+    super(_fd, _encoding, _position);
+  }
+}
 
 class PDF {
   private _trailer: models.Trailer;
@@ -216,7 +221,7 @@ class PDF {
   }
 
   parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): pdfdom.PDFObject {
-    var iterable = new lexing.FileStringIterator(this.file.fd, 'ascii', position);
+    var iterable = new PDFStringIterator(this.file.fd, 'ascii', position, this);
     try {
       return new STATE(iterable, peek_length).read();
     }

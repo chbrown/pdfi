@@ -2,7 +2,6 @@
 import * as logger from 'loge';
 import {MachineRule as Rule, MachineState} from 'lexing';
 
-import util = require('../util');
 import * as Arrays from '../Arrays';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 
@@ -310,12 +309,12 @@ interface StreamObject {
   buffer: Buffer;
 }
 
-/**
-> The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE RETURN alone.
-*/
-export class DICTIONARY extends MachineState<DictionaryObject | StreamObject, DictionaryObject> {
+export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject> {
   protected value: DictionaryObject = {};
   rules = [
+    /**
+    > The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE RETURN alone.
+    */
     Rule(/^>>\s*stream(\r\n|\n)/, this.popStream),
     Rule(/^>>/, this.pop),
     Rule(/^\s+/, this.ignore),
@@ -326,9 +325,24 @@ export class DICTIONARY extends MachineState<DictionaryObject | StreamObject, Di
     this.value[name] = this.attachState(OBJECT).read();
     return undefined;
   }
-  popStream(matchValue: RegExpMatchArray): StreamObject {
+  /**
+  We cannot read the actual stream until we know how long it is, and Length
+  might be an object reference. But we can't just stop reading, since an
+  indirect object parser wouldn't ever reach the 'endobj' marker. So we hack in
+  the PDF, so that we can call pdf._resolveObject on the object reference.
+  */
+  popStream(matchValue: RegExpMatchArray): DictionaryObject {
+    var stream_length = this.value['Length'];
+    if (typeof stream_length !== 'number') {
+      var pdf = this.iterable['pdf'];
+      if (pdf === undefined) {
+        throw new Error('Cannot read stream unless a PDF instance is attached to the underlying iterable');
+      }
+      stream_length = pdf._resolveObject(stream_length);
+    }
+
     var stream_state = new STREAM(this.iterable, this.peek_length);
-    stream_state.stream_length = this.value['Length'];
+    stream_state.stream_length = stream_length;
     var buffer = stream_state.read();
     return { dictionary: this.value, buffer: buffer };
   }
@@ -550,27 +564,6 @@ export class XREF_REFERENCE extends MachineState<PartialCrossReference, PartialC
   }
 }
 
-/**
-  "STREAM_HEADER": [
-    [
-      "DICTIONARY START_STREAM",
-      "// pretty ugly hack right here; yy is the Jison sharedState; yy.lexer is the JisonLexerWrapper instance; yy.lexer.lexer is the lexing.BufferedLexer instance\n" +
-        "yy.stream_length = yy.pdf._resolveObject($1.Length);"
-    ]
-  ],
-  "STREAM": [
-    ["STREAM_HEADER STREAM_BUFFER END_STREAM", "$$ = { dictionary: $1, buffer: $2 }"]
-  ],
-
-  // From PDF32000_2008.pdf:7.3.8
-  // > The keyword stream that follows the stream dictionary shall be followed by an end-of-line marker consisting of either a CARRIAGE RETURN and a LINE FEED or just a LINE FEED, and not by a CARRIAGE RETURN alone.
-
-  [/^stream(\r\n|\n)/, function(match) {
-    this.states.push('STREAM');
-    return Token('START_STREAM', match[0]);
-  }],
-
-*/
 export class STREAM extends MachineState<Buffer, Buffer> {
   public stream_length: number;
   protected value: Buffer;
@@ -590,7 +583,9 @@ export class STREAM extends MachineState<Buffer, Buffer> {
   > The sequence of bytes that make up a stream lie between the end-of-line marker following the stream keyword and the endstream keyword; the stream dictionary specifies the exact number of bytes.
   */
   consumeBytes(matchValue: RegExpMatchArray) {
-    // other side of the dirty lexer<->parser hack
+    if (typeof this.stream_length !== 'number') {
+      throw new Error(`Stream cannot be read without a numeric length set: ${this.stream_length}`);
+    }
     if (this.iterable['nextBytes']) {
       // this is what will usually be called, when this.iterable is a
       // FileStringIterator.

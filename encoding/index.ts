@@ -100,7 +100,7 @@ export class Encoding {
     cMap.mapping.forEach(([from_buffer, to_buffer]) => {
       // cMap.byteLength should be the same as from_buffer.length
       var from_charCode = from_buffer.readUIntBE(0, cMap.byteLength);
-      var str = util.decodeBuffer(to_buffer);
+      var str = util.decodeBuffer(to_buffer, this.characterByteLength);
       this.mapping[from_charCode] = str;
     });
   }
