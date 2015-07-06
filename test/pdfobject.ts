@@ -18,7 +18,7 @@ describe('pdfobject parser: general objects', () => {
   it('should parse short binary string', () => {
     var input = `<ea68d4>`;
     // var output = ['ea', '68', 'd4'].map(pair => { return parseInt(pair, 16) }
-    var output = [234, 104, 212];
+    var output = new Buffer([234, 104, 212]);
     check(input, output);
   });
 
@@ -42,8 +42,8 @@ describe('pdfobject parser: general objects', () => {
       },
       Prev: 632196,
       ID: [
-        [126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139],
-        [126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139],
+        new Buffer([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
+        new Buffer([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
       ]
     };
     check(input, output);
@@ -62,7 +62,7 @@ describe('pdfobject parser: general objects', () => {
       Info: 339,
       Root: 342,
       Prev: 632196,
-      ID: "7e19 808b",
+      ID: new Buffer("7e19 808b"),
     };
     check(input, output);
   });
@@ -70,10 +70,10 @@ describe('pdfobject parser: general objects', () => {
   it('should parse real dictionary object', () => {
     var input = `<< /Author (Kenneth Ward Church) /CreationDate (D:20020326140046-05'00') /ModDate (D:20020403103951-05'00') /Title (Char align: A Program for Aligning Parallel Texts at the Character Level) >>`;
     var output = {
-      Author: 'Kenneth Ward Church',
-      CreationDate: "D:20020326140046-05'00'",
-      ModDate: "D:20020403103951-05'00'",
-      Title: 'Char align: A Program for Aligning Parallel Texts at the Character Level'
+      Author: new Buffer('Kenneth Ward Church'),
+      CreationDate: new Buffer("D:20020326140046-05'00'"),
+      ModDate: new Buffer("D:20020403103951-05'00'"),
+      Title: new Buffer('Char align: A Program for Aligning Parallel Texts at the Character Level')
     };
     check(input, output);
   });
@@ -138,7 +138,7 @@ describe('pdfobject parser: general objects', () => {
           },
         }
       },
-      DA: "/Helv 0 Tf 0 g ",
+      DA: new Buffer("/Helv 0 Tf 0 g "),
     };
     check(input, output);
   });
