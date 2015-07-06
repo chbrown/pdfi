@@ -691,7 +691,7 @@ export class RecursiveDrawingContext extends DrawingContext {
   }
 
   applyOperation(operator: string, operands: any[]) {
-    logger.debug('applyOperation "%s": %j', operator, operands);
+    // logger.debug('applyOperation "%s": %j', operator, operands);
     var func = this[operator];
     if (func) {
       func.apply(this, operands);

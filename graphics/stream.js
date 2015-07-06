@@ -693,7 +693,7 @@ var RecursiveDrawingContext = (function (_super) {
         this.depth = depth;
     }
     RecursiveDrawingContext.prototype.applyOperation = function (operator, operands) {
-        logger.debug('applyOperation "%s": %j', operator, operands);
+        // logger.debug('applyOperation "%s": %j', operator, operands);
         var func = this[operator];
         if (func) {
             func.apply(this, operands);

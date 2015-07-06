@@ -1,11 +1,10 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var assert = require('assert');
-var lexing = require('lexing');
 var models = require('../models');
-var graphics = require('../parsers/index');
-var drawing = require('../drawing');
-var shapes = require('../shapes');
-function createResources() {
+var geometry_1 = require('../graphics/geometry');
+var models_1 = require('../graphics/models');
+var stream_1 = require('../graphics/stream');
+function createMockResources() {
     var font_object = {
         Type: "Font",
         Subtype: "Type1",
@@ -25,20 +24,18 @@ function createResources() {
     };
     return new models.Resources(null, resource_object);
 }
-function renderString(contents) {
-    // prepare content stream string
-    var contents_string_iterable = new lexing.StringIterator(contents);
+function renderString(content_stream_string) {
     // prepare canvas
-    var bounds = new shapes.Rectangle(0, 0, 800, 600);
-    var canvas = new drawing.Canvas(bounds);
+    var outerBounds = new geometry_1.Rectangle(0, 0, 800, 600);
+    var canvas = new models_1.Canvas(outerBounds);
     // prepare context
-    var resources = createResources();
-    var context = new graphics.DrawingContext(resources);
-    context.render(contents_string_iterable, canvas);
+    var resources = createMockResources();
+    var context = new stream_1.CanvasDrawingContext(canvas, resources);
+    context.applyContentStream(content_stream_string);
     // extract text spans strings
-    return canvas.spans.map(function (span) { return span.string; });
+    return canvas.getElements().map(function (textSpan) { return textSpan.string; });
 }
-describe('graphics text parsing', function () {
+describe('Graphics text parsing:', function () {
     it('should parse a simple text show operation', function () {
         var actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
         var expected = ['Adjustments must'];
