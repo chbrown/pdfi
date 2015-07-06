@@ -5,6 +5,7 @@ import chalk = require('chalk');
 import {Font} from '../font/index';
 import models = require('../models');
 import util = require('../util');
+import {clone, countSpaces, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
 import {Canvas} from './models';
@@ -50,7 +51,7 @@ class TextState {
   rise: number = 0;
 
   clone(): TextState {
-    return util.clone(this, new TextState());
+    return clone(this, new TextState());
   }
 }
 
@@ -79,7 +80,7 @@ class GraphicsState {
   of `this`'s properties to it.
   */
   clone(): GraphicsState {
-    return util.clone(this, new GraphicsState());
+    return clone(this, new GraphicsState());
   }
 }
 
@@ -690,6 +691,7 @@ export class RecursiveDrawingContext extends DrawingContext {
   }
 
   applyOperation(operator: string, operands: any[]) {
+    logger.debug('applyOperation "%s": %j', operator, operands);
     var func = this[operator];
     if (func) {
       func.apply(this, operands);
@@ -807,6 +809,7 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
   single glyph, but for "simple" fonts, that is the case.
 
   */
+  @checkArguments([{type: 'Buffer'}])
   showString(buffer: Buffer) {
     // the Font instance handles most of the character code resolution
     var font = this.resources.getFont(this.graphicsState.textState.fontName);
@@ -821,7 +824,7 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     var string = font.decodeString(buffer, this.skipMissingCharacters);
     var width_units = font.measureString(buffer);
     var nchars = string.length;
-    var nspaces = util.countSpaces(string);
+    var nspaces = countSpaces(string);
 
     // adjust the text matrix accordingly (but not the text line matrix)
     // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4

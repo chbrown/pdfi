@@ -2,7 +2,7 @@
 var assert = require('assert');
 var lexing = require('lexing');
 var models = require('../models');
-var graphics = require('../parsers/graphics');
+var graphics = require('../parsers/index');
 var drawing = require('../drawing');
 var shapes = require('../shapes');
 function createResources() {

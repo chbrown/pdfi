@@ -1,12 +1,10 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import assert = require('assert');
-import PDF = require('../PDF');
 
 import {StringIterator} from 'lexing';
 import {OBJECT} from '../parsers/states';
 
 function check(input: string, expected: any) {
-  var pdf = new PDF(null);
   var iterable = new StringIterator(input);
   var output =  new OBJECT(iterable, 1024).read();
   var message = `parse result does not match expected output.

@@ -4,6 +4,8 @@ import {MachineRule as Rule, MachineState} from 'lexing';
 
 import * as Arrays from '../Arrays';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
+import {makeString} from '../util';
+
 
 const escapeCharCodes = {
   '\\n': 10,
@@ -15,6 +17,9 @@ export class HEXSTRING extends MachineState<Buffer, Buffer> {
   protected value = new Buffer(0);
   rules = [
     Rule(/^>/, this.pop),
+    // From PDF32000_2008.pdf:7.3.4.3
+    // > White-space characters (such as SPACE (20h), HORIZONTAL TAB (09h), CARRIAGE RETURN (0Dh), LINE FEED (0Ah), and FORM FEED (0Ch)) shall be ignored.
+    Rule(/^\s+/, this.ignore),
     Rule(/^([A-Fa-f0-9]{2})+/, this.pushBytes),
     Rule(/^[A-Fa-f0-9]$/, this.pushHalfByte),
   ]
@@ -249,8 +254,9 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
   }
   captureHex(matchValue: RegExpMatchArray) {
     var hexstring = matchValue[1].replace(/\s+/g, '');
-    var bytes = Arrays.range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
-    this.stack.push(bytes);
+    // Arrays.range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
+    var buffer = new Buffer(hexstring, 'hex');
+    this.stack.push(buffer);
     return undefined;
   }
   captureDictionary(matchValue: RegExpMatchArray) {
@@ -602,18 +608,37 @@ export class STREAM extends MachineState<Buffer, Buffer> {
 
 function bufferFromUIntBE(value: number, byteLength: number) {
   var buffer = new Buffer(byteLength);
-  buffer.writeUIntBE(value, 0, byteLength);
+  try {
+    buffer.writeUIntBE(value, 0, byteLength);
+  }
+  catch (exception) {
+    logger.error(`Failed to encode UInt, ${value}, within byteLength=${byteLength}: ${exception.message}`);
+    throw exception;
+  }
   return buffer;
 }
 
-// interface BufferPair extends Array<Buffer> {
-//   0: Buffer;
-//   1: Buffer;
-// }
-type BufferPair = [Buffer, Buffer];
+/**
+A CMap's maps from character codes (or character code sequences) to
+UTF-16BE-encoded Unicode character strings.
+*/
+export interface CharRange {
+  low: number;
+  high: number;
+}
 
-export class CODESPACERANGE extends MachineState<BufferPair[], BufferPair[]> {
-  protected value: BufferPair[] = [];
+/**
+Buffer#readUIntBE supports up to 48 bits of accuracy, so `buffer` should be at
+most 6 characters long.
+
+Equivalent to parseInt(buffer.toString('hex'), 16);
+*/
+function decodeNumber(buffer: Buffer): number {
+  return buffer.readUIntBE(0, buffer.length);
+}
+
+export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
+  protected value: CharRange[] = [];
   private stack: Buffer[] = [];
   rules = [
     Rule(/^(\r\n|\r|\n)/, this.popStack),
@@ -631,11 +656,28 @@ export class CODESPACERANGE extends MachineState<BufferPair[], BufferPair[]> {
     if (this.stack.length !== 2) {
       throw new Error(`Parsing CODESPACERANGE failed; argument stack must be 2-long: ${this.stack}`);
     }
-    var [start_buffer, end_buffer] = this.stack;
-    this.value.push([start_buffer, end_buffer]);
+    var [low, high] = this.stack.map(decodeNumber);
+    this.value.push({low, high});
     this.stack = [];
     return undefined;
   }
+}
+
+/**
+`buffer` should be an even number of characters
+*/
+function decodeUTF16BE(buffer: Buffer): string {
+  var charCodes: number[] = [];
+  for (var i = 0; i < buffer.length; i += 2) {
+    charCodes.push(buffer.readUInt16BE(i));
+  }
+  return makeString(charCodes);
+}
+
+interface CharMapping {
+  src: number;
+  dst: string;
+  byteLength: number;
 }
 
 /**
@@ -643,8 +685,8 @@ not sure how to parse a bfchar like this one:
    <0411><5168 fffd (fffd is repeated 32 times in total)>
 String.fromCharCode(parseInt('D840', 16), parseInt('DC3E', 16))
 */
-export class BFCHAR extends MachineState<BufferPair[], BufferPair[]> {
-  protected value: BufferPair[] = [];
+export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
+  protected value: CharMapping[] = [];
   private stack: Buffer[] = [];
   rules = [
     Rule(/^(\r\n|\r|\n)/, this.popStack),
@@ -662,8 +704,13 @@ export class BFCHAR extends MachineState<BufferPair[], BufferPair[]> {
     if (this.stack.length !== 2) {
       throw new Error(`Parsing BFCHAR failed; argument stack must be 2-long: ${this.stack}`);
     }
-    var [start_buffer, end_buffer] = this.stack;
-    this.value.push([start_buffer, end_buffer]);
+    // the CIDFont_Spec uses src/dst naming
+    var [src_buffer, dst_buffer] = this.stack;
+    this.value.push({
+      src: decodeNumber(src_buffer),
+      dst: decodeUTF16BE(dst_buffer),
+      byteLength: src_buffer.length,
+    });
     this.stack = [];
     return undefined;
   }
@@ -675,8 +722,8 @@ the typical BFRANGE looks like "<0000> <005E> <0020>"
 the other kind of BFRANGE looks like "<005F> <0061> [<00660066> <00660069> <00660066006C>]"
   which means map 005F -> 00660066, 0060 -> 00660069, and 0061 -> 00660066006C
 */
-export class BFRANGE extends MachineState<BufferPair[], BufferPair[]> {
-  protected value: BufferPair[] = [];
+export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
+  protected value: CharMapping[] = [];
   private stack: Array<Buffer | Buffer[]> = [];
   rules = [
     Rule(/^(\r\n|\r|\n)/, this.popStack),
@@ -700,35 +747,42 @@ export class BFRANGE extends MachineState<BufferPair[], BufferPair[]> {
     if (this.stack.length !== 3) {
       throw new Error(`Parsing BFRANGE failed; argument stack must be 3-long: ${this.stack}`);
     }
-    var [start_buffer, end_buffer, target] = <[Buffer, Buffer, Buffer | Buffer[]]>this.stack;
-    var byteLength = start_buffer.length;
-    if (end_buffer.length !== byteLength) {
-      throw new Error(`Parsing BFRANGE failed; end offset has byteLength=${end_buffer.length} but start offset has byteLength=${byteLength}`);
+    var [src_code_lo_buffer, src_code_hi_buffer, dst] = <[Buffer, Buffer, Buffer | Buffer[]]>this.stack;
+    var byteLength = src_code_lo_buffer.length;
+    if (src_code_hi_buffer.length !== byteLength) {
+      throw new Error(`Parsing BFRANGE failed; high offset has byteLength=${src_code_hi_buffer.length} but low offset has byteLength=${byteLength}`);
     }
-    var start_number = start_buffer.readUIntBE(0, byteLength);
-    var end_number = end_buffer.readUIntBE(0, byteLength);
-    var offset_count = end_number - start_number;
+    // the CIFFont_Spec documentation uses srcCodeLo and srcCodeHi naming
+    var src_code_lo = src_code_lo_buffer.readUIntBE(0, byteLength);
+    var src_code_hi = src_code_hi_buffer.readUIntBE(0, byteLength);
+    var src_code_offset = src_code_hi - src_code_lo;
 
-    if (Array.isArray(target)) {
-      var target_array = <Buffer[]>target;
-      if (offset_count !== target.length) {
-        throw new Error(`Parsing BFRANGE failed; target offset array has length=${target.length} but end - start = ${offset_count}`);
+    if (Array.isArray(dst)) {
+      // dst is an array of Buffers
+      var dst_array = <Buffer[]>dst;
+      if (src_code_offset !== dst.length) {
+        throw new Error(`Parsing BFRANGE failed; destination offset array has length=${dst.length} but high - low = ${src_code_offset}`);
       }
-      // target is an array of Buffers
-      for (let i = 0; i <= offset_count; i++) {
-        let from_buffer = bufferFromUIntBE(start_number + i, byteLength);
-        let target_buffer = target_array[i];
-        this.value.push([from_buffer, target_buffer]);
+      for (let i = 0; i <= src_code_offset; i++) {
+        let dst_buffer = dst_array[i];
+        this.value.push({
+          src: src_code_lo + i,
+          dst: decodeUTF16BE(dst_buffer),
+          byteLength: byteLength,
+        });
       }
     }
     else {
-      // target is a single Buffer. each of the characters get transformed by the offset
-      var target_start_buffer = <Buffer>target;
-      var offset = target_start_buffer.readUIntBE(0, target_start_buffer.length) - start_number;
-      for (let i = 0; i <= offset_count; i++) {
-        let from_buffer = bufferFromUIntBE(start_number + i, byteLength);
-        let target_buffer = bufferFromUIntBE(start_number + i + offset, byteLength);
-        this.value.push([from_buffer, target_buffer]);
+      // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
+      var dst_buffer = <Buffer>dst;
+      var dst_code_lo = decodeNumber(dst_buffer);
+      for (let i = 0; i <= src_code_offset; i++) {
+        let dst_code = dst_code_lo + i;
+        this.value.push({
+          src: src_code_lo + i,
+          dst: String.fromCharCode(dst_code),
+          byteLength: byteLength,
+        });
       }
     }
     this.stack = [];
@@ -736,23 +790,20 @@ export class BFRANGE extends MachineState<BufferPair[], BufferPair[]> {
   }
 }
 
-
 /**
 Holds a mapping from in-PDF character codes to native Javascript Unicode strings.
-
-I'm not really sure how byteLength is determined.
 
 Critical pair: P13-1145.pdf (byteLength: 2) vs. P13-4012.pdf (byteLength: 1)
 */
 export interface CMap {
-  codeSpaceRanges: BufferPair[];
-  mapping: BufferPair[];
+  codeSpaceRanges: CharRange[];
+  mappings: CharMapping[];
   byteLength: number;
 }
 
 export class CMAP extends MachineState<CMap, any> {
-  private codeSpaceRanges: BufferPair[] = [];
-  private mapping: BufferPair[] = [];
+  private codeSpaceRanges: CharRange[] = [];
+  private mappings: CharMapping[] = [];
   rules = [
     Rule(/^\s+/, this.ignore),
     Rule(/^begincodespacerange\s+/, this.captureCodeSpaceRange),
@@ -767,24 +818,25 @@ export class CMAP extends MachineState<CMap, any> {
     return undefined;
   }
   captureBFChar(matchValue: RegExpMatchArray) {
-    var pairs = this.attachState(BFCHAR).read();
-    Arrays.pushAll(this.mapping, pairs);
+    var mappings = this.attachState(BFCHAR).read();
+    Arrays.pushAll(this.mappings, mappings);
     return undefined;
   }
   captureBFRange(matchValue: RegExpMatchArray) {
-    var pairs = this.attachState(BFRANGE).read();
-    Arrays.pushAll(this.mapping, pairs);
+    var mappings = this.attachState(BFRANGE).read();
+    Arrays.pushAll(this.mappings, mappings);
     return undefined;
   }
   pop(): CMap {
-    var byteLengths = this.codeSpaceRanges.map(codeSpaceRange => codeSpaceRange[0].length);
+    var byteLengths = this.mappings.map(mapping => mapping.byteLength);
     if (!byteLengths.every(byteLength => byteLength === byteLengths[0])) {
-      throw new Error(`Mismatched byte lengths in code space ranges in CMap: ${byteLengths.join(', ')}`);
+      throw new Error(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}`);
     }
     return {
       codeSpaceRanges: this.codeSpaceRanges,
-      mapping: this.mapping,
-      byteLength: byteLengths[0],
+      mappings: this.mappings,
+      // default to byteLength=1 if there are no mappings
+      byteLength: byteLengths[0] || 1,
     };
   }
 }

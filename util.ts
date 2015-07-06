@@ -48,6 +48,47 @@ export function memoize<T>(target: Object,
   return descriptor;
 }
 
+function typeOf(object: any): string {
+  if (object === undefined) {
+    return 'undefined';
+  }
+  if (object === null) {
+    return 'null';
+  }
+  if (object.constructor.name) {
+    return object.constructor.name;
+  }
+  return typeof object;
+}
+
+export function checkArguments(argument_options: any[]) {
+  return function<T extends Function>(target: Object, propertyKey: string, descriptor: TypedPropertyDescriptor<T>) {
+    // target is the class, not the instance
+    // descriptor.value has type T; this decorator should only be called on
+    // normal functions, so T is a function
+    var originalFn = descriptor.value;
+    var checkedFunction: T = <any>function() {
+      var errors: string[] = [];
+      for (var i = 0; i < argument_options.length; i++) {
+        var value_type = typeOf(arguments[i]);
+        if (value_type !== argument_options[i].type) {
+          errors.push(`Argument[${i}] actual (${value_type}) ≠ expected (${argument_options[i].type})`);
+        }
+      }
+      if (errors.length > 0) {
+        throw new TypeError(`Type mismatch: ${errors.join(', ')}`);
+      }
+      return originalFn.apply(this, arguments);
+    }
+    var wrapper = {};
+    wrapper[propertyKey + '_checked'] = checkedFunction
+    descriptor.value = wrapper[propertyKey + '_checked'];
+    return descriptor;
+  }
+}
+
+
+
 /**
 Parse a string of hexadecimal characters by slicing off substrings that are
 `byteLength`-long, and then using parseInt with a base of 16.
@@ -69,15 +110,4 @@ Each character code should be at most 16 bits, i.e., less than 65536.
 */
 export function makeString(charCodes: number[]): string {
   return String.fromCharCode.apply(null, charCodes);
-}
-
-/**
-byteLength should be either 1 or 2, no larger.
-*/
-export function decodeBuffer(buffer: Buffer, byteLength: number): string {
-  var charCodes: number[] = [];
-  for (var i = 0; i < buffer.length; i += 2) {
-    charCodes.push(buffer.readUIntBE(i, byteLength));
-  }
-  return makeString(charCodes);
 }

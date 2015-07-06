@@ -3,7 +3,6 @@ var lexing = require('lexing');
 var logger = require('loge');
 var unorm = require('unorm');
 var index_1 = require('../parsers/index');
-var util = require('../util');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
@@ -78,12 +77,8 @@ var Encoding = (function () {
         var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
         var cMap = index_1.parseCMap(string_iterable);
         this.characterByteLength = cMap.byteLength;
-        cMap.mapping.forEach(function (_a) {
-            var from_buffer = _a[0], to_buffer = _a[1];
-            // cMap.byteLength should be the same as from_buffer.length
-            var from_charCode = from_buffer.readUIntBE(0, cMap.byteLength);
-            var str = util.decodeBuffer(to_buffer, _this.characterByteLength);
-            _this.mapping[from_charCode] = str;
+        cMap.mappings.forEach(function (mapping) {
+            _this.mapping[mapping.src] = mapping.dst;
         });
     };
     /**

@@ -1,10 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
 var assert = require('assert');
-var PDF = require('../PDF');
 var lexing_1 = require('lexing');
 var states_1 = require('../parsers/states');
 function check(input, expected) {
-    var pdf = new PDF(null);
     var iterable = new lexing_1.StringIterator(input);
     var output = new states_1.OBJECT(iterable, 1024).read();
     var message = "parse result does not match expected output.\n      parse(\"" + input + "\") => " + JSON.stringify(output) + "\n      but should == " + JSON.stringify(expected);

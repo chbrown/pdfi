@@ -44,6 +44,44 @@ function memoize(target, propertyKey, descriptor) {
     return descriptor;
 }
 exports.memoize = memoize;
+function typeOf(object) {
+    if (object === undefined) {
+        return 'undefined';
+    }
+    if (object === null) {
+        return 'null';
+    }
+    if (object.constructor.name) {
+        return object.constructor.name;
+    }
+    return typeof object;
+}
+function checkArguments(argument_options) {
+    return function (target, propertyKey, descriptor) {
+        // target is the class, not the instance
+        // descriptor.value has type T; this decorator should only be called on
+        // normal functions, so T is a function
+        var originalFn = descriptor.value;
+        var checkedFunction = function () {
+            var errors = [];
+            for (var i = 0; i < argument_options.length; i++) {
+                var value_type = typeOf(arguments[i]);
+                if (value_type !== argument_options[i].type) {
+                    errors.push("Argument[" + i + "] actual (" + value_type + ") \u2260 expected (" + argument_options[i].type + ")");
+                }
+            }
+            if (errors.length > 0) {
+                throw new TypeError("Type mismatch: " + errors.join(', '));
+            }
+            return originalFn.apply(this, arguments);
+        };
+        var wrapper = {};
+        wrapper[propertyKey + '_checked'] = checkedFunction;
+        descriptor.value = wrapper[propertyKey + '_checked'];
+        return descriptor;
+    };
+}
+exports.checkArguments = checkArguments;
 /**
 Parse a string of hexadecimal characters by slicing off substrings that are
 `byteLength`-long, and then using parseInt with a base of 16.
@@ -67,14 +105,3 @@ function makeString(charCodes) {
     return String.fromCharCode.apply(null, charCodes);
 }
 exports.makeString = makeString;
-/**
-byteLength should be either 1 or 2, no larger.
-*/
-function decodeBuffer(buffer, byteLength) {
-    var charCodes = [];
-    for (var i = 0; i < buffer.length; i += 2) {
-        charCodes.push(buffer.readUIntBE(i, byteLength));
-    }
-    return makeString(charCodes);
-}
-exports.decodeBuffer = decodeBuffer;

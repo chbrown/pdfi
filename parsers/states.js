@@ -8,6 +8,7 @@ var __extends = this.__extends || function (d, b) {
 var logger = require('loge');
 var lexing_1 = require('lexing');
 var Arrays = require('../Arrays');
+var util_1 = require('../util');
 var escapeCharCodes = {
     '\\n': 10,
     '\\r': 13,
@@ -20,6 +21,9 @@ var HEXSTRING = (function (_super) {
         this.value = new Buffer(0);
         this.rules = [
             lexing_1.MachineRule(/^>/, this.pop),
+            // From PDF32000_2008.pdf:7.3.4.3
+            // > White-space characters (such as SPACE (20h), HORIZONTAL TAB (09h), CARRIAGE RETURN (0Dh), LINE FEED (0Ah), and FORM FEED (0Ch)) shall be ignored.
+            lexing_1.MachineRule(/^\s+/, this.ignore),
             lexing_1.MachineRule(/^([A-Fa-f0-9]{2})+/, this.pushBytes),
             lexing_1.MachineRule(/^[A-Fa-f0-9]$/, this.pushHalfByte),
         ];
@@ -263,8 +267,9 @@ var CONTENT_STREAM = (function (_super) {
     };
     CONTENT_STREAM.prototype.captureHex = function (matchValue) {
         var hexstring = matchValue[1].replace(/\s+/g, '');
-        var bytes = Arrays.range(hexstring.length, 2).map(function (i) { return parseInt(hexstring.slice(i, i + 2), 16); });
-        this.stack.push(bytes);
+        // Arrays.range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
+        var buffer = new Buffer(hexstring, 'hex');
+        this.stack.push(buffer);
         return undefined;
     };
     CONTENT_STREAM.prototype.captureDictionary = function (matchValue) {
@@ -607,8 +612,23 @@ var STREAM = (function (_super) {
 exports.STREAM = STREAM;
 function bufferFromUIntBE(value, byteLength) {
     var buffer = new Buffer(byteLength);
-    buffer.writeUIntBE(value, 0, byteLength);
+    try {
+        buffer.writeUIntBE(value, 0, byteLength);
+    }
+    catch (exception) {
+        logger.error("Failed to encode UInt, " + value + ", within byteLength=" + byteLength + ": " + exception.message);
+        throw exception;
+    }
     return buffer;
+}
+/**
+Buffer#readUIntBE supports up to 48 bits of accuracy, so `buffer` should be at
+most 6 characters long.
+
+Equivalent to parseInt(buffer.toString('hex'), 16);
+*/
+function decodeNumber(buffer) {
+    return buffer.readUIntBE(0, buffer.length);
 }
 var CODESPACERANGE = (function (_super) {
     __extends(CODESPACERANGE, _super);
@@ -633,14 +653,24 @@ var CODESPACERANGE = (function (_super) {
         if (this.stack.length !== 2) {
             throw new Error("Parsing CODESPACERANGE failed; argument stack must be 2-long: " + this.stack);
         }
-        var _a = this.stack, start_buffer = _a[0], end_buffer = _a[1];
-        this.value.push([start_buffer, end_buffer]);
+        var _a = this.stack.map(decodeNumber), low = _a[0], high = _a[1];
+        this.value.push({ low: low, high: high });
         this.stack = [];
         return undefined;
     };
     return CODESPACERANGE;
 })(lexing_1.MachineState);
 exports.CODESPACERANGE = CODESPACERANGE;
+/**
+`buffer` should be an even number of characters
+*/
+function decodeUTF16BE(buffer) {
+    var charCodes = [];
+    for (var i = 0; i < buffer.length; i += 2) {
+        charCodes.push(buffer.readUInt16BE(i));
+    }
+    return util_1.makeString(charCodes);
+}
 /**
 not sure how to parse a bfchar like this one:
    <0411><5168 fffd (fffd is repeated 32 times in total)>
@@ -669,8 +699,13 @@ var BFCHAR = (function (_super) {
         if (this.stack.length !== 2) {
             throw new Error("Parsing BFCHAR failed; argument stack must be 2-long: " + this.stack);
         }
-        var _a = this.stack, start_buffer = _a[0], end_buffer = _a[1];
-        this.value.push([start_buffer, end_buffer]);
+        // the CIDFont_Spec uses src/dst naming
+        var _a = this.stack, src_buffer = _a[0], dst_buffer = _a[1];
+        this.value.push({
+            src: decodeNumber(src_buffer),
+            dst: decodeUTF16BE(dst_buffer),
+            byteLength: src_buffer.length,
+        });
         this.stack = [];
         return undefined;
     };
@@ -712,34 +747,41 @@ var BFRANGE = (function (_super) {
         if (this.stack.length !== 3) {
             throw new Error("Parsing BFRANGE failed; argument stack must be 3-long: " + this.stack);
         }
-        var _a = this.stack, start_buffer = _a[0], end_buffer = _a[1], target = _a[2];
-        var byteLength = start_buffer.length;
-        if (end_buffer.length !== byteLength) {
-            throw new Error("Parsing BFRANGE failed; end offset has byteLength=" + end_buffer.length + " but start offset has byteLength=" + byteLength);
+        var _a = this.stack, src_code_lo_buffer = _a[0], src_code_hi_buffer = _a[1], dst = _a[2];
+        var byteLength = src_code_lo_buffer.length;
+        if (src_code_hi_buffer.length !== byteLength) {
+            throw new Error("Parsing BFRANGE failed; high offset has byteLength=" + src_code_hi_buffer.length + " but low offset has byteLength=" + byteLength);
         }
-        var start_number = start_buffer.readUIntBE(0, byteLength);
-        var end_number = end_buffer.readUIntBE(0, byteLength);
-        var offset_count = end_number - start_number;
-        if (Array.isArray(target)) {
-            var target_array = target;
-            if (offset_count !== target.length) {
-                throw new Error("Parsing BFRANGE failed; target offset array has length=" + target.length + " but end - start = " + offset_count);
+        // the CIFFont_Spec documentation uses srcCodeLo and srcCodeHi naming
+        var src_code_lo = src_code_lo_buffer.readUIntBE(0, byteLength);
+        var src_code_hi = src_code_hi_buffer.readUIntBE(0, byteLength);
+        var src_code_offset = src_code_hi - src_code_lo;
+        if (Array.isArray(dst)) {
+            // dst is an array of Buffers
+            var dst_array = dst;
+            if (src_code_offset !== dst.length) {
+                throw new Error("Parsing BFRANGE failed; destination offset array has length=" + dst.length + " but high - low = " + src_code_offset);
             }
-            // target is an array of Buffers
-            for (var i = 0; i <= offset_count; i++) {
-                var from_buffer = bufferFromUIntBE(start_number + i, byteLength);
-                var target_buffer = target_array[i];
-                this.value.push([from_buffer, target_buffer]);
+            for (var i = 0; i <= src_code_offset; i++) {
+                var dst_buffer_1 = dst_array[i];
+                this.value.push({
+                    src: src_code_lo + i,
+                    dst: decodeUTF16BE(dst_buffer_1),
+                    byteLength: byteLength,
+                });
             }
         }
         else {
-            // target is a single Buffer. each of the characters get transformed by the offset
-            var target_start_buffer = target;
-            var offset = target_start_buffer.readUIntBE(0, target_start_buffer.length) - start_number;
-            for (var i = 0; i <= offset_count; i++) {
-                var from_buffer = bufferFromUIntBE(start_number + i, byteLength);
-                var target_buffer = bufferFromUIntBE(start_number + i + offset, byteLength);
-                this.value.push([from_buffer, target_buffer]);
+            // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
+            var dst_buffer = dst;
+            var dst_code_lo = decodeNumber(dst_buffer);
+            for (var i = 0; i <= src_code_offset; i++) {
+                var dst_code = dst_code_lo + i;
+                this.value.push({
+                    src: src_code_lo + i,
+                    dst: String.fromCharCode(dst_code),
+                    byteLength: byteLength,
+                });
             }
         }
         this.stack = [];
@@ -753,7 +795,7 @@ var CMAP = (function (_super) {
     function CMAP() {
         _super.apply(this, arguments);
         this.codeSpaceRanges = [];
-        this.mapping = [];
+        this.mappings = [];
         this.rules = [
             lexing_1.MachineRule(/^\s+/, this.ignore),
             lexing_1.MachineRule(/^begincodespacerange\s+/, this.captureCodeSpaceRange),
@@ -769,24 +811,25 @@ var CMAP = (function (_super) {
         return undefined;
     };
     CMAP.prototype.captureBFChar = function (matchValue) {
-        var pairs = this.attachState(BFCHAR).read();
-        Arrays.pushAll(this.mapping, pairs);
+        var mappings = this.attachState(BFCHAR).read();
+        Arrays.pushAll(this.mappings, mappings);
         return undefined;
     };
     CMAP.prototype.captureBFRange = function (matchValue) {
-        var pairs = this.attachState(BFRANGE).read();
-        Arrays.pushAll(this.mapping, pairs);
+        var mappings = this.attachState(BFRANGE).read();
+        Arrays.pushAll(this.mappings, mappings);
         return undefined;
     };
     CMAP.prototype.pop = function () {
-        var byteLengths = this.codeSpaceRanges.map(function (codeSpaceRange) { return codeSpaceRange[0].length; });
+        var byteLengths = this.mappings.map(function (mapping) { return mapping.byteLength; });
         if (!byteLengths.every(function (byteLength) { return byteLength === byteLengths[0]; })) {
-            throw new Error("Mismatched byte lengths in code space ranges in CMap: " + byteLengths.join(', '));
+            throw new Error("Mismatched byte lengths in mappings in CMap: " + byteLengths.join(', '));
         }
         return {
             codeSpaceRanges: this.codeSpaceRanges,
-            mapping: this.mapping,
-            byteLength: byteLengths[0],
+            mappings: this.mappings,
+            // default to byteLength=1 if there are no mappings
+            byteLength: byteLengths[0] || 1,
         };
     };
     return CMAP;

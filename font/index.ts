@@ -2,7 +2,7 @@
 import * as logger from 'loge';
 import * as afm from 'afm';
 
-import {memoize} from '../util';
+import {memoize, checkArguments} from '../util';
 import pdfdom = require('../pdfdom');
 
 import {FontDescriptor} from './descriptor';
@@ -145,6 +145,7 @@ export class Font extends Model {
     // Encoding/BaseEncoding value
     var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
     if (ToUnicode.object) {
+      logger.debug(`[Font=${this.Name}] Merging CMapContentStream`);
       encoding.mergeCMapContentStream(ToUnicode);
     }
 
@@ -231,6 +232,7 @@ export class Font extends Model {
   be resolved to a string (unless the `skipMissing` argument is set to `true`,
   in which case, it simply skips those characters).
   */
+  @checkArguments([{type: 'Buffer'}, {type: 'Boolean'}])
   decodeString(buffer: Buffer, skipMissing = false): string {
     return this.encoding.decodeCharCodes(buffer).map(charCode => {
       var string = this.encoding.decodeCharacter(charCode);

@@ -4,9 +4,17 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
+if (typeof __decorate !== "function") __decorate = function (decorators, target, key, desc) {
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") return Reflect.decorate(decorators, target, key, desc);
+    switch (arguments.length) {
+        case 2: return decorators.reduceRight(function(o, d) { return (d && d(o)) || o; }, target);
+        case 3: return decorators.reduceRight(function(o, d) { return (d && d(target, key)), void 0; }, void 0);
+        case 4: return decorators.reduceRight(function(o, d) { return (d && d(target, key, o)) || o; }, desc);
+    }
+};
 /// <reference path="../type_declarations/index.d.ts" />
 var logger = require('loge');
-var util = require('../util');
+var util_1 = require('../util');
 var index_1 = require('../parsers/index');
 var geometry_1 = require('./geometry');
 var color_1 = require('./color');
@@ -47,7 +55,7 @@ var TextState = (function () {
         this.rise = 0;
     }
     TextState.prototype.clone = function () {
-        return util.clone(this, new TextState());
+        return util_1.clone(this, new TextState());
     };
     return TextState;
 })();
@@ -68,7 +76,7 @@ var GraphicsState = (function () {
     of `this`'s properties to it.
     */
     GraphicsState.prototype.clone = function () {
-        return util.clone(this, new GraphicsState());
+        return util_1.clone(this, new GraphicsState());
     };
     return GraphicsState;
 })();
@@ -685,6 +693,7 @@ var RecursiveDrawingContext = (function (_super) {
         this.depth = depth;
     }
     RecursiveDrawingContext.prototype.applyOperation = function (operator, operands) {
+        logger.debug('applyOperation "%s": %j', operator, operands);
         var func = this[operator];
         if (func) {
             func.apply(this, operands);
@@ -803,7 +812,7 @@ var CanvasDrawingContext = (function (_super) {
         var string = font.decodeString(buffer, this.skipMissingCharacters);
         var width_units = font.measureString(buffer);
         var nchars = string.length;
-        var nspaces = util.countSpaces(string);
+        var nspaces = util_1.countSpaces(string);
         // adjust the text matrix accordingly (but not the text line matrix)
         // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
         this.advanceTextMatrix(width_units, nchars, nspaces);
@@ -840,6 +849,10 @@ var CanvasDrawingContext = (function (_super) {
             }
         });
     };
+    Object.defineProperty(CanvasDrawingContext.prototype, "showString",
+        __decorate([
+            util_1.checkArguments([{ type: 'Buffer' }])
+        ], CanvasDrawingContext.prototype, "showString", Object.getOwnPropertyDescriptor(CanvasDrawingContext.prototype, "showString")));
     return CanvasDrawingContext;
 })(RecursiveDrawingContext);
 exports.CanvasDrawingContext = CanvasDrawingContext;

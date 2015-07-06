@@ -170,6 +170,7 @@ var Font = (function (_super) {
             // Encoding/BaseEncoding value
             var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
             if (ToUnicode.object) {
+                logger.debug("[Font=" + this.Name + "] Merging CMapContentStream");
                 encoding.mergeCMapContentStream(ToUnicode);
             }
             // still no luck? try the FontDescriptor
@@ -319,6 +320,10 @@ var Font = (function (_super) {
         __decorate([
             util_1.memoize
         ], Font.prototype, "encoding", Object.getOwnPropertyDescriptor(Font.prototype, "encoding")));
+    Object.defineProperty(Font.prototype, "decodeString",
+        __decorate([
+            util_1.checkArguments([{ type: 'Buffer' }, { type: 'Boolean' }])
+        ], Font.prototype, "decodeString", Object.getOwnPropertyDescriptor(Font.prototype, "decodeString")));
     return Font;
 })(models_1.Model);
 exports.Font = Font;

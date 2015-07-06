@@ -3,7 +3,7 @@ import assert = require('assert');
 import lexing = require('lexing');
 
 import models = require('../models');
-import graphics = require('../parsers/graphics');
+import graphics = require('../parsers/index');
 import drawing = require('../drawing');
 import shapes = require('../shapes');
 
