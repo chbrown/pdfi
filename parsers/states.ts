@@ -6,11 +6,17 @@ import * as Arrays from '../Arrays';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
 
-
 const escapeCharCodes = {
   '\\n': 10,
   '\\r': 13,
   '\\\\': 92,
+}
+
+/**
+Unescape all #-escaped sequences in a name.
+*/
+function unescapeName(name: string) {
+  return name.replace(/#([A-Fa-f0-9]{2})/g, (m, m1) => String.fromCharCode(parseInt(m1, 16)));
 }
 
 export class HEXSTRING extends MachineState<Buffer, Buffer> {
@@ -275,7 +281,8 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     return undefined;
   }
   captureName(matchValue: RegExpMatchArray) {
-    this.stack.push(matchValue[1]);
+    var name = unescapeName(matchValue[1])
+    this.stack.push(name);
     return undefined;
   }
   captureBoolean(matchValue: RegExpMatchArray) {
@@ -327,7 +334,7 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
     Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
   ]
   captureName(matchValue: RegExpMatchArray) {
-    var name = matchValue[1];
+    var name = unescapeName(matchValue[1])
     this.value[name] = this.attachState(OBJECT).read();
     return undefined;
   }
@@ -412,8 +419,7 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
     };
   }
   captureName(matchValue: RegExpMatchArray) {
-    // unescape any #-escaped sequences in the name
-    return matchValue[1].replace(/#([A-Fa-f0-9]{2})/g, (m, m1) => String.fromCharCode(parseInt(m1, 16)));
+    return unescapeName(matchValue[1])
   }
   captureTrue(matchValue: RegExpMatchArray) {
     return true;
@@ -797,7 +803,6 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
         throw new Error(`bfchar dst is a buffer larger than 32 bytes: ${dst_buffer.toString('hex')}; only numbers smaller than 32 bytes can be converted to characters.`);
       }
       var dst_code_lo = decodeNumber(dst_buffer);
-      logger.info('dst_code_lo', dst_code_lo)
       for (let i = 0; i <= src_code_offset; i++) {
         let dst_code = dst_code_lo + i;
         this.value.push({

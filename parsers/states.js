@@ -14,6 +14,12 @@ var escapeCharCodes = {
     '\\r': 13,
     '\\\\': 92,
 };
+/**
+Unescape all #-escaped sequences in a name.
+*/
+function unescapeName(name) {
+    return name.replace(/#([A-Fa-f0-9]{2})/g, function (m, m1) { return String.fromCharCode(parseInt(m1, 16)); });
+}
 var HEXSTRING = (function (_super) {
     __extends(HEXSTRING, _super);
     function HEXSTRING() {
@@ -288,7 +294,8 @@ var CONTENT_STREAM = (function (_super) {
         return undefined;
     };
     CONTENT_STREAM.prototype.captureName = function (matchValue) {
-        this.stack.push(matchValue[1]);
+        var name = unescapeName(matchValue[1]);
+        this.stack.push(name);
         return undefined;
     };
     CONTENT_STREAM.prototype.captureBoolean = function (matchValue) {
@@ -341,7 +348,7 @@ var DICTIONARY = (function (_super) {
         ];
     }
     DICTIONARY.prototype.captureName = function (matchValue) {
-        var name = matchValue[1];
+        var name = unescapeName(matchValue[1]);
         this.value[name] = this.attachState(OBJECT).read();
         return undefined;
     };
@@ -434,8 +441,7 @@ var OBJECT = (function (_super) {
         };
     };
     OBJECT.prototype.captureName = function (matchValue) {
-        // unescape any #-escaped sequences in the name
-        return matchValue[1].replace(/#([A-Fa-f0-9]{2})/g, function (m, m1) { return String.fromCharCode(parseInt(m1, 16)); });
+        return unescapeName(matchValue[1]);
     };
     OBJECT.prototype.captureTrue = function (matchValue) {
         return true;
@@ -795,7 +801,6 @@ var BFRANGE = (function (_super) {
                 throw new Error("bfchar dst is a buffer larger than 32 bytes: " + dst_buffer.toString('hex') + "; only numbers smaller than 32 bytes can be converted to characters.");
             }
             var dst_code_lo = decodeNumber(dst_buffer);
-            logger.info('dst_code_lo', dst_code_lo);
             for (var i = 0; i <= src_code_offset; i++) {
                 var dst_code = dst_code_lo + i;
                 this.value.push({
