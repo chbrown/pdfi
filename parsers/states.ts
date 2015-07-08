@@ -629,7 +629,7 @@ export interface CharRange {
 
 /**
 Buffer#readUIntBE supports up to 48 bits of accuracy, so `buffer` should be at
-most 6 characters long.
+most 6 bytes long.
 
 Equivalent to parseInt(buffer.toString('hex'), 16);
 */
@@ -672,6 +672,24 @@ function decodeUTF16BE(buffer: Buffer): string {
     charCodes.push(buffer.readUInt16BE(i));
   }
   return makeString(charCodes);
+}
+
+/**
+Returns a single-rune string of length 1 or 2.
+*/
+function ucsChar(code: number): string {
+  if (code > 0xFFFFFFFF) {
+    throw new Error(`Cannot decode numbers larger than 32 bits (${code})`);
+  }
+  else if (code > 0xFFFF) {
+    var big = code >>> 16;
+    var little = code % 0x10000;
+    return String.fromCharCode(big, little);
+  }
+  else {
+    // otherwise, it's less than 0xFFFF, so it's just a plain 1-charCode character
+    return String.fromCharCode(code);
+  }
 }
 
 interface CharMapping {
@@ -760,8 +778,8 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     if (Array.isArray(dst)) {
       // dst is an array of Buffers
       var dst_array = <Buffer[]>dst;
-      if (src_code_offset !== dst.length) {
-        throw new Error(`Parsing BFRANGE failed; destination offset array has length=${dst.length} but high - low = ${src_code_offset}`);
+      if ((src_code_offset + 1) !== dst_array.length) {
+        throw new Error(`Parsing BFRANGE failed; destination offset array has length=${dst.length} but high (${src_code_hi}) - low (${src_code_lo}) = ${src_code_offset} (${dst_array.map(buffer => buffer.toString('hex'))})`);
       }
       for (let i = 0; i <= src_code_offset; i++) {
         let dst_buffer = dst_array[i];
@@ -775,12 +793,16 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     else {
       // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
       var dst_buffer = <Buffer>dst;
+      if (dst_buffer.length > 4) {
+        throw new Error(`bfchar dst is a buffer larger than 32 bytes: ${dst_buffer.toString('hex')}; only numbers smaller than 32 bytes can be converted to characters.`);
+      }
       var dst_code_lo = decodeNumber(dst_buffer);
+      logger.info('dst_code_lo', dst_code_lo)
       for (let i = 0; i <= src_code_offset; i++) {
         let dst_code = dst_code_lo + i;
         this.value.push({
           src: src_code_lo + i,
-          dst: String.fromCharCode(dst_code),
+          dst: ucsChar(dst_code),
           byteLength: byteLength,
         });
       }
@@ -830,7 +852,7 @@ export class CMAP extends MachineState<CMap, any> {
   pop(): CMap {
     var byteLengths = this.mappings.map(mapping => mapping.byteLength);
     if (!byteLengths.every(byteLength => byteLength === byteLengths[0])) {
-      throw new Error(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}`);
+      logger.warn(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}; using only the first.`);
     }
     return {
       codeSpaceRanges: this.codeSpaceRanges,

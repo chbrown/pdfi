@@ -623,7 +623,7 @@ function bufferFromUIntBE(value, byteLength) {
 }
 /**
 Buffer#readUIntBE supports up to 48 bits of accuracy, so `buffer` should be at
-most 6 characters long.
+most 6 bytes long.
 
 Equivalent to parseInt(buffer.toString('hex'), 16);
 */
@@ -670,6 +670,23 @@ function decodeUTF16BE(buffer) {
         charCodes.push(buffer.readUInt16BE(i));
     }
     return util_1.makeString(charCodes);
+}
+/**
+Returns a single-rune string of length 1 or 2.
+*/
+function ucsChar(code) {
+    if (code > 0xFFFFFFFF) {
+        throw new Error("Cannot decode numbers larger than 32 bits (" + code + ")");
+    }
+    else if (code > 0xFFFF) {
+        var big = code >>> 16;
+        var little = code % 0x10000;
+        return String.fromCharCode(big, little);
+    }
+    else {
+        // otherwise, it's less than 0xFFFF, so it's just a plain 1-charCode character
+        return String.fromCharCode(code);
+    }
 }
 /**
 not sure how to parse a bfchar like this one:
@@ -759,8 +776,8 @@ var BFRANGE = (function (_super) {
         if (Array.isArray(dst)) {
             // dst is an array of Buffers
             var dst_array = dst;
-            if (src_code_offset !== dst.length) {
-                throw new Error("Parsing BFRANGE failed; destination offset array has length=" + dst.length + " but high - low = " + src_code_offset);
+            if ((src_code_offset + 1) !== dst_array.length) {
+                throw new Error("Parsing BFRANGE failed; destination offset array has length=" + dst.length + " but high (" + src_code_hi + ") - low (" + src_code_lo + ") = " + src_code_offset + " (" + dst_array.map(function (buffer) { return buffer.toString('hex'); }) + ")");
             }
             for (var i = 0; i <= src_code_offset; i++) {
                 var dst_buffer_1 = dst_array[i];
@@ -774,12 +791,16 @@ var BFRANGE = (function (_super) {
         else {
             // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
             var dst_buffer = dst;
+            if (dst_buffer.length > 4) {
+                throw new Error("bfchar dst is a buffer larger than 32 bytes: " + dst_buffer.toString('hex') + "; only numbers smaller than 32 bytes can be converted to characters.");
+            }
             var dst_code_lo = decodeNumber(dst_buffer);
+            logger.info('dst_code_lo', dst_code_lo);
             for (var i = 0; i <= src_code_offset; i++) {
                 var dst_code = dst_code_lo + i;
                 this.value.push({
                     src: src_code_lo + i,
-                    dst: String.fromCharCode(dst_code),
+                    dst: ucsChar(dst_code),
                     byteLength: byteLength,
                 });
             }
@@ -823,7 +844,7 @@ var CMAP = (function (_super) {
     CMAP.prototype.pop = function () {
         var byteLengths = this.mappings.map(function (mapping) { return mapping.byteLength; });
         if (!byteLengths.every(function (byteLength) { return byteLength === byteLengths[0]; })) {
-            throw new Error("Mismatched byte lengths in mappings in CMap: " + byteLengths.join(', '));
+            logger.warn("Mismatched byte lengths in mappings in CMap: " + byteLengths.join(', ') + "; using only the first.");
         }
         return {
             codeSpaceRanges: this.codeSpaceRanges,
