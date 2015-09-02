@@ -1,6 +1,14 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import zlib = require('zlib');
 
+interface DecodeParms {
+  Predictor?: number;
+  Colors?: number;
+  BitsPerComponent?: number;
+  Columns?: number;
+  EarlyChange?: number;
+}
+
 /**
 
 FILTER name     [Has Parameters] Description
@@ -201,8 +209,29 @@ export function ASCIIHexDecode(ascii: Buffer): Buffer {
   return new Buffer(bytes);
 }
 
-export function FlateDecode(buffer: Buffer): Buffer {
-  return zlib['inflateSync'](buffer);
+export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
+  var inflated = zlib.inflateSync(buffer);
+  if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
+    if (decodeParms.Predictor !== 12) {
+      throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);
+    }
+    // references:
+    // PDF32000_2008.pdf:7.4.4.4 "LZW and Flate Predictor Functions"
+    // http://tools.ietf.org/html/rfc2083#page-33
+    // https://forums.adobe.com/thread/664902
+    var columns = decodeParms.Columns;
+    var rows = inflated.length / (columns + 1);
+    var decoded = new Buffer(rows * columns); // decoded.fill(0);
+    inflated.copy(decoded, 0, 1, columns + 1);
+    // assuming PNG predictor == 2
+    for (var row = 1; row < rows; row++) {
+      for (var column = 0; column < columns; column++) {
+        decoded[row * columns + column] = decoded[(row - 1) * columns + column] + inflated[row * (columns + 1) + (column + 1)];
+      }
+    }
+    return decoded;
+  }
+  return inflated;
 }
 
 export class BitIterator {
@@ -329,4 +358,24 @@ export function LZWDecode(buffer: Buffer): Buffer {
   }
 
   return Buffer.concat(chunks);
+}
+
+const decoders = {
+  ASCII85Decode,
+  ASCIIHexDecode,
+  FlateDecode,
+  LZWDecode,
+};
+
+export function decodeBuffer(buffer: Buffer, filters: string[], decodeParmss: any[]) {
+  filters.forEach((filter, i) => {
+    var decoder = decoders[filter];
+    if (decoder !== undefined) {
+      buffer = decoder(buffer, decodeParmss ? decodeParmss[i] : undefined);
+    }
+    else {
+      throw new Error(`Could not find decoder named "${filter}" to fully decode stream`);
+    }
+  });
+  return buffer;
 }

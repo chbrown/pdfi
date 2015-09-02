@@ -1,10 +1,9 @@
-var __extends = this.__extends || function (d, b) {
+var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-if (typeof __decorate !== "function") __decorate = function (decorators, target, key, desc) {
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") return Reflect.decorate(decorators, target, key, desc);
     switch (arguments.length) {
         case 2: return decorators.reduceRight(function(o, d) { return (d && d(o)) || o; }, target);
@@ -13,7 +12,7 @@ if (typeof __decorate !== "function") __decorate = function (decorators, target,
     }
 };
 /// <reference path="../type_declarations/index.d.ts" />
-var logger = require('loge');
+var loge_1 = require('loge');
 var afm = require('afm');
 var util_1 = require('../util');
 var descriptor_1 = require('./descriptor');
@@ -159,24 +158,24 @@ var Font = (function (_super) {
                 encoding.mergeLatinCharset(BaseEncoding);
             }
             else if (BaseEncoding == 'Identity-H') {
-                logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
+                loge_1.logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
                 encoding.characterByteLength = 2;
             }
             else if (BaseEncoding !== undefined) {
-                logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
+                loge_1.logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
             }
             // ToUnicode is a better encoding indicator, but it is not always present,
             // and even when it is, it may be only complementary to the
             // Encoding/BaseEncoding value
             var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
             if (ToUnicode.object) {
-                logger.debug("[Font=" + this.Name + "] Merging CMapContentStream");
+                loge_1.logger.debug("[Font=" + this.Name + "] Merging CMapContentStream");
                 encoding.mergeCMapContentStream(ToUnicode);
             }
             // still no luck? try the FontDescriptor
             var FontDescriptor = this.FontDescriptor;
             if (FontDescriptor) {
-                logger.silly("[Font=" + this.Name + "] Loading encoding from FontDescriptor");
+                // logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
                 // check for the easy-out: 1-character fonts
                 var FirstChar = this.get('FirstChar');
                 var LastChar = this.get('LastChar');
@@ -221,7 +220,7 @@ var Font = (function (_super) {
                         encoding.mapping[current_character_code] = str;
                         // TODO: handle missing glyphnames
                         if (str === undefined && glyphname !== '.notdef') {
-                            logger.warn("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
+                            loge_1.logger.warning("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
                         }
                         current_character_code++;
                     }
@@ -229,7 +228,6 @@ var Font = (function (_super) {
             }
             else {
                 if (usingStandardEncoding) {
-                    logger.warn("[Font=" + this.Name + "] Could not find any character code mapping; using \"StandardEncoding\" Latin charset, but confidence is low");
                 }
             }
             return encoding;
@@ -255,11 +253,11 @@ var Font = (function (_super) {
             var string = _this.encoding.decodeCharacter(charCode);
             if (string === undefined) {
                 if (skipMissing) {
-                    logger.debug("[Font=" + _this.Name + "] Skipping missing character code: " + charCode);
+                    loge_1.logger.debug("[Font=" + _this.Name + "] Skipping missing character code: " + charCode);
                     return '';
                 }
                 var placeholder = '\\u{' + charCode.toString(16) + '}';
-                logger.debug("[Font=" + _this.Name + "] Could not decode character code: " + charCode + " = " + placeholder);
+                loge_1.logger.debug("[Font=" + _this.Name + "] Could not decode character code: " + charCode + " = " + placeholder);
                 return placeholder;
             }
             return string;
@@ -423,7 +421,7 @@ var Type1Font = (function (_super) {
                 this._defaultWidth = MissingWidth;
             }
             else {
-                logger.silly("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");
+                loge_1.logger.debug("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");
                 this._defaultWidth = null;
             }
         }

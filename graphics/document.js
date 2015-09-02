@@ -1,10 +1,9 @@
-var __extends = this.__extends || function (d, b) {
+var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var Arrays = require('../Arrays');
+var arrays_1 = require('arrays');
 var index_1 = require('../encoding/index');
 var models_1 = require('./models');
 var geometry_1 = require('./geometry');
@@ -118,7 +117,7 @@ function typicalLeftOffset(container, elements) {
         // one, so that it signals a paragraph change
         return leftOffsets[1];
     }
-    return Arrays.median(leftOffsets);
+    return arrays_1.median(leftOffsets);
 }
 /**
 The given textSpans should all have approximately the same Y value.
@@ -282,11 +281,11 @@ function paperFromContainers(containers) {
     // containers is an array of basic Containers for the whole PDF / document
     // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
     // 1. the easiest first step is to get the mean and median font size
-    var textSpans = Arrays.flatMap(containers, function (container) { return container.getElements(); });
+    var textSpans = arrays_1.flatMap(containers, function (container) { return container.getElements(); });
     var fontSizes = textSpans.map(function (textSpan) { return textSpan.fontSize; });
-    var mean_fontSize = Arrays.mean(fontSizes);
-    // use the 75% quartile (Arrays.quantile() returns the endpoints, too) as the normal font size
-    var content_fontSize = Arrays.quantile(fontSizes, 4)[3];
+    var mean_fontSize = arrays_1.mean(fontSizes);
+    // use the 75% quartile (quantile() returns the endpoints, too) as the normal font size
+    var content_fontSize = arrays_1.quantile(fontSizes, 4)[3];
     // jump up a half pixel/pt to set the section header font size threshold
     var header_fontSize = content_fontSize + 0.5;
     // 2. the second step is to iterate through the sections and re-group them

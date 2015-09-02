@@ -1,6 +1,6 @@
 /// <reference path="../type_declarations/index.d.ts" />
+import {logger} from 'loge';
 import * as lexing from 'lexing';
-import * as logger from 'loge';
 
 import {Encoding, decodeGlyphname} from '../encoding/index';
 import {Model, ContentStream} from '../models';
@@ -94,7 +94,7 @@ export class FontDescriptor extends Model {
           encoding.mapping[index] = str;
         }
         else {
-          logger.warn(`Ignoring FontDescriptor mapping ${index} -> ${glyphname}, which is not a valid glyphname`);
+          logger.warning(`Ignoring FontDescriptor mapping ${index} -> ${glyphname}, which is not a valid glyphname`);
         }
       }
     }

@@ -1,15 +1,17 @@
 /// <reference path="type_declarations/index.d.ts" />
 // This file provides the most abstract API to pdfi. The type signatures of
 // this module should following proper versioning practices.
+var loge_1 = require('loge');
 var yargs = require('yargs');
 var chalk = require('chalk');
-var logger = require('loge');
-var PDF = require('./PDF');
+var PDF_1 = require('./PDF');
 var models_1 = require('./models');
+var lexing_fs = require('lexing/fs');
+Error['stackTraceLimit'] = 50;
 // import visible = require('visible');
 // var escaper = new visible.Escaper({/* literalEOL: false */});
 function setLoggerLevel(level) {
-    logger.level = level;
+    loge_1.logger.level = level;
 }
 exports.setLoggerLevel = setLoggerLevel;
 function stderr(line) {
@@ -46,7 +48,8 @@ options.type determines the return value.
 */
 function readFileSync(filename, options) {
     if (options === void 0) { options = { type: 'string' }; }
-    var pdf = PDF.open(filename);
+    var source = new lexing_fs.FileSystemSource.open(filename);
+    var pdf = new PDF_1.PDF(source);
     if (options.type == 'pdf') {
         return pdf;
     }
@@ -75,7 +78,8 @@ function readFileSync(filename, options) {
 exports.readFileSync = readFileSync;
 function objects(filename, references, decode) {
     if (decode === void 0) { decode = false; }
-    var pdf = PDF.open(filename);
+    var source = new lexing_fs.FileSystemSource.open(filename);
+    var pdf = new PDF_1.PDF(source);
     references.forEach(function (reference) {
         stderr(reference.toString());
         var object = new models_1.Model(pdf, reference).object;
@@ -112,7 +116,7 @@ function main() {
         .string('_')
         .boolean(['help', 'verbose', 'decode']);
     var argv = argvparser.argv;
-    logger.level = argv.verbose ? 'debug' : 'info';
+    setLoggerLevel(argv.verbose ? loge_1.Level.debug : loge_1.Level.info);
     if (argv.verbose) {
         chalk.enabled = true; // dumb
     }

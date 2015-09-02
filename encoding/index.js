@@ -1,6 +1,6 @@
 /// <reference path="../type_declarations/index.d.ts" />
+var loge_1 = require('loge');
 var lexing = require('lexing');
-var logger = require('loge');
 var unorm = require('unorm');
 var index_1 = require('../parsers/index');
 /**
@@ -57,7 +57,7 @@ var Encoding = (function () {
     Encoding.prototype.mergeLatinCharset = function (name) {
         var _this = this;
         if (name == 'MacExpertEncoding') {
-            logger.warn("Coercing \"MacExpertEncoding\" to \"MacRomanEncoding\" when merging Latin character set ");
+            loge_1.logger.warning("Coercing \"MacExpertEncoding\" to \"MacRomanEncoding\" when merging Latin character set ");
             // TODO: handle MacExpertEncoding properly
             name = 'MacRomanEncoding';
         }

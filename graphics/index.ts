@@ -1,8 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
+import {logger} from 'loge';
 import * as lexing from 'lexing';
 import * as academia from 'academia';
-import Arrays = require('../Arrays');
-import logger = require('loge');
+import {flatMap} from 'arrays';
 
 import {Page, ContentStream, Resources} from '../models';
 
@@ -48,7 +48,7 @@ export function renderContentStreamLayout(content_stream: ContentStream, skipMis
 }
 
 export function renderPaper(pages: Page[], skipMissingCharacters = true, depth = 0): academia.types.Paper {
- var containers = Arrays.flatMap(pages, (page, i, pages) => {
+ var containers = flatMap(pages, (page, i, pages) => {
     logger.debug(`renderPaper: rendering page ${i + 1}/${pages.length}`);
     var layout = renderPageLayout(page);
     layout.containers.forEach(container => {

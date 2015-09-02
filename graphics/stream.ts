@@ -1,10 +1,9 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import logger = require('loge');
-import chalk = require('chalk');
+import {logger} from 'loge';
+import * as chalk from 'chalk';
 
 import {Font} from '../font/index';
-import models = require('../models');
-import util = require('../util');
+import {Resources} from '../models';
 import {clone, countSpaces, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
@@ -96,12 +95,12 @@ I don't think textState transfers to (or out of) "Do"-drawn XObjects.
 E.g., P13-4028.pdf breaks if textState carries out of the drawn object.
 */
 export class DrawingContext {
-  resourcesStack: models.Resources[];
+  resourcesStack: Resources[];
   graphicsStateStack: GraphicsState[];
   textMatrix: number[];
   textLineMatrix: number[];
 
-  constructor(resources: models.Resources, graphicsState: GraphicsState) {
+  constructor(resources: Resources, graphicsState: GraphicsState) {
     this.resourcesStack = [resources];
     this.graphicsStateStack = [graphicsState];
   }
@@ -110,7 +109,7 @@ export class DrawingContext {
     return this.graphicsStateStack[this.graphicsStateStack.length - 1];
   }
 
-  get resources(): models.Resources {
+  get resources(): Resources {
     return this.resourcesStack[this.resourcesStack.length - 1];
   }
 
@@ -258,7 +257,7 @@ export class DrawingContext {
     var ExtGState = this.resources.getExtGState(dictName);
     Object.keys(ExtGState.object).filter(key => key !== 'Type').forEach(key => {
       var value = ExtGState.get(key);
-      logger.silly(`Ignoring setGraphicsStateParameters(${dictName}) operation: %s = %j`, key, value);
+      logger.debug(`Ignoring setGraphicsStateParameters(${dictName}) operation: %s = %j`, key, value);
     });
   }
   // ---------------------------------------------------------------------------
@@ -267,37 +266,37 @@ export class DrawingContext {
   `x y m`
   */
   moveTo(x: number, y: number) {
-    logger.silly(`Ignoring moveTo(${x}, ${y}) operation`);
+    logger.debug(`Ignoring moveTo(${x}, ${y}) operation`);
   }
   /**
   `x y l`
   */
   appendLine(x: number, y: number) {
-    logger.silly(`Ignoring appendLine(${x}, ${y}) operation`);
+    logger.debug(`Ignoring appendLine(${x}, ${y}) operation`);
   }
   /**
   `x1 y1 x2 y2 x3 y3 c`
   */
   appendCurve123(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number) {
-    logger.silly(`Ignoring appendCurve123(${x1}, ${y1}, ${x2}, ${y2}, ${x3}, ${y3}) operation`);
+    logger.debug(`Ignoring appendCurve123(${x1}, ${y1}, ${x2}, ${y2}, ${x3}, ${y3}) operation`);
   }
   /**
   `x2 y2 x3 y3 v`
   */
   appendCurve23(x2: number, y2: number, x3: number, y3: number) {
-    logger.silly(`Ignoring appendCurve23(${x2}, ${y2}, ${x3}, ${y3}) operation`);
+    logger.debug(`Ignoring appendCurve23(${x2}, ${y2}, ${x3}, ${y3}) operation`);
   }
   /**
   `x1 y1 x3 y3 y`
   */
   appendCurve13(x1: number, y1: number, x3: number, y3: number) {
-    logger.silly(`Ignoring appendCurve13(${x1}, ${y1}, ${x3}, ${y3}) operation`);
+    logger.debug(`Ignoring appendCurve13(${x1}, ${y1}, ${x3}, ${y3}) operation`);
   }
   /**
   `h`
   */
   closePath() {
-    logger.silly(`Ignoring closePath() operation`);
+    logger.debug(`Ignoring closePath() operation`);
   }
   /**
   > `x y width height re`: Append a rectangle to the current path as a complete
@@ -309,7 +308,7 @@ export class DrawingContext {
   >     h
   */
   appendRectangle(x: number, y: number, width: number, height: number) {
-    logger.silly(`Ignoring appendRectangle(${x}, ${y}, ${width}, ${height}) operation`);
+    logger.debug(`Ignoring appendRectangle(${x}, ${y}, ${width}, ${height}) operation`);
   }
   // ---------------------------------------------------------------------------
   // Path painting (S, s, f, F, f*, B, B*, b, b*, n) - see Table 60
@@ -317,7 +316,7 @@ export class DrawingContext {
   > `S`: Stroke the path.
   */
   stroke() {
-    logger.silly(`Ignoring stroke() operation`);
+    logger.debug(`Ignoring stroke() operation`);
   }
   /** ALIAS
   > `s`: Close and stroke the path. This operator shall have the same effect as the sequence h S.
@@ -331,7 +330,7 @@ export class DrawingContext {
   */
   fill() {
     // this.closePath(); ?
-    logger.silly(`Ignoring fill() operation`);
+    logger.debug(`Ignoring fill() operation`);
   }
   /** ALIAS
   > `F`: Equivalent to f; included only for compatibility. Although PDF reader applications shall be able to accept this operator, PDF writer applications should use f instead.
@@ -343,20 +342,20 @@ export class DrawingContext {
   > `f*`: Fill the path, using the even-odd rule to determine the region to fill.
   */
   fillEvenOdd() {
-    logger.silly(`Ignoring fillEvenOdd() operation`);
+    logger.debug(`Ignoring fillEvenOdd() operation`);
   }
   /**
   > `B`: Fill and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall produce the same result as constructing two identical path objects, painting the first with f and the second with S.
   > NOTE The filling and stroking portions of the operation consult different values of several graphics state parameters, such as the current colour.
   */
   fillThenStroke() {
-    logger.silly(`Ignoring fillAndStroke() operation`);
+    logger.debug(`Ignoring fillAndStroke() operation`);
   }
   /**
   > `B*`: Fill and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall produce the same result as B, except that the path is filled as if with f* instead of f.
   */
   fillThenStrokeEvenOdd() {
-    logger.silly(`Ignoring fillAndStrokeEvenOdd() operation`);
+    logger.debug(`Ignoring fillAndStrokeEvenOdd() operation`);
   }
   /** ALIAS
   > `b`: Close, fill, and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall have the same effect as the sequence h B.
@@ -376,7 +375,7 @@ export class DrawingContext {
   > `n`: End the path object without filling or stroking it. This operator shall be a path- painting no-op, used primarily for the side effect of changing the current clipping path.
   */
   closePathNoop() {
-    logger.silly(`Ignoring closePathNoop() operation`);
+    logger.debug(`Ignoring closePathNoop() operation`);
   }
   // ---------------------------------------------------------------------------
   //                           Color operators
@@ -384,37 +383,37 @@ export class DrawingContext {
   > `name CS`
   */
   setStrokeColorSpace(name: string) {
-    logger.silly(`Ignoring setStrokeColorSpace(${name}) operation`);
+    logger.debug(`Ignoring setStrokeColorSpace(${name}) operation`);
   }
   /**
   > `name cs`: Same as CS but used for nonstroking operations.
   */
   setFillColorSpace(name: string) {
-    logger.silly(`Ignoring setFillColorSpace(${name}) operation`);
+    logger.debug(`Ignoring setFillColorSpace(${name}) operation`);
   }
   /**
   > `c1 cn SC`
   */
   setStrokeColorSpace2(c1: number, cn: number) {
-    logger.silly(`Ignoring setStrokeColorSpace2(${c1}, ${cn}) operation`);
+    logger.debug(`Ignoring setStrokeColorSpace2(${c1}, ${cn}) operation`);
   }
   /**
   > `c1 cn [name] SCN`
   */
   setStrokeColorSpace3(c1: number, cn: number, patternName?: string) {
-    logger.silly(`Ignoring setStrokeColorSpace3(${c1}, ${cn}, ${patternName}) operation`);
+    logger.debug(`Ignoring setStrokeColorSpace3(${c1}, ${cn}, ${patternName}) operation`);
   }
   /**
   > `c1 cn sc`: Same as SC but used for nonstroking operations.
   */
   setFillColorSpace2(c1: number, cn: number) {
-    logger.silly(`Ignoring setFillColorSpace2(${c1}, ${cn}) operation`);
+    logger.debug(`Ignoring setFillColorSpace2(${c1}, ${cn}) operation`);
   }
   /**
   > `c1 cn [name] scn`: Same as SCN but used for nonstroking operations.
   */
   setFillColorSpace3(c1: number, cn: number, patternName?: string) {
-    logger.silly(`Ignoring setFillColorSpace3(${c1}, ${cn}, ${patternName}) operation`);
+    logger.debug(`Ignoring setFillColorSpace3(${c1}, ${cn}, ${patternName}) operation`);
   }
   /**
   `gray G`: Set the stroking colour space to DeviceGray and set the gray level
@@ -467,10 +466,10 @@ export class DrawingContext {
   // ---------------------------------------------------------------------------
   // Inline Image Operators (BI, ID, EI)
   beginInlineImage() {
-    logger.silly(`Ignoring beginInlineImage() operation`);
+    logger.debug(`Ignoring beginInlineImage() operation`);
   }
   endInlineImage(...args: any[]) {
-    logger.silly(`Ignoring endInlineImage() operation`);
+    logger.debug(`Ignoring endInlineImage() operation`);
   }
   // ---------------------------------------------------------------------------
   // Clipping Path Operators (W, W*)
@@ -478,13 +477,13 @@ export class DrawingContext {
   > `W`: Modify the current clipping path by intersecting it with the current path, using the nonzero winding number rule to determine which regions lie inside the clipping path.
   */
   clip() {
-    logger.silly(`Ignoring clip() operation`);
+    logger.debug(`Ignoring clip() operation`);
   }
   /**
   > `W*`: Modify the current clipping path by intersecting it with the current path, using the even-odd rule to determine which regions lie inside the clipping path.
   */
   clipEvenOdd() {
-    logger.silly(`Ignoring clipEvenOdd() operation`);
+    logger.debug(`Ignoring clipEvenOdd() operation`);
   }
   // ---------------------------------------------------------------------------
   // Text objects (BT, ET)
@@ -666,19 +665,19 @@ export class DrawingContext {
   > `tag BMC`: Begin a marked-content sequence terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence.
   */
   beginMarkedContent(tag: string) {
-    logger.silly(`Ignoring beginMarkedContent(${tag}) operation`);
+    logger.debug(`Ignoring beginMarkedContent(${tag}) operation`);
   }
   /**
   > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
   */
   beginMarkedContentWithDictionary(tag: string, dictionary: any) {
-    logger.silly(`Ignoring beginMarkedContentWithDictionary(${tag}, ${dictionary}) operation`);
+    logger.debug(`Ignoring beginMarkedContentWithDictionary(${tag}, ${dictionary}) operation`);
   }
   /**
   > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
   */
   endMarkedContent() {
-    logger.silly(`Ignoring endMarkedContent() operation`);
+    logger.debug(`Ignoring endMarkedContent() operation`);
   }
 }
 
@@ -686,7 +685,7 @@ export class DrawingContext {
 Add Resources tracking and drawObject support.
 */
 export class RecursiveDrawingContext extends DrawingContext {
-  constructor(resources: models.Resources, public depth = 0) {
+  constructor(resources: Resources, public depth = 0) {
     super(resources, new GraphicsState());
   }
 
@@ -697,7 +696,7 @@ export class RecursiveDrawingContext extends DrawingContext {
       func.apply(this, operands);
     }
     else {
-      logger.warn(`Ignoring unrecognized operator "${operator}" [${operands.join(', ')}]`);
+      logger.warning(`Ignoring unrecognized operator "${operator}" [${operands.join(', ')}]`);
     }
   }
 
@@ -715,13 +714,13 @@ export class RecursiveDrawingContext extends DrawingContext {
     }
 
     if (XObjectStream.Subtype !== 'Form') {
-      logger.silly(`Ignoring "${name} Do" command; embedded XObject has unsupported Subtype "${XObjectStream.Subtype}"`);
+      logger.debug(`Ignoring "${name} Do" command; embedded XObject has unsupported Subtype "${XObjectStream.Subtype}"`);
       return;
     }
 
     var object_depth = this.depth + 1;
     if (object_depth >= 5) {
-      logger.warn(`Ignoring "${name} Do" command; embedded XObject is too deep; depth = ${object_depth}`);
+      logger.warning(`Ignoring "${name} Do" command; embedded XObject is too deep; depth = ${object_depth}`);
       return;
     }
 
@@ -755,7 +754,7 @@ export class RecursiveDrawingContext extends DrawingContext {
 
 export class CanvasDrawingContext extends RecursiveDrawingContext {
   constructor(public canvas: Canvas,
-              resources: models.Resources,
+              resources: Resources,
               public skipMissingCharacters = false,
               depth = 0) {
     super(resources, depth);
@@ -876,7 +875,7 @@ export interface TextOperation {
 
 export class TextDrawingContext extends RecursiveDrawingContext {
   constructor(public operations: TextOperation[],
-              resources: models.Resources,
+              resources: Resources,
               public skipMissingCharacters = false) {
     super(resources);
   }

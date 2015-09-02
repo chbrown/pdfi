@@ -1,5 +1,5 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import * as logger from 'loge';
+import {logger} from 'loge';
 import * as afm from 'afm';
 
 import {memoize, checkArguments} from '../util';
@@ -152,7 +152,7 @@ export class Font extends Model {
     // still no luck? try the FontDescriptor
     var FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      logger.silly(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
+      // logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
       // check for the easy-out: 1-character fonts
       var FirstChar = <number>this.get('FirstChar');
       var LastChar = <number>this.get('LastChar');
@@ -169,7 +169,7 @@ export class Font extends Model {
         });
       }
       // else {
-      //   logger.warn(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
+      //   logger.warning(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
       // }
     }
 
@@ -206,7 +206,7 @@ export class Font extends Model {
 
           // TODO: handle missing glyphnames
           if (str === undefined && glyphname !== '.notdef') {
-            logger.warn(`[Font=${this.Name}] Encoding.Difference ${current_character_code} -> ${difference}, but that is not an existing glyphname`);
+            logger.warning(`[Font=${this.Name}] Encoding.Difference ${current_character_code} -> ${difference}, but that is not an existing glyphname`);
           }
           current_character_code++;
         }
@@ -214,7 +214,7 @@ export class Font extends Model {
     }
     else {
       if (usingStandardEncoding) {
-        logger.warn(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
+        // logger.warning(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
       }
     }
 
@@ -390,7 +390,7 @@ export class Type1Font extends Font {
         this._defaultWidth = MissingWidth;
       }
       else {
-        logger.silly(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
+        logger.debug(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
         this._defaultWidth = null;
       }
     }

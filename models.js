@@ -1,12 +1,14 @@
-var __extends = this.__extends || function (d, b) {
+var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var lexing_1 = require('lexing');
+var states_1 = require('./parsers/states');
 var util = require('util-enhanced');
-var Arrays = require('./Arrays');
-var decoders = require('./filters/decoders');
+var objectAssign = require('object-assign');
+var arrays_1 = require('arrays');
+var decoders_1 = require('./filters/decoders');
 /**
 Most of the classes in this module are wrappers for typed objects in a PDF,
 where the object's Type indicates useful ways it may be processed.
@@ -124,7 +126,7 @@ var Pages = (function (_super) {
     at the leaves of the pages tree.
     */
     Pages.prototype.getLeaves = function () {
-        return Arrays.flatMap(this.Kids, function (Kid) {
+        return arrays_1.flatMap(this.Kids, function (Kid) {
             // return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
             if (Kid instanceof Pages) {
                 return Kid.getLeaves();
@@ -255,13 +257,6 @@ var ContentStream = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(ContentStream.prototype, "Filter", {
-        get: function () {
-            return [].concat(this.object['dictionary']['Filter'] || []);
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(ContentStream.prototype, "Resources", {
         get: function () {
             var object = this.object['dictionary']['Resources'];
@@ -290,20 +285,9 @@ var ContentStream = (function (_super) {
         Return the object's buffer, decoding if necessary.
         */
         get: function () {
-            var buffer = this.object['buffer'];
-            this.Filter.forEach(function (filter) {
-                var decoder = decoders[filter];
-                if (decoder) {
-                    buffer = decoder(buffer);
-                }
-                else {
-                    var message = "Could not find decoder named \"" + filter + "\" to fully decode stream";
-                    // logger.error(message);
-                    throw new Error(message);
-                }
-            });
-            // TODO: delete the dictionary['Filter'] field?
-            return buffer;
+            var filters = [].concat(this.object['dictionary']['Filter'] || []);
+            var decodeParmss = [].concat(this.object['dictionary']['DecodeParms'] || []);
+            return decoders_1.decodeBuffer(this.object['buffer'], filters, decodeParmss);
         },
         enumerable: true,
         configurable: true
@@ -311,7 +295,6 @@ var ContentStream = (function (_super) {
     ContentStream.prototype.toJSON = function () {
         return {
             Length: this.Length,
-            Filter: this.Filter,
             buffer: this.buffer,
         };
     };
@@ -323,6 +306,41 @@ var ContentStream = (function (_super) {
     return ContentStream;
 })(Model);
 exports.ContentStream = ContentStream;
+/**
+An ObjectStream is denoted by Type='ObjStm', and documented in PDF32000_2008.pdf:7.5.7 Object Streams
+*/
+var ObjectStream = (function (_super) {
+    __extends(ObjectStream, _super);
+    function ObjectStream() {
+        _super.apply(this, arguments);
+    }
+    Object.defineProperty(ObjectStream.prototype, "objects", {
+        get: function () {
+            var _this = this;
+            var buffer = this.buffer;
+            // the prefix designates where each object in the stream occurs in the content
+            var prefix = this.buffer.slice(0, this.dictionary.First);
+            // var content = this.buffer.slice(this.dictionary.First)
+            var object_number_index_pairs = arrays_1.groups(prefix.toString('ascii').trim().split(/\s+/).map(function (x) { return parseInt(x, 10); }), 2);
+            return object_number_index_pairs.map(function (_a) {
+                var object_number = _a[0], offset = _a[1];
+                var iterable = lexing_1.StringIterator.fromBuffer(_this.buffer, 'binary', _this.dictionary.First + offset);
+                var value = new states_1.OBJECT(iterable, 1024).read();
+                return { object_number: object_number, generation_number: 0, value: value };
+            });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ObjectStream.prototype.toJSON = function () {
+        return {
+            Length: this.Length,
+            buffer: this.buffer,
+        };
+    };
+    return ObjectStream;
+})(ContentStream);
+exports.ObjectStream = ObjectStream;
 var index_1 = require('./font/index');
 /**
 Pages that render to text are defined by their `Contents` field, but
@@ -367,6 +385,9 @@ var Resources = (function (_super) {
             var Font_dictionary = this.get('Font');
             var dictionary_value = Font_dictionary[name];
             var font_object = new Model(this._pdf, dictionary_value).object;
+            if (font_object === undefined) {
+                throw new Error("Cannot find font object for name=" + name);
+            }
             var ctor = index_1.Font.getConstructor(font_object['Subtype']);
             // this `object` will usually be an indirect reference.
             if (IndirectReference.isIndirectReference(dictionary_value)) {
@@ -458,7 +479,7 @@ var Trailer = (function () {
     should be preferred, so we merge the older trailers under the newer ones.
     */
     Trailer.prototype.merge = function (object) {
-        this._object = util.extend(object, this._object);
+        this._object = objectAssign(object, this._object);
     };
     Object.defineProperty(Trailer.prototype, "Size", {
         get: function () {

@@ -62,9 +62,13 @@ export interface IndirectReference extends PDFObject {
  */
 export interface CrossReference {
   object_number: number; // non-negative integer
-  offset: number;
   generation_number: number; // non-negative integer
   in_use: boolean;
+  // cross references are most often references to a specific X Y obj ... endobj position in the PDF
+  offset?: number;
+  // but cross references can also be references to objects in an object stream
+  object_stream_object_number?: number;
+  object_stream_index?: number;
 }
 
 /**

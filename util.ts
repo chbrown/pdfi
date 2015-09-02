@@ -87,8 +87,6 @@ export function checkArguments(argument_options: any[]) {
   }
 }
 
-
-
 /**
 Parse a string of hexadecimal characters by slicing off substrings that are
 `byteLength`-long, and then using parseInt with a base of 16.

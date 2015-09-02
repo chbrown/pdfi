@@ -1,8 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
 import assert = require('assert');
-import PDF = require('../PDF');
-
 import {StringIterator} from 'lexing';
+
+import {PDF} from '../PDF';
 import {XREF} from '../parsers/states';
 
 function check(input: string, expected: any) {

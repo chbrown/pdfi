@@ -216,3 +216,27 @@ end
   });
 
 });
+
+// /CIDInit /ProcSet findresource begin
+// 12 dict begin
+// begincmap
+// /CIDSystemInfo
+// << /Registry (Adobe)
+// /Ordering (UCS) /Supplement 0 >> def
+// /CMapName /Adobe-Identity-UCS def
+// /CMapType 2 def
+// 1 begincodespacerange
+// <0000> <FFFF>
+// endcodespacerange
+// 9 beginbfchar
+// <63> <0063>
+// <64> <0064>
+// <65> <0065>
+// <69> <0069>
+// <70> <0070>
+// <72> <0072>
+// <74> <0074>
+// <75> <0075>
+// <0020> <0020>
+// endbfchar
+// endcmap CMapName currentdict /CMap defineresource pop end end

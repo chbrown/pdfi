@@ -9,18 +9,22 @@
     "text"
   ],
   "homepage": "https://github.com/chbrown/pdfi",
-  "repository": "git://github.com/chbrown/pdfi.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chbrown/pdfi.git"
+  },
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
     "academia": "*",
     "adts": "*",
     "afm": "*",
+    "arrays": "chbrown/arrays",
     "async": "*",
     "chalk": "*",
-    "lexing": "*",
-    "lodash": "*",
-    "loge": "*",
+    "lexing": "^0.4.1",
+    "loge": "^1.0.1",
+    "object-assign": "*",
     "streaming": "*",
     "unidata": "*",
     "unorm": "*",
@@ -30,7 +34,7 @@
   },
   "devDependencies": {
     "mocha": "*",
-    "typescript": "*"
+    "typescript": "next"
   },
   "bin": {
     "pdfi": "bin/pdfi"

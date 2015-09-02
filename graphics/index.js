@@ -1,5 +1,6 @@
-var Arrays = require('../Arrays');
-var logger = require('loge');
+/// <reference path="../type_declarations/index.d.ts" />
+var loge_1 = require('loge');
+var arrays_1 = require('arrays');
 var geometry_1 = require('./geometry');
 var models_1 = require('./models');
 var document_1 = require('./document');
@@ -44,8 +45,8 @@ exports.renderContentStreamLayout = renderContentStreamLayout;
 function renderPaper(pages, skipMissingCharacters, depth) {
     if (skipMissingCharacters === void 0) { skipMissingCharacters = true; }
     if (depth === void 0) { depth = 0; }
-    var containers = Arrays.flatMap(pages, function (page, i, pages) {
-        logger.debug("renderPaper: rendering page " + (i + 1) + "/" + pages.length);
+    var containers = arrays_1.flatMap(pages, function (page, i, pages) {
+        loge_1.logger.debug("renderPaper: rendering page " + (i + 1) + "/" + pages.length);
         var layout = renderPageLayout(page);
         layout.containers.forEach(function (container) {
             container.getElements().forEach(function (textSpan) { return textSpan.layoutContainer = container; });

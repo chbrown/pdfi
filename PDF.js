@@ -1,39 +1,35 @@
-var __extends = this.__extends || function (d, b) {
+var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var chalk = require('chalk');
-var logger = require('loge');
-var File = require('./File');
+var lexing_1 = require('lexing');
+var loge_1 = require('loge');
 var models = require('./models');
 var graphics = require('./graphics/index');
 var states_1 = require('./parsers/states');
-var lexing_1 = require('lexing');
+var sourceops_1 = require('./sourceops');
 var PDFStringIterator = (function (_super) {
     __extends(PDFStringIterator, _super);
-    function PDFStringIterator(_fd, _encoding, _position, pdf) {
-        _super.call(this, _fd, _encoding, _position);
+    function PDFStringIterator(source, _encoding, _position, pdf) {
+        _super.call(this, source, _encoding, _position);
         this.pdf = pdf;
     }
     return PDFStringIterator;
-})(lexing_1.FileStringIterator);
+})(lexing_1.SourceStringIterator);
 var PDF = (function () {
-    function PDF(file) {
-        this.file = file;
+    function PDF(source) {
+        this.source = source;
         this._cross_references = [];
         // _cached_objects is a cache of PDF objects indexed by
         // "${object_number}:${generation_number}" identifiers
         this._cached_objects = {};
         this._cached_models = {};
     }
-    PDF.open = function (filepath) {
-        return new PDF(File.open(filepath));
-    };
     Object.defineProperty(PDF.prototype, "size", {
         get: function () {
-            return this.file.size;
+            return this.source.size;
         },
         enumerable: true,
         configurable: true
@@ -43,7 +39,7 @@ var PDF = (function () {
     */
     PDF.prototype.readTrailers = function () {
         // Find the offset of the first item in the xref-trailer chain
-        var startxref_position = this.file.lastIndexOf('startxref');
+        var startxref_position = sourceops_1.lastIndexOf(this.source, 'startxref');
         if (startxref_position === null) {
             throw new Error('Could not find "startxref" marker in file');
         }
@@ -151,7 +147,14 @@ var PDF = (function () {
     */
     PDF.prototype._readObject = function (object_number, generation_number) {
         var cross_reference = this.findCrossReference(object_number, generation_number);
-        var indirect_object = this.parseStateAt(states_1.OBJECT, cross_reference.offset);
+        var indirect_object;
+        if (cross_reference.offset) {
+            indirect_object = this.parseStateAt(states_1.OBJECT, cross_reference.offset);
+        }
+        else {
+            var object_stream = this.getModel(cross_reference.object_stream_object_number, 0, models.ObjectStream);
+            indirect_object = object_stream.objects[cross_reference.object_stream_index];
+        }
         // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
         // and generation number; that's how we found it. We only want the value of
         // the object. But we might as well double check that what we got is what
@@ -202,18 +205,19 @@ var PDF = (function () {
     };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
-        logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
+        loge_1.logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
         // File#readBuffer(length: number, position: number): Buffer
-        var preface_buffer = this.file.readBuffer(error_position - start_position, start_position);
+        // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
+        var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
         var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-        var error_buffer = this.file.readBuffer(margin, error_position);
+        var error_buffer = this.source.readBuffer(margin, error_position);
         var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
         // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
-        console.log('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
+        loge_1.logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
     };
     PDF.prototype.parseStateAt = function (STATE, position, peek_length) {
         if (peek_length === void 0) { peek_length = 1024; }
-        var iterable = new PDFStringIterator(this.file.fd, 'ascii', position, this);
+        var iterable = new PDFStringIterator(this.source, 'ascii', position, this);
         try {
             return new STATE(iterable, peek_length).read();
         }
@@ -225,4 +229,4 @@ var PDF = (function () {
     };
     return PDF;
 })();
-module.exports = PDF;
+exports.PDF = PDF;

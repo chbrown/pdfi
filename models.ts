@@ -1,11 +1,13 @@
 /// <reference path="type_declarations/index.d.ts" />
-import logger = require('loge');
-import lexing = require('lexing');
+import {logger} from 'loge';
+import {StringIterator} from 'lexing';
+import {OBJECT} from './parsers/states';
 var util = require('util-enhanced');
+var objectAssign = require('object-assign');
 
-import Arrays = require('./Arrays');
+import {flatMap, groups} from 'arrays';
 import pdfdom = require('./pdfdom');
-import decoders = require('./filters/decoders');
+import {decodeBuffer} from './filters/decoders';
 
 /**
 Importing PDF like `import PDF = require('./PDF')` introduces a breaking
@@ -123,7 +125,7 @@ export class Pages extends Model {
   at the leaves of the pages tree.
   */
   getLeaves(): Page[] {
-    return Arrays.flatMap(this.Kids, Kid => {
+    return flatMap(this.Kids, Kid => {
       // return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
       if (Kid instanceof Pages) {
         return Kid.getLeaves();
@@ -231,10 +233,6 @@ export class ContentStream extends Model {
     return <number>new Model(this._pdf, this.object['dictionary']['Length']).object;
   }
 
-  get Filter(): string[] {
-    return [].concat(this.object['dictionary']['Filter'] || []);
-  }
-
   get Resources(): Resources {
     var object = this.object['dictionary']['Resources'];
     return object ? new Resources(this._pdf, object) : undefined;
@@ -253,26 +251,14 @@ export class ContentStream extends Model {
   Return the object's buffer, decoding if necessary.
   */
   get buffer(): Buffer {
-    var buffer = this.object['buffer'];
-    this.Filter.forEach(filter => {
-      var decoder = decoders[filter];
-      if (decoder) {
-        buffer = decoder(buffer);
-      }
-      else {
-        var message = `Could not find decoder named "${filter}" to fully decode stream`;
-        // logger.error(message);
-        throw new Error(message);
-      }
-    });
-    // TODO: delete the dictionary['Filter'] field?
-    return buffer;
+    var filters = [].concat(this.object['dictionary']['Filter'] || []);
+    var decodeParmss = [].concat(this.object['dictionary']['DecodeParms'] || []);
+    return decodeBuffer(this.object['buffer'], filters, decodeParmss);
   }
 
   toJSON(): any {
     return {
       Length: this.Length,
-      Filter: this.Filter,
       buffer: this.buffer,
     };
   }
@@ -280,6 +266,31 @@ export class ContentStream extends Model {
   static isContentStream(object): boolean {
     if (object === undefined || object === null) return false;
     return (object['dictionary'] !== undefined) && (object['buffer'] !== undefined);
+  }
+}
+
+/**
+An ObjectStream is denoted by Type='ObjStm', and documented in PDF32000_2008.pdf:7.5.7 Object Streams
+*/
+export class ObjectStream extends ContentStream {
+  get objects(): pdfdom.IndirectObject[] {
+    var buffer = this.buffer;
+    // the prefix designates where each object in the stream occurs in the content
+    var prefix = this.buffer.slice(0, this.dictionary.First);
+    // var content = this.buffer.slice(this.dictionary.First)
+    var object_number_index_pairs = groups(prefix.toString('ascii').trim().split(/\s+/).map(x => parseInt(x, 10)), 2);
+    return object_number_index_pairs.map(([object_number, offset]) => {
+      var iterable = StringIterator.fromBuffer(this.buffer, 'binary', this.dictionary.First + offset);
+      var value = new OBJECT(iterable, 1024).read();
+      return {object_number, generation_number: 0, value};
+    });
+  }
+
+  toJSON(): any {
+    return {
+      Length: this.Length,
+      buffer: this.buffer,
+    };
   }
 }
 
@@ -327,6 +338,9 @@ export class Resources extends Model {
 
       var dictionary_value = Font_dictionary[name];
       var font_object = new Model(this._pdf, dictionary_value).object;
+      if (font_object === undefined) {
+        throw new Error(`Cannot find font object for name=${name}`);
+      }
       var ctor = Font.getConstructor(font_object['Subtype']);
       // this `object` will usually be an indirect reference.
       if (IndirectReference.isIndirectReference(dictionary_value)) {
@@ -408,7 +422,7 @@ export class Trailer {
   should be preferred, so we merge the older trailers under the newer ones.
   */
   merge(object: any): void {
-    this._object = util.extend(object, this._object);
+    this._object = objectAssign(object, this._object);
   }
 
   get Size(): number {

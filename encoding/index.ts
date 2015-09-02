@@ -1,9 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
+import {logger} from 'loge';
 import * as lexing from 'lexing';
-import logger = require('loge');
 import unorm = require('unorm');
 
-import Arrays = require('../Arrays');
 import {ContentStream} from '../models';
 import {parseCMap} from '../parsers/index';
 import util = require('../util');
@@ -77,7 +76,7 @@ export class Encoding {
   */
   mergeLatinCharset(name: string): void {
     if (name == 'MacExpertEncoding') {
-      logger.warn(`Coercing "MacExpertEncoding" to "MacRomanEncoding" when merging Latin character set `);
+      logger.warning(`Coercing "MacExpertEncoding" to "MacRomanEncoding" when merging Latin character set `);
       // TODO: handle MacExpertEncoding properly
       name = 'MacRomanEncoding';
     }

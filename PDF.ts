@@ -1,29 +1,25 @@
 /// <reference path="type_declarations/index.d.ts" />
 import fs = require('fs');
 import chalk = require('chalk');
-import logger = require('loge');
 import academia = require('academia');
+import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
+import {logger} from 'loge';
 
-import File = require('./File');
-
-import Arrays = require('./Arrays');
 import pdfdom = require('./pdfdom');
 import models = require('./models');
-import document = require('./graphics/document');
 import graphics = require('./graphics/index');
 
 import {parsePDFObject} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
+import {indexOf, lastIndexOf} from './sourceops';
 
-import {MachineState, MachineStateConstructor, FileStringIterator} from 'lexing';
-
-class PDFStringIterator extends FileStringIterator {
-  constructor(_fd: number, _encoding: string, _position: number, public pdf: PDF) {
-    super(_fd, _encoding, _position);
+class PDFStringIterator extends SourceStringIterator {
+  constructor(source: Source, _encoding: string, _position: number, public pdf: PDF) {
+    super(source, _encoding, _position);
   }
 }
 
-class PDF {
+export class PDF {
   private _trailer: models.Trailer;
   private _cross_references: pdfdom.CrossReference[] = [];
   // _cached_objects is a cache of PDF objects indexed by
@@ -31,14 +27,10 @@ class PDF {
   private _cached_objects: {[index: string]: pdfdom.PDFObject} = {};
   private _cached_models: {[index: string]: models.Model} = {};
 
-  constructor(public file: File) { }
-
-  static open(filepath: string): PDF {
-    return new PDF(File.open(filepath));
-  }
+  constructor(public source: Source) { }
 
   get size(): number {
-    return this.file.size;
+    return this.source.size;
   }
 
   /** Since the trailers and cross references overlap so much,
@@ -46,7 +38,7 @@ class PDF {
   */
   readTrailers(): void {
     // Find the offset of the first item in the xref-trailer chain
-    var startxref_position = this.file.lastIndexOf('startxref');
+    var startxref_position = lastIndexOf(this.source, 'startxref');
     if (startxref_position === null) {
       throw new Error('Could not find "startxref" marker in file');
     }
@@ -133,11 +125,10 @@ class PDF {
   getModel<T extends models.Model>(object_number: number,
                                    generation_number: number,
                                    ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
-
     var model_id = `${ctor['name']}(${object_number}:${generation_number})`;
     // the type coersion below assumes that the caller read the doc comment
     // on this function.
-    var cached_model: T = <T>this._cached_models[model_id];
+    var cached_model = <T>this._cached_models[model_id];
     if (cached_model === undefined) {
       var object = this.getObject(object_number, generation_number);
       cached_model = this._cached_models[model_id] = new ctor(this, object);
@@ -157,7 +148,14 @@ class PDF {
   */
   private _readObject(object_number: number, generation_number: number): pdfdom.PDFObject {
     var cross_reference = this.findCrossReference(object_number, generation_number);
-    var indirect_object = <pdfdom.IndirectObject>this.parseStateAt(OBJECT, cross_reference.offset);
+    var indirect_object: pdfdom.IndirectObject;
+    if (cross_reference.offset) {
+      indirect_object = <pdfdom.IndirectObject>this.parseStateAt(OBJECT, cross_reference.offset);
+    }
+    else {
+      var object_stream = this.getModel(cross_reference.object_stream_object_number, 0, models.ObjectStream);
+      indirect_object = object_stream.objects[cross_reference.object_stream_index];
+    }
     // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
     // and generation number; that's how we found it. We only want the value of
     // the object. But we might as well double check that what we got is what
@@ -212,16 +210,17 @@ class PDF {
   printContext(start_position: number, error_position: number, margin: number = 256): void {
     logger.error(`context preface=${chalk.cyan(start_position)} error=${chalk.yellow(error_position)}...`)
     // File#readBuffer(length: number, position: number): Buffer
-    var preface_buffer = this.file.readBuffer(error_position - start_position, start_position);
+    // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
+    var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
     var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    var error_buffer = this.file.readBuffer(margin, error_position);
+    var error_buffer = this.source.readBuffer(margin, error_position);
     var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
     // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
-    console.log('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
+    logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
   }
 
   parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): pdfdom.PDFObject {
-    var iterable = new PDFStringIterator(this.file.fd, 'ascii', position, this);
+    var iterable = new PDFStringIterator(this.source, 'ascii', position, this);
     try {
       return new STATE(iterable, peek_length).read();
     }
@@ -233,5 +232,3 @@ class PDF {
     }
   }
 }
-
-export = PDF;

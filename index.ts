@@ -1,19 +1,23 @@
 /// <reference path="type_declarations/index.d.ts" />
 // This file provides the most abstract API to pdfi. The type signatures of
 // this module should following proper versioning practices.
-import yargs = require('yargs');
-import academia = require('academia');
-import chalk = require('chalk');
-import logger = require('loge');
+import {logger, Level} from 'loge';
+import * as yargs from 'yargs';
+import * as academia from 'academia';
+import * as chalk from 'chalk';
 
-import PDF = require('./PDF');
+import {PDF} from './PDF';
 import {IndirectReference, Model, ContentStream} from './models';
-import Arrays = require('./Arrays');
+
+import {Source} from 'lexing';
+var lexing_fs = require('lexing/fs');
+
+Error['stackTraceLimit'] = 50;
 
 // import visible = require('visible');
 // var escaper = new visible.Escaper({/* literalEOL: false */});
 
-export function setLoggerLevel(level: number | string) {
+export function setLoggerLevel(level: Level) {
   logger.level = level;
 }
 
@@ -42,6 +46,7 @@ export function readFile(filename: string,
     callback(null, data);
   });
 }
+
 /**
 Read a PDF from the given file.
 
@@ -58,7 +63,8 @@ options.type determines the return value.
 */
 export function readFileSync(filename: string,
                              options: ReadOptions = {type: 'string'}): any {
-  var pdf = PDF.open(filename);
+  var source: Source = new lexing_fs.FileSystemSource.open(filename);
+  var pdf = new PDF(source);
   if (options.type == 'pdf') {
     return pdf;
   }
@@ -88,7 +94,8 @@ export function readFileSync(filename: string,
 function objects(filename: string,
                  references: IndirectReference[],
                  decode: boolean = false) {
-  var pdf = PDF.open(filename);
+  var source: Source = new lexing_fs.FileSystemSource.open(filename);
+  var pdf = new PDF(source);
   references.forEach(reference => {
     stderr(reference.toString());
     var object = new Model(pdf, reference).object
@@ -103,7 +110,6 @@ function objects(filename: string,
     process.stdout.write(JSON.stringify(object) + '\n');
   });
 }
-
 
 export function main() {
   var argvparser = yargs
@@ -131,7 +137,7 @@ export function main() {
     .boolean(['help', 'verbose', 'decode']);
 
   var argv = argvparser.argv;
-  logger.level = argv.verbose ? 'debug' : 'info';
+  setLoggerLevel(argv.verbose ? Level.debug : Level.info);
   if (argv.verbose) {
     chalk.enabled = true; // dumb
   }

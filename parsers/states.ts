@@ -1,10 +1,13 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import * as logger from 'loge';
+import {logger} from 'loge';
 import {MachineRule as Rule, MachineState} from 'lexing';
 
-import * as Arrays from '../Arrays';
+import {pushAll, sum, groups, flatMap, range} from 'arrays';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
+import {decodeBuffer} from '../filters/decoders';
+
+var objectAssign = require('object-assign');
 
 const escapeCharCodes = {
   '\\n': 10,
@@ -240,9 +243,10 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
       alias: content_stream_operator_aliases[matchValue[0]],
     });
     if (content_stream_operator_aliases[matchValue[0]] === undefined) {
-      logger.warn('Unaliased operator: %j', matchValue[0]);
+      logger.warning('Unaliased operator: %j', matchValue[0]);
     }
     this.stack = [];
+    return undefined;
   }
   captureImageData(matchValue: RegExpMatchArray) {
     // var image_data = new IMAGEDATA(this.iterable).read();
@@ -257,10 +261,11 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
       alias: content_stream_operator_aliases['EI'],
     });
     this.stack = [];
+    return undefined;
   }
   captureHex(matchValue: RegExpMatchArray) {
     var hexstring = matchValue[1].replace(/\s+/g, '');
-    // Arrays.range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
+    // range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
     var buffer = new Buffer(hexstring, 'hex');
     this.stack.push(buffer);
     return undefined;
@@ -311,15 +316,6 @@ export class ARRAY extends MachineState<PDFObject[], PDFObject[]> {
     this.value.push(object);
     return undefined;
   }
-}
-
-interface StreamObject {
-  dictionary: DictionaryObject;
-  // dictionary: {
-  //   Length: number;
-  //   Filter?: string | string[];
-  // };
-  buffer: Buffer;
 }
 
 export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject> {
@@ -500,6 +496,7 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     Rule(/^xref/, this.captureXref),
     Rule(/^trailer/, this.captureTrailer),
     Rule(/^startxref\s+(\d+)\s+%%EOF/, this.captureStartXref),
+    Rule(/^([0-9]+)\s+([0-9]+)\s+obj/, this.captureIndirectObject),
   ]
   captureXref(matchValue: RegExpMatchArray) {
     this.value.cross_references = this.attachState(XREF).read();
@@ -512,6 +509,68 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
   }
   captureStartXref(matchValue: RegExpMatchArray) {
     this.value.startxref = parseInt(matchValue[1], 10);
+    return this.value;
+  }
+  captureIndirectObject(matchValue: RegExpMatchArray) {
+    // object_number: parseInt(matchValue[1], 10),
+    // generation_number: parseInt(matchValue[2], 10),
+    var value = this.attachState(INDIRECT_OBJECT_VALUE).read();
+    // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
+    var filters = [].concat(value.dictionary.Filter || []);
+    var decodeParmss = [].concat(value.dictionary.DecodeParms || []);
+    var buffer = decodeBuffer(value.buffer, filters, decodeParmss);
+
+    var Size = value.dictionary.Size;
+    // object_number_pairs: Array<[number, number]>
+    var object_number_pairs: number[][] = groups<number>(value.dictionary.Index || [0, Size], 2);
+
+    // PDF32000_2008.pdf:7.5.8.2-3 describes how we resolve these windows
+    // to cross_references
+    var [field_type_size, field_2_size, field_3_size] = value.dictionary.W;
+    var columns = field_type_size + field_2_size + field_3_size;
+
+    // first, parse out the PartialCrossReferences
+    var partial_xrefs: PartialCrossReference[] = [];
+    for (var offset = 0; offset < buffer.length; offset += columns) {
+      // TODO: handle field sizes that are 0
+      var field_type = buffer.readUIntBE(offset, field_type_size);
+      var field_2 = buffer.readUIntBE(offset + field_type_size, field_2_size);
+      var field_3 = buffer.readUIntBE(offset + field_type_size + field_2_size, field_3_size);
+      if (field_type === 0) {
+        logger.warning('CrossReferenceStream with field Type=0 is not fully implemented');
+        partial_xrefs.push({
+          in_use: false,
+          generation_number: 0,
+        });
+      }
+      else if (field_type === 1) {
+        partial_xrefs.push({
+          in_use: true,
+          offset: field_2,
+          generation_number: field_3,
+        });
+      }
+      else {
+        partial_xrefs.push({
+          in_use: true,
+          generation_number: 0,
+          object_stream_object_number: field_2,
+          object_stream_index: field_3,
+        });
+      }
+    }
+
+    // now use the dictionary.Index values to zip
+    this.value.cross_references = flatMap<number[], CrossReference>(object_number_pairs, ([object_number_start, size]) => {
+      return range(size).map(i => {
+        var partial_xref = partial_xrefs.shift();
+        return objectAssign({object_number: object_number_start + i}, partial_xref);
+      });
+    });
+
+    this.value.trailer = value.dictionary;
+    this.value.startxref = value.dictionary.Prev;
+
     return this.value;
   }
 }
@@ -544,12 +603,12 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
     var object_number_start = parseInt(matchValue[1], 10);
     var object_count = parseInt(matchValue[2], 10);
     for (var i = 0; i < object_count; i++) {
-      var partial = this.attachState(XREF_REFERENCE).read();
+      var partial_cross_reference = this.attachState<PartialCrossReference, PartialCrossReference>(XREF_REFERENCE).read();
       this.value.push({
         object_number: object_number_start + i,
-        offset: partial.offset,
-        generation_number: partial.generation_number,
-        in_use: partial.in_use,
+        offset: partial_cross_reference.offset,
+        generation_number: partial_cross_reference.generation_number,
+        in_use: partial_cross_reference.in_use,
       });
     }
     return undefined;
@@ -557,9 +616,11 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
 }
 
 interface PartialCrossReference {
-  offset: number;
   generation_number: number;
   in_use: boolean;
+  offset?: number;
+  object_stream_object_number?: number;
+  object_stream_index?: number;
 }
 
 export class XREF_REFERENCE extends MachineState<PartialCrossReference, PartialCrossReference> {
@@ -841,23 +902,23 @@ export class CMAP extends MachineState<CMap, any> {
   ]
   captureCodeSpaceRange(matchValue: RegExpMatchArray) {
     var ranges = this.attachState(CODESPACERANGE).read();
-    Arrays.pushAll(this.codeSpaceRanges, ranges);
+    pushAll(this.codeSpaceRanges, ranges);
     return undefined;
   }
   captureBFChar(matchValue: RegExpMatchArray) {
     var mappings = this.attachState(BFCHAR).read();
-    Arrays.pushAll(this.mappings, mappings);
+    pushAll(this.mappings, mappings);
     return undefined;
   }
   captureBFRange(matchValue: RegExpMatchArray) {
     var mappings = this.attachState(BFRANGE).read();
-    Arrays.pushAll(this.mappings, mappings);
+    pushAll(this.mappings, mappings);
     return undefined;
   }
   pop(): CMap {
     var byteLengths = this.mappings.map(mapping => mapping.byteLength);
     if (!byteLengths.every(byteLength => byteLength === byteLengths[0])) {
-      logger.warn(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}; using only the first.`);
+      logger.warning(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}; using only the first.`);
     }
     return {
       codeSpaceRanges: this.codeSpaceRanges,

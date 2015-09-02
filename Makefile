@@ -1,22 +1,22 @@
+BIN := node_modules/.bin
 TYPESCRIPT := $(wildcard *.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
+DTS := async/async mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
 
-DTS := async/async lodash/lodash mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
-
-.PHONY: all
 all: $(TYPESCRIPT:%.ts=%.js) encoding/glyphlist.json
 
 type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
 
-%.js: %.ts type_declarations | node_modules/.bin/tsc
-	node_modules/.bin/tsc -m commonjs -t ES5 $<
+%.js: %.ts type_declarations $(BIN)/tsc
+	$(BIN)/tsc --experimentalDecorators -m commonjs -t ES5 $<
 
 # e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
 type_declarations/DefinitelyTyped/%:
 	mkdir -p $(@D)
 	curl -s https://raw.githubusercontent.com/chbrown/DefinitelyTyped/master/$* > $@
 
+.PHONY: test
 test: all
-	node_modules/.bin/mocha --recursive test/
+	$(BIN)/mocha --recursive test/
 
 encoding/glyphlist.txt:
 	# glyphlist.txt is pure ASCII
