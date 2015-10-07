@@ -1,13 +1,14 @@
 BIN := node_modules/.bin
 TYPESCRIPT := $(wildcard *.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
-DTS := async/async mocha/mocha node/node yargs/yargs chalk/chalk unorm/unorm
+DTS := async/async mocha/mocha node/node chalk/chalk unorm/unorm object-assign/object-assign
 
 all: $(TYPESCRIPT:%.ts=%.js) encoding/glyphlist.json
 
 type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
 
+# $(BIN)/tsc --experimentalDecorators -m commonjs -t ES5 $<
 %.js: %.ts type_declarations $(BIN)/tsc
-	$(BIN)/tsc --experimentalDecorators -m commonjs -t ES5 $<
+	$(BIN)/tsc
 
 # e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
 type_declarations/DefinitelyTyped/%:

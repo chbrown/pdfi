@@ -29,15 +29,11 @@
     "unidata": "*",
     "unorm": "*",
     "util-enhanced": "*",
-    "visible": "*",
-    "yargs": "*"
+    "visible": "*"
   },
   "devDependencies": {
     "mocha": "*",
     "typescript": "next"
-  },
-  "bin": {
-    "pdfi": "bin/pdfi"
   },
   "scripts": {
     "test": "make test"

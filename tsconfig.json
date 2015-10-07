@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES5",
+    "experimentalDecorators": true,
+    "moduleResolution": "classic"
+  },
+  "files": [
+    "PDF.ts",
+    "bufferops.ts",
+    "encoding/index.ts",
+    "filters/decoders.ts",
+    "font/descriptor.ts",
+    "font/index.ts",
+    "graphics/color.ts",
+    "graphics/document.ts",
+    "graphics/geometry.ts",
+    "graphics/index.ts",
+    "graphics/math.ts",
+    "graphics/models.ts",
+    "graphics/stream.ts",
+    "index.ts",
+    "models.ts",
+    "parsers/index.ts",
+    "parsers/states.ts",
+    "pdfdom.ts",
+    "sourceops.ts",
+    "test/cmap.ts",
+    "test/filters.ts",
+    "test/pdfobject.ts",
+    "test/textparser.ts",
+    "test/xref.ts",
+    "util.ts"
+  ]
+}
