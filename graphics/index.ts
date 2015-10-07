@@ -1,9 +1,9 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import * as lexing from 'lexing';
 import * as academia from 'academia';
 import {flatMap} from 'arrays';
 
+import {logger} from '../logger';
 import {Page, ContentStream, Resources} from '../models';
 
 import {Rectangle} from './geometry';

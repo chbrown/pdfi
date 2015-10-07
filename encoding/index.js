@@ -1,7 +1,7 @@
 /// <reference path="../type_declarations/index.d.ts" />
-var loge_1 = require('loge');
 var lexing = require('lexing');
 var unorm = require('unorm');
+var logger_1 = require('../logger');
 var index_1 = require('../parsers/index');
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -57,7 +57,7 @@ var Encoding = (function () {
     Encoding.prototype.mergeLatinCharset = function (name) {
         var _this = this;
         if (name == 'MacExpertEncoding') {
-            loge_1.logger.warning("Coercing \"MacExpertEncoding\" to \"MacRomanEncoding\" when merging Latin character set ");
+            logger_1.logger.warning("Coercing \"MacExpertEncoding\" to \"MacRomanEncoding\" when merging Latin character set ");
             // TODO: handle MacExpertEncoding properly
             name = 'MacRomanEncoding';
         }
@@ -88,10 +88,7 @@ var Encoding = (function () {
     */
     Encoding.prototype.decodeCharCodes = function (buffer) {
         var charCodes = [];
-        var index = 0;
-        var offset = 0;
-        var length = buffer.length;
-        for (var offset = 0; offset < length; offset += this.characterByteLength) {
+        for (var offset = 0, length = buffer.length; offset < length; offset += this.characterByteLength) {
             var charCode = buffer.readUIntBE(offset, this.characterByteLength);
             charCodes.push(charCode);
         }

@@ -1,7 +1,7 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import * as afm from 'afm';
 
+import {logger} from '../logger';
 import {memoize, checkArguments} from '../util';
 import pdfdom = require('../pdfdom');
 

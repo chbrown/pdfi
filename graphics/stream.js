@@ -11,8 +11,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
         case 4: return decorators.reduceRight(function(o, d) { return (d && d(target, key, o)) || o; }, desc);
     }
 };
-/// <reference path="../type_declarations/index.d.ts" />
-var loge_1 = require('loge');
+var logger_1 = require('../logger');
 var util_1 = require('../util');
 var index_1 = require('../parsers/index');
 var geometry_1 = require('./geometry');
@@ -165,7 +164,7 @@ var DrawingContext = (function () {
     Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
     */
     DrawingContext.prototype.drawObject = function (name) {
-        loge_1.logger.error('Unimplemented "drawObject" operation');
+        logger_1.logger.error('Unimplemented "drawObject" operation');
     };
     // ---------------------------------------------------------------------------
     // General graphics state (w, J, j, M, d, ri, i, gs)
@@ -252,7 +251,7 @@ var DrawingContext = (function () {
         var ExtGState = this.resources.getExtGState(dictName);
         Object.keys(ExtGState.object).filter(function (key) { return key !== 'Type'; }).forEach(function (key) {
             var value = ExtGState.get(key);
-            loge_1.logger.debug("Ignoring setGraphicsStateParameters(" + dictName + ") operation: %s = %j", key, value);
+            logger_1.logger.debug("Ignoring setGraphicsStateParameters(" + dictName + ") operation: %s = %j", key, value);
         });
     };
     // ---------------------------------------------------------------------------
@@ -261,37 +260,37 @@ var DrawingContext = (function () {
     `x y m`
     */
     DrawingContext.prototype.moveTo = function (x, y) {
-        loge_1.logger.debug("Ignoring moveTo(" + x + ", " + y + ") operation");
+        logger_1.logger.debug("Ignoring moveTo(" + x + ", " + y + ") operation");
     };
     /**
     `x y l`
     */
     DrawingContext.prototype.appendLine = function (x, y) {
-        loge_1.logger.debug("Ignoring appendLine(" + x + ", " + y + ") operation");
+        logger_1.logger.debug("Ignoring appendLine(" + x + ", " + y + ") operation");
     };
     /**
     `x1 y1 x2 y2 x3 y3 c`
     */
     DrawingContext.prototype.appendCurve123 = function (x1, y1, x2, y2, x3, y3) {
-        loge_1.logger.debug("Ignoring appendCurve123(" + x1 + ", " + y1 + ", " + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
+        logger_1.logger.debug("Ignoring appendCurve123(" + x1 + ", " + y1 + ", " + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `x2 y2 x3 y3 v`
     */
     DrawingContext.prototype.appendCurve23 = function (x2, y2, x3, y3) {
-        loge_1.logger.debug("Ignoring appendCurve23(" + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
+        logger_1.logger.debug("Ignoring appendCurve23(" + x2 + ", " + y2 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `x1 y1 x3 y3 y`
     */
     DrawingContext.prototype.appendCurve13 = function (x1, y1, x3, y3) {
-        loge_1.logger.debug("Ignoring appendCurve13(" + x1 + ", " + y1 + ", " + x3 + ", " + y3 + ") operation");
+        logger_1.logger.debug("Ignoring appendCurve13(" + x1 + ", " + y1 + ", " + x3 + ", " + y3 + ") operation");
     };
     /**
     `h`
     */
     DrawingContext.prototype.closePath = function () {
-        loge_1.logger.debug("Ignoring closePath() operation");
+        logger_1.logger.debug("Ignoring closePath() operation");
     };
     /**
     > `x y width height re`: Append a rectangle to the current path as a complete
@@ -303,7 +302,7 @@ var DrawingContext = (function () {
     >     h
     */
     DrawingContext.prototype.appendRectangle = function (x, y, width, height) {
-        loge_1.logger.debug("Ignoring appendRectangle(" + x + ", " + y + ", " + width + ", " + height + ") operation");
+        logger_1.logger.debug("Ignoring appendRectangle(" + x + ", " + y + ", " + width + ", " + height + ") operation");
     };
     // ---------------------------------------------------------------------------
     // Path painting (S, s, f, F, f*, B, B*, b, b*, n) - see Table 60
@@ -311,7 +310,7 @@ var DrawingContext = (function () {
     > `S`: Stroke the path.
     */
     DrawingContext.prototype.stroke = function () {
-        loge_1.logger.debug("Ignoring stroke() operation");
+        logger_1.logger.debug("Ignoring stroke() operation");
     };
     /** ALIAS
     > `s`: Close and stroke the path. This operator shall have the same effect as the sequence h S.
@@ -325,7 +324,7 @@ var DrawingContext = (function () {
     */
     DrawingContext.prototype.fill = function () {
         // this.closePath(); ?
-        loge_1.logger.debug("Ignoring fill() operation");
+        logger_1.logger.debug("Ignoring fill() operation");
     };
     /** ALIAS
     > `F`: Equivalent to f; included only for compatibility. Although PDF reader applications shall be able to accept this operator, PDF writer applications should use f instead.
@@ -337,20 +336,20 @@ var DrawingContext = (function () {
     > `f*`: Fill the path, using the even-odd rule to determine the region to fill.
     */
     DrawingContext.prototype.fillEvenOdd = function () {
-        loge_1.logger.debug("Ignoring fillEvenOdd() operation");
+        logger_1.logger.debug("Ignoring fillEvenOdd() operation");
     };
     /**
     > `B`: Fill and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall produce the same result as constructing two identical path objects, painting the first with f and the second with S.
     > NOTE The filling and stroking portions of the operation consult different values of several graphics state parameters, such as the current colour.
     */
     DrawingContext.prototype.fillThenStroke = function () {
-        loge_1.logger.debug("Ignoring fillAndStroke() operation");
+        logger_1.logger.debug("Ignoring fillAndStroke() operation");
     };
     /**
     > `B*`: Fill and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall produce the same result as B, except that the path is filled as if with f* instead of f.
     */
     DrawingContext.prototype.fillThenStrokeEvenOdd = function () {
-        loge_1.logger.debug("Ignoring fillAndStrokeEvenOdd() operation");
+        logger_1.logger.debug("Ignoring fillAndStrokeEvenOdd() operation");
     };
     /** ALIAS
     > `b`: Close, fill, and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall have the same effect as the sequence h B.
@@ -370,7 +369,7 @@ var DrawingContext = (function () {
     > `n`: End the path object without filling or stroking it. This operator shall be a path- painting no-op, used primarily for the side effect of changing the current clipping path.
     */
     DrawingContext.prototype.closePathNoop = function () {
-        loge_1.logger.debug("Ignoring closePathNoop() operation");
+        logger_1.logger.debug("Ignoring closePathNoop() operation");
     };
     // ---------------------------------------------------------------------------
     //                           Color operators
@@ -378,37 +377,37 @@ var DrawingContext = (function () {
     > `name CS`
     */
     DrawingContext.prototype.setStrokeColorSpace = function (name) {
-        loge_1.logger.debug("Ignoring setStrokeColorSpace(" + name + ") operation");
+        logger_1.logger.debug("Ignoring setStrokeColorSpace(" + name + ") operation");
     };
     /**
     > `name cs`: Same as CS but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillColorSpace = function (name) {
-        loge_1.logger.debug("Ignoring setFillColorSpace(" + name + ") operation");
+        logger_1.logger.debug("Ignoring setFillColorSpace(" + name + ") operation");
     };
     /**
     > `c1 cn SC`
     */
     DrawingContext.prototype.setStrokeColorSpace2 = function (c1, cn) {
-        loge_1.logger.debug("Ignoring setStrokeColorSpace2(" + c1 + ", " + cn + ") operation");
+        logger_1.logger.debug("Ignoring setStrokeColorSpace2(" + c1 + ", " + cn + ") operation");
     };
     /**
     > `c1 cn [name] SCN`
     */
     DrawingContext.prototype.setStrokeColorSpace3 = function (c1, cn, patternName) {
-        loge_1.logger.debug("Ignoring setStrokeColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
+        logger_1.logger.debug("Ignoring setStrokeColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
     };
     /**
     > `c1 cn sc`: Same as SC but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillColorSpace2 = function (c1, cn) {
-        loge_1.logger.debug("Ignoring setFillColorSpace2(" + c1 + ", " + cn + ") operation");
+        logger_1.logger.debug("Ignoring setFillColorSpace2(" + c1 + ", " + cn + ") operation");
     };
     /**
     > `c1 cn [name] scn`: Same as SCN but used for nonstroking operations.
     */
     DrawingContext.prototype.setFillColorSpace3 = function (c1, cn, patternName) {
-        loge_1.logger.debug("Ignoring setFillColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
+        logger_1.logger.debug("Ignoring setFillColorSpace3(" + c1 + ", " + cn + ", " + patternName + ") operation");
     };
     /**
     `gray G`: Set the stroking colour space to DeviceGray and set the gray level
@@ -456,19 +455,19 @@ var DrawingContext = (function () {
     > This operator should be applied only to bounded or geometrically defined shadings. If applied to an unbounded shading, it paints the shading’s gradient fill across the entire clipping region, which may be time-consuming.
     */
     DrawingContext.prototype.shadingPattern = function (name) {
-        loge_1.logger.debug("Ignoring shadingPattern(" + name + ") operation");
+        logger_1.logger.debug("Ignoring shadingPattern(" + name + ") operation");
     };
     // ---------------------------------------------------------------------------
     // Inline Image Operators (BI, ID, EI)
     DrawingContext.prototype.beginInlineImage = function () {
-        loge_1.logger.debug("Ignoring beginInlineImage() operation");
+        logger_1.logger.debug("Ignoring beginInlineImage() operation");
     };
     DrawingContext.prototype.endInlineImage = function () {
         var args = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             args[_i - 0] = arguments[_i];
         }
-        loge_1.logger.debug("Ignoring endInlineImage() operation");
+        logger_1.logger.debug("Ignoring endInlineImage() operation");
     };
     // ---------------------------------------------------------------------------
     // Clipping Path Operators (W, W*)
@@ -476,13 +475,13 @@ var DrawingContext = (function () {
     > `W`: Modify the current clipping path by intersecting it with the current path, using the nonzero winding number rule to determine which regions lie inside the clipping path.
     */
     DrawingContext.prototype.clip = function () {
-        loge_1.logger.debug("Ignoring clip() operation");
+        logger_1.logger.debug("Ignoring clip() operation");
     };
     /**
     > `W*`: Modify the current clipping path by intersecting it with the current path, using the even-odd rule to determine which regions lie inside the clipping path.
     */
     DrawingContext.prototype.clipEvenOdd = function () {
-        loge_1.logger.debug("Ignoring clipEvenOdd() operation");
+        logger_1.logger.debug("Ignoring clipEvenOdd() operation");
     };
     // ---------------------------------------------------------------------------
     // Text objects (BT, ET)
@@ -616,7 +615,7 @@ var DrawingContext = (function () {
     textState.
     */
     DrawingContext.prototype.showString = function (buffer) {
-        loge_1.logger.error('Unimplemented "showString" operation');
+        logger_1.logger.error('Unimplemented "showString" operation');
     };
     /**
     > `array TJ`: Show one or more text strings, allowing individual glyph
@@ -635,7 +634,7 @@ var DrawingContext = (function () {
     - small positive amounts equate to kerning hacks
     */
     DrawingContext.prototype.showStrings = function (array) {
-        loge_1.logger.error('Unimplemented "showStrings" operation');
+        logger_1.logger.error('Unimplemented "showStrings" operation');
     };
     /** COMPLETE (ALIAS)
     > `string '` Move to the next line and show a text string. This operator shall have
@@ -664,19 +663,19 @@ var DrawingContext = (function () {
     > `tag BMC`: Begin a marked-content sequence terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence.
     */
     DrawingContext.prototype.beginMarkedContent = function (tag) {
-        loge_1.logger.debug("Ignoring beginMarkedContent(" + tag + ") operation");
+        logger_1.logger.debug("Ignoring beginMarkedContent(" + tag + ") operation");
     };
     /**
     > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
     */
     DrawingContext.prototype.beginMarkedContentWithDictionary = function (tag, dictionary) {
-        loge_1.logger.debug("Ignoring beginMarkedContentWithDictionary(" + tag + ", " + dictionary + ") operation");
+        logger_1.logger.debug("Ignoring beginMarkedContentWithDictionary(" + tag + ", " + dictionary + ") operation");
     };
     /**
     > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
     */
     DrawingContext.prototype.endMarkedContent = function () {
-        loge_1.logger.debug("Ignoring endMarkedContent() operation");
+        logger_1.logger.debug("Ignoring endMarkedContent() operation");
     };
     return DrawingContext;
 })();
@@ -698,7 +697,7 @@ var RecursiveDrawingContext = (function (_super) {
             func.apply(this, operands);
         }
         else {
-            loge_1.logger.warning("Ignoring unrecognized operator \"" + operator + "\" [" + operands.join(', ') + "]");
+            logger_1.logger.warning("Ignoring unrecognized operator \"" + operator + "\" [" + operands.join(', ') + "]");
         }
     };
     RecursiveDrawingContext.prototype.applyContentStream = function (content_stream_string) {
@@ -714,15 +713,15 @@ var RecursiveDrawingContext = (function (_super) {
             throw new Error("Cannot draw undefined XObject: " + name);
         }
         if (XObjectStream.Subtype !== 'Form') {
-            loge_1.logger.debug("Ignoring \"" + name + " Do\" command; embedded XObject has unsupported Subtype \"" + XObjectStream.Subtype + "\"");
+            logger_1.logger.debug("Ignoring \"" + name + " Do\" command; embedded XObject has unsupported Subtype \"" + XObjectStream.Subtype + "\"");
             return;
         }
         var object_depth = this.depth + 1;
         if (object_depth >= 5) {
-            loge_1.logger.warning("Ignoring \"" + name + " Do\" command; embedded XObject is too deep; depth = " + object_depth);
+            logger_1.logger.warning("Ignoring \"" + name + " Do\" command; embedded XObject is too deep; depth = " + object_depth);
             return;
         }
-        loge_1.logger.debug("drawObject: rendering \"" + name + "\" at depth=" + object_depth);
+        logger_1.logger.debug("drawObject: rendering \"" + name + "\" at depth=" + object_depth);
         // create a nested drawing context and use that
         // a) copy the current state and push it on top of the state stack
         this.pushGraphicsState();
@@ -741,7 +740,7 @@ var RecursiveDrawingContext = (function (_super) {
         this.resourcesStack.pop();
         // e) pop the graphics state
         this.popGraphicsState();
-        loge_1.logger.debug("drawObject: finished drawing \"" + name + "\"");
+        logger_1.logger.debug("drawObject: finished drawing \"" + name + "\"");
     };
     return RecursiveDrawingContext;
 })(DrawingContext);

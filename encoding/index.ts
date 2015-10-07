@@ -1,8 +1,8 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import * as lexing from 'lexing';
 import unorm = require('unorm');
 
+import {logger} from '../logger';
 import {ContentStream} from '../models';
 import {parseCMap} from '../parsers/index';
 import util = require('../util');
@@ -108,10 +108,7 @@ export class Encoding {
   */
   decodeCharCodes(buffer: Buffer): number[] {
     var charCodes: number[] = [];
-    var index = 0;
-    var offset = 0;
-    const length = buffer.length;
-    for (var offset = 0; offset < length; offset += this.characterByteLength) {
+    for (var offset = 0, length = buffer.length; offset < length; offset += this.characterByteLength) {
       var charCode = buffer.readUIntBE(offset, this.characterByteLength);
       charCodes.push(charCode);
     }

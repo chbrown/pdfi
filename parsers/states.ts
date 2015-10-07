@@ -1,8 +1,9 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import {MachineRule as Rule, MachineState} from 'lexing';
 
 import {pushAll, sum, groups, flatMap, range} from 'arrays';
+
+import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
 import {decodeBuffer} from '../filters/decoders';

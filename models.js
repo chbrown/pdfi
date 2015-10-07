@@ -3,11 +3,11 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+/// <reference path="type_declarations/index.d.ts" />
 var lexing_1 = require('lexing');
-var states_1 = require('./parsers/states');
-var util = require('util-enhanced');
-var objectAssign = require('object-assign');
 var arrays_1 = require('arrays');
+var objectAssign = require('object-assign');
+var states_1 = require('./parsers/states');
 var decoders_1 = require('./filters/decoders');
 /**
 Most of the classes in this module are wrappers for typed objects in a PDF,

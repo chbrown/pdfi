@@ -1,11 +1,10 @@
 /// <reference path="type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import {StringIterator} from 'lexing';
-import {OBJECT} from './parsers/states';
-var util = require('util-enhanced');
-var objectAssign = require('object-assign');
-
 import {flatMap, groups} from 'arrays';
+import objectAssign = require('object-assign');
+
+import {logger} from './logger';
+import {OBJECT} from './parsers/states';
 import pdfdom = require('./pdfdom');
 import {decodeBuffer} from './filters/decoders';
 

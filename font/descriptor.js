@@ -3,8 +3,7 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-/// <reference path="../type_declarations/index.d.ts" />
-var loge_1 = require('loge');
+var logger_1 = require('../logger');
 var index_1 = require('../encoding/index');
 var models_1 = require('../models');
 /**
@@ -95,7 +94,7 @@ var FontDescriptor = (function (_super) {
                     encoding.mapping[index] = str;
                 }
                 else {
-                    loge_1.logger.warning("Ignoring FontDescriptor mapping " + index + " -> " + glyphname + ", which is not a valid glyphname");
+                    logger_1.logger.warning("Ignoring FontDescriptor mapping " + index + " -> " + glyphname + ", which is not a valid glyphname");
                 }
             }
         }

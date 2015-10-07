@@ -3,8 +3,8 @@ import fs = require('fs');
 import chalk = require('chalk');
 import academia = require('academia');
 import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
-import {logger} from 'loge';
 
+import {logger} from './logger';
 import pdfdom = require('./pdfdom');
 import models = require('./models');
 import graphics = require('./graphics/index');
@@ -215,7 +215,7 @@ export class PDF {
     var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
     var error_buffer = this.source.readBuffer(margin, error_position);
     var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
+    // logger.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
     logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
   }
 
@@ -225,7 +225,7 @@ export class PDF {
       return new STATE(iterable, peek_length).read();
     }
     catch (exc) {
-      console.log(chalk.red(exc.message));
+      logger.error(`Error trying to parse ${STATE['name']}: ${chalk.red(exc.message)}`);
       this.printContext(position, iterable.position);
 
       throw exc;

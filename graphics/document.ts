@@ -1,5 +1,4 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import logger = require('loge');
 import lexing = require('lexing');
 import academia = require('academia');
 import {flatMap, mean, median, quantile} from 'arrays';

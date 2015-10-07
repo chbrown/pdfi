@@ -5,7 +5,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var chalk = require('chalk');
 var lexing_1 = require('lexing');
-var loge_1 = require('loge');
+var logger_1 = require('./logger');
 var models = require('./models');
 var graphics = require('./graphics/index');
 var states_1 = require('./parsers/states');
@@ -205,15 +205,15 @@ var PDF = (function () {
     };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
-        loge_1.logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
+        logger_1.logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
         // File#readBuffer(length: number, position: number): Buffer
         // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
         var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
         var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
         var error_buffer = this.source.readBuffer(margin, error_position);
         var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-        // console.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
-        loge_1.logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
+        // logger.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
+        logger_1.logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
     };
     PDF.prototype.parseStateAt = function (STATE, position, peek_length) {
         if (peek_length === void 0) { peek_length = 1024; }
@@ -222,7 +222,7 @@ var PDF = (function () {
             return new STATE(iterable, peek_length).read();
         }
         catch (exc) {
-            console.log(chalk.red(exc.message));
+            logger_1.logger.error("Error trying to parse " + STATE['name'] + ": " + chalk.red(exc.message));
             this.printContext(position, iterable.position);
             throw exc;
         }

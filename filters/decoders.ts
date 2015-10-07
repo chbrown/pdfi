@@ -296,7 +296,7 @@ From Wikipedia's http://en.wikipedia.org/wiki/Lempel-Ziv-Welch:
 > In order to rebuild the dictionary in the same way as it was built during encoding, it also obtains the next value from the input and adds to the dictionary the concatenation of the current string and the first character of the string obtained by decoding the next input value, or THE FIRST CHARACTER OF THE STRING JUST OUTPUT IF THE NEXT VALUE CAN NOT BE DECODED (If the next value is unknown to the decoder, then it must be the value that will be added to the dictionary this iteration, and so its first character must be the same as the first character of the current string being sent to decoded output). The decoder then proceeds to the next input value (which was already read in as the "next value" in the previous pass) and repeats the process until there is no more input, at which point the final input value is decoded without any more additions to the dictionary.
 */
 export function LZWDecode(buffer: Buffer): Buffer {
-  // console.error(`Using LZWDecode on buffer of length ${buffer.length}`);
+  // logger.error(`Using LZWDecode on buffer of length ${buffer.length}`);
   var bits = new BitIterator(buffer);
 
   var tableMax: number;

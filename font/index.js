@@ -12,8 +12,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     }
 };
 /// <reference path="../type_declarations/index.d.ts" />
-var loge_1 = require('loge');
 var afm = require('afm');
+var logger_1 = require('../logger');
 var util_1 = require('../util');
 var descriptor_1 = require('./descriptor');
 var models_1 = require('../models');

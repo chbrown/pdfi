@@ -4,9 +4,9 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 /// <reference path="../type_declarations/index.d.ts" />
-var loge_1 = require('loge');
 var lexing_1 = require('lexing');
 var arrays_1 = require('arrays');
+var logger_1 = require('../logger');
 var util_1 = require('../util');
 var decoders_1 = require('../filters/decoders');
 var objectAssign = require('object-assign');
@@ -254,7 +254,7 @@ var CONTENT_STREAM = (function (_super) {
             alias: content_stream_operator_aliases[matchValue[0]],
         });
         if (content_stream_operator_aliases[matchValue[0]] === undefined) {
-            loge_1.logger.warning('Unaliased operator: %j', matchValue[0]);
+            logger_1.logger.warning('Unaliased operator: %j', matchValue[0]);
         }
         this.stack = [];
         return undefined;
@@ -533,7 +533,7 @@ var XREF_WITH_TRAILER = (function (_super) {
             var field_2 = buffer.readUIntBE(offset + field_type_size, field_2_size);
             var field_3 = buffer.readUIntBE(offset + field_type_size + field_2_size, field_3_size);
             if (field_type === 0) {
-                loge_1.logger.warning('CrossReferenceStream with field Type=0 is not fully implemented');
+                logger_1.logger.warning('CrossReferenceStream with field Type=0 is not fully implemented');
                 partial_xrefs.push({
                     in_use: false,
                     generation_number: 0,
@@ -683,7 +683,7 @@ function bufferFromUIntBE(value, byteLength) {
         buffer.writeUIntBE(value, 0, byteLength);
     }
     catch (exception) {
-        loge_1.logger.error("Failed to encode UInt, " + value + ", within byteLength=" + byteLength + ": " + exception.message);
+        logger_1.logger.error("Failed to encode UInt, " + value + ", within byteLength=" + byteLength + ": " + exception.message);
         throw exception;
     }
     return buffer;
@@ -910,7 +910,7 @@ var CMAP = (function (_super) {
     CMAP.prototype.pop = function () {
         var byteLengths = this.mappings.map(function (mapping) { return mapping.byteLength; });
         if (!byteLengths.every(function (byteLength) { return byteLength === byteLengths[0]; })) {
-            loge_1.logger.warning("Mismatched byte lengths in mappings in CMap: " + byteLengths.join(', ') + "; using only the first.");
+            logger_1.logger.warning("Mismatched byte lengths in mappings in CMap: " + byteLengths.join(', ') + "; using only the first.");
         }
         return {
             codeSpaceRanges: this.codeSpaceRanges,

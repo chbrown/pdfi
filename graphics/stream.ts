@@ -1,7 +1,7 @@
 /// <reference path="../type_declarations/index.d.ts" />
-import {logger} from 'loge';
 import * as chalk from 'chalk';
 
+import {logger} from '../logger';
 import {Font} from '../font/index';
 import {Resources} from '../models';
 import {clone, countSpaces, checkArguments} from '../util';
