@@ -5,6 +5,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var arrays_1 = require('arrays');
 var index_1 = require('../encoding/index');
+var util_1 = require('../util');
 var models_1 = require('./models');
 var geometry_1 = require('./geometry');
 /**
@@ -244,20 +245,6 @@ function detectParagaphs(linesOfTextSpans, min_indent) {
     }
     return paragraphs;
 }
-var Multiset = (function () {
-    function Multiset() {
-        this.total = 0;
-        this.elements = {};
-    }
-    Multiset.prototype.add = function (element) {
-        this.elements[element] = (this.elements[element] || 0) + 1;
-        this.total++;
-    };
-    Multiset.prototype.get = function (element) {
-        return this.elements[element] || 0;
-    };
-    return Multiset;
-})();
 /**
 Despite being an array, `headerElements` will most often be 1-long.
 
@@ -339,12 +326,12 @@ function paperFromContainers(containers) {
     });
     // Each section's `paragraphs` is now set to a list of lists of lines (string[][])
     // We now need to derive a bag of words for the entire document.
-    var bag_of_words = new Multiset();
+    var bag_of_words = new util_1.Multiset();
     sections.forEach(function (section) {
         section.paragraphs.forEach(function (lines) {
             lines.forEach(function (line) {
                 line.split(/\s+/).forEach(function (token) {
-                    bag_of_words.add(token);
+                    bag_of_words.add(token.toLowerCase());
                 });
             });
         });
@@ -379,14 +366,15 @@ function joinLines(lines, bag_of_words) {
     // are the ones we've just added
     var joined = lines.join('\n');
     // now look for all occurrences of "-\n", capturing the words before and after
-    var rejoined = joined.replace(/(\w+)-\n(\w+)/g, function (_, m1, m2) {
+    var rejoined = joined.replace(/(\w+)-\n(\w+)/g, function (_, left, right) {
         // if line is hyphenated, and the word that is broken turns up in the corpus
         // more times WITH the hyphen than WITHOUT, return it WITH the hyphen
-        var hyphenated = m1 + '-' + m2;
-        var nhyphenated = bag_of_words.get(hyphenated);
-        var dehyphenated = m1 + m2;
-        var ndehyphenated = bag_of_words.get(dehyphenated);
-        // logger.debug(`${_.replace(/\n/, ' ')} -> ${nhyphenated} <> ${ndehyphenated}`);
+        var left_lower = left.toLowerCase();
+        var right_lower = right.toLowerCase();
+        var hyphenated = left + "-" + right;
+        var nhyphenated = bag_of_words.get(left_lower + "-" + right_lower);
+        var dehyphenated = "" + left + right;
+        var ndehyphenated = bag_of_words.get("" + left_lower + right_lower);
         if (nhyphenated > ndehyphenated) {
             return hyphenated;
         }
@@ -394,18 +382,17 @@ function joinLines(lines, bag_of_words) {
             return dehyphenated;
         }
         // otherwise, they're equal (both 0, usually), which is tougher
-        // 1. if the second of the two parts is capitalized (Uppercase-lowercase),
+        // 1. if the second of the two parts is capitalized (Uppercase-Lowercase),
         //    it's probably a hyphenated name, so keep it hyphenated
-        var capitalized = (m2[0] === m2[0].toUpperCase());
+        var capitalized = right[0] === right[0].toUpperCase();
         if (capitalized) {
             return hyphenated;
         }
         // TODO: what about Uppercase-lowercase? Can we assume anything?
         // 2. if the two parts are reasonable words in themselves, keep them
         //    hyphenated (it's probably something like "one-vs-all", or "bag-of-words")
-        var common_parts = (bag_of_words.get(m1) + bag_of_words.get(m2)) > 2;
+        var common_parts = (bag_of_words.get(left_lower) + bag_of_words.get(right_lower)) > 2;
         if (common_parts) {
-            // logger.debug(`${_.replace(/\n/, ' ')} -> ${bag_of_words.get(m1)} + ${bag_of_words.get(m2)} => ${hyphenated}`);
             return hyphenated;
         }
         // finally, default to dehyphenation, which is by far more common than

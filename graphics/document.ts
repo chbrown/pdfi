@@ -4,6 +4,7 @@ import academia = require('academia');
 import {flatMap, mean, median, quantile} from 'arrays';
 
 import {normalize} from '../encoding/index';
+import {Multiset} from '../util';
 import {Container, TextSpan, Canvas} from './models';
 import {Rectangle} from './geometry';
 
@@ -253,22 +254,6 @@ function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 5): string
   return paragraphs;
 }
 
-class Multiset {
-  public total = 0;
-  public elements: {[index: string]: number} = {};
-
-  constructor() { }
-
-  add(element: string) {
-    this.elements[element] = (this.elements[element] || 0) + 1;
-    this.total++;
-  }
-
-  get(element: string): number {
-    return this.elements[element] || 0;
-  }
-}
-
 /**
 Despite being an array, `headerElements` will most often be 1-long.
 
@@ -353,7 +338,7 @@ export function paperFromContainers(containers: Container<TextSpan>[]): academia
     section.paragraphs.forEach(lines => {
       lines.forEach(line => {
         line.split(/\s+/).forEach(token => {
-          bag_of_words.add(token);
+          bag_of_words.add(token.toLowerCase());
         });
       });
     });
@@ -389,14 +374,15 @@ function joinLines(lines: string[], bag_of_words: Multiset): string {
   // are the ones we've just added
   var joined = lines.join('\n');
   // now look for all occurrences of "-\n", capturing the words before and after
-  var rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, m1, m2) => {
+  var rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, left: string, right: string) => {
     // if line is hyphenated, and the word that is broken turns up in the corpus
     // more times WITH the hyphen than WITHOUT, return it WITH the hyphen
-    var hyphenated = m1 + '-' + m2;
-    var nhyphenated = bag_of_words.get(hyphenated);
-    var dehyphenated = m1 + m2;
-    var ndehyphenated = bag_of_words.get(dehyphenated);
-    // logger.debug(`${_.replace(/\n/, ' ')} -> ${nhyphenated} <> ${ndehyphenated}`);
+    var left_lower = left.toLowerCase();
+    var right_lower = right.toLowerCase();
+    var hyphenated = `${left}-${right}`;
+    var nhyphenated = bag_of_words.get(`${left_lower}-${right_lower}`);
+    var dehyphenated = `${left}${right}`;
+    var ndehyphenated = bag_of_words.get(`${left_lower}${right_lower}`);
     if (nhyphenated > ndehyphenated) {
       return hyphenated
     }
@@ -404,18 +390,17 @@ function joinLines(lines: string[], bag_of_words: Multiset): string {
       return dehyphenated;
     }
     // otherwise, they're equal (both 0, usually), which is tougher
-    // 1. if the second of the two parts is capitalized (Uppercase-lowercase),
+    // 1. if the second of the two parts is capitalized (Uppercase-Lowercase),
     //    it's probably a hyphenated name, so keep it hyphenated
-    var capitalized = (m2[0] === m2[0].toUpperCase());
+    var capitalized = right[0] === right[0].toUpperCase();
     if (capitalized) {
       return hyphenated;
     }
     // TODO: what about Uppercase-lowercase? Can we assume anything?
     // 2. if the two parts are reasonable words in themselves, keep them
     //    hyphenated (it's probably something like "one-vs-all", or "bag-of-words")
-    var common_parts = (bag_of_words.get(m1) + bag_of_words.get(m2)) > 2;
+    var common_parts = (bag_of_words.get(left_lower) + bag_of_words.get(right_lower)) > 2;
     if (common_parts) {
-      // logger.debug(`${_.replace(/\n/, ' ')} -> ${bag_of_words.get(m1)} + ${bag_of_words.get(m2)} => ${hyphenated}`);
       return hyphenated;
     }
     // finally, default to dehyphenation, which is by far more common than
