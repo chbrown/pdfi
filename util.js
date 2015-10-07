@@ -105,3 +105,18 @@ function makeString(charCodes) {
     return String.fromCharCode.apply(null, charCodes);
 }
 exports.makeString = makeString;
+var Multiset = (function () {
+    function Multiset() {
+        this.total = 0;
+        this.elements = {};
+    }
+    Multiset.prototype.add = function (element) {
+        this.elements[element] = (this.elements[element] || 0) + 1;
+        this.total++;
+    };
+    Multiset.prototype.get = function (element) {
+        return this.elements[element] || 0;
+    };
+    return Multiset;
+})();
+exports.Multiset = Multiset;

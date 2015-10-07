@@ -1,6 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
-import * as logger from 'loge';
-
 export function countSpaces(haystack: string): number {
   var matches = haystack.match(/ /g);
   return matches ? matches.length : 0;
@@ -108,4 +105,20 @@ Each character code should be at most 16 bits, i.e., less than 65536.
 */
 export function makeString(charCodes: number[]): string {
   return String.fromCharCode.apply(null, charCodes);
+}
+
+export class Multiset {
+  public total = 0;
+  public elements: {[index: string]: number} = {};
+
+  constructor() { }
+
+  add(element: string) {
+    this.elements[element] = (this.elements[element] || 0) + 1;
+    this.total++;
+  }
+
+  get(element: string): number {
+    return this.elements[element] || 0;
+  }
 }
