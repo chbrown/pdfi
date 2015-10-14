@@ -107,8 +107,15 @@ export class Canvas extends Container<TextSpan> {
   }
 }
 
+/**
+A Layout usually represents a single PDF page.
+*/
 export interface Layout {
-  textSpans: TextSpan[];
+  /** The rectangle bounding the entire page, will usually have an origin at 0,0 */
   outerBounds: Rectangle;
+  /** The textSpans on the page as originally ordered. There is no structure. */
+  textSpans: TextSpan[];
+  /** The textSpans on the page in their autodetected layout containers. The
+  containers may overlap but should not subsume any others. */
   containers: Container<TextSpan>[];
 }
