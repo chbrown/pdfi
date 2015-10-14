@@ -275,7 +275,7 @@ export function paperFromContainers(containers: Container<TextSpan>[]): academia
   // 1. the easiest first step is to get the mean and median font size
   var textSpans = flatMap(containers, container => container.getElements());
   var fontSizes = textSpans.map(textSpan => textSpan.fontSize);
-  var mean_fontSize = mean(fontSizes);
+  // var mean_fontSize = mean(fontSizes);
   // use the 75% quartile (quantile() returns the endpoints, too) as the normal font size
   var content_fontSize = quantile(fontSizes, 4)[3];
   // jump up a half pixel/pt to set the section header font size threshold

@@ -270,7 +270,7 @@ function paperFromContainers(containers) {
     // 1. the easiest first step is to get the mean and median font size
     var textSpans = arrays_1.flatMap(containers, function (container) { return container.getElements(); });
     var fontSizes = textSpans.map(function (textSpan) { return textSpan.fontSize; });
-    var mean_fontSize = arrays_1.mean(fontSizes);
+    // var mean_fontSize = mean(fontSizes);
     // use the 75% quartile (quantile() returns the endpoints, too) as the normal font size
     var content_fontSize = arrays_1.quantile(fontSizes, 4)[3];
     // jump up a half pixel/pt to set the section header font size threshold
