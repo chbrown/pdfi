@@ -319,12 +319,12 @@ var ObjectStream = (function (_super) {
             var _this = this;
             var buffer = this.buffer;
             // the prefix designates where each object in the stream occurs in the content
-            var prefix = this.buffer.slice(0, this.dictionary.First);
-            // var content = this.buffer.slice(this.dictionary.First)
+            var prefix = buffer.slice(0, this.dictionary.First);
+            // var content = buffer.slice(this.dictionary.First)
             var object_number_index_pairs = arrays_1.groups(prefix.toString('ascii').trim().split(/\s+/).map(function (x) { return parseInt(x, 10); }), 2);
             return object_number_index_pairs.map(function (_a) {
                 var object_number = _a[0], offset = _a[1];
-                var iterable = lexing_1.StringIterator.fromBuffer(_this.buffer, 'binary', _this.dictionary.First + offset);
+                var iterable = lexing_1.StringIterator.fromBuffer(buffer, 'binary', _this.dictionary.First + offset);
                 var value = new states_1.OBJECT(iterable, 1024).read();
                 return { object_number: object_number, generation_number: 0, value: value };
             });
@@ -455,7 +455,7 @@ var Catalog = (function (_super) {
     Catalog.prototype.toJSON = function () {
         return {
             Type: 'Catalog',
-            Pages: this.Pages,
+            // Pages: this.Pages,
             Names: this.get('Names'),
             PageMode: this.get('PageMode'),
             OpenAction: this.get('OpenAction'),

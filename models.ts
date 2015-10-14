@@ -275,11 +275,11 @@ export class ObjectStream extends ContentStream {
   get objects(): pdfdom.IndirectObject[] {
     var buffer = this.buffer;
     // the prefix designates where each object in the stream occurs in the content
-    var prefix = this.buffer.slice(0, this.dictionary.First);
-    // var content = this.buffer.slice(this.dictionary.First)
+    var prefix = buffer.slice(0, this.dictionary.First);
+    // var content = buffer.slice(this.dictionary.First)
     var object_number_index_pairs = groups(prefix.toString('ascii').trim().split(/\s+/).map(x => parseInt(x, 10)), 2);
     return object_number_index_pairs.map(([object_number, offset]) => {
-      var iterable = StringIterator.fromBuffer(this.buffer, 'binary', this.dictionary.First + offset);
+      var iterable = StringIterator.fromBuffer(buffer, 'binary', this.dictionary.First + offset);
       var value = new OBJECT(iterable, 1024).read();
       return {object_number, generation_number: 0, value};
     });
@@ -401,7 +401,7 @@ export class Catalog extends Model {
   toJSON() {
     return {
       Type: 'Catalog',
-      Pages: this.Pages,
+      // Pages: this.Pages,
       Names: this.get('Names'),
       PageMode: this.get('PageMode'),
       OpenAction: this.get('OpenAction'),
