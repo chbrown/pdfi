@@ -23,30 +23,6 @@ interface CharacterSpecification {
 var latin_charset: CharacterSpecification[] = require('./latin_charset');
 
 /**
-`bytes` should be Big-endian, e.g., [0xFF, 0x0F] is bigger than [0x0F, 0xFF]
-`bytes` should be all in the range: [0, 256)
-
-    decodeNumber([0xFE]) => 254 == 0xFE
-    decodeNumber([0xFF, 0x0F]) => 65295 == 0xFF0F
-    decodeNumber([0xAD, 0x95, 0xCC]) => 11376076 == 0xAD95CC
-
-Actually, this is pretty similar to Node's built-in
-Buffer#readUIntBE(offset, byteLength), where byteLength == bytes.length; e.g.:
-
-    new Buffer([0xFE]).readUIntBE(0, 1) => 254
-    new Buffer([0xFF, 0x0F]).readUIntBE(0, 2) => 65295
-    new Buffer([0xAD, 0x95, 0xCC]).readUIntBE(0, 3) => 11376076
-
-*/
-function decodeNumber(bytes: number[]): number {
-  var sum = 0;
-  for (var i = 0, length = bytes.length; i < length; i++) {
-    sum += (bytes[i] << ((length - (i + 1)) * 8));
-  }
-  return sum;
-}
-
-/**
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
