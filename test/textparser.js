@@ -41,15 +41,15 @@ function renderString(content_stream_string: string): string[] {
   return canvas.getElements().map(textSpan => textSpan.string);
 }
 
-describe('Graphics text parsing:', function() {
+describe('Graphics text parsing:', () => {
 
-  it('should parse a simple text show operation', function() {
+  it('should parse a simple text show operation', () => {
     var actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
     var expected = ['Adjustments must'];
     assert.deepEqual(actual, expected);
   });
 
-  it('should parse a nested string', function() {
+  it('should parse a nested string', () => {
     var actual = renderString('/F10 11 Tf BT (In case of \\(dire\\) emergency) Tj ET');
     var expected = ['In case of (dire) emergency'];
     assert.deepEqual(actual, expected);

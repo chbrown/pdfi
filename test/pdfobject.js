@@ -4,13 +4,17 @@ import {describe, it} from 'mocha';
 import {StringIterator} from 'lexing';
 import {OBJECT} from '../parsers/states';
 
+/**
+Given a raw input string and expected output, parse the input and check that it
+is equivalent to the expectation.
+*/
 function check(input, expected) {
   var iterable = new StringIterator(input);
-  var output =  new OBJECT(iterable, 1024).read();
+  var actual = new OBJECT(iterable, 1024).read();
   var message = `parse result does not match expected output.
-      parse("${input}") => ${JSON.stringify(output)}
-      but should == ${JSON.stringify(expected)}`;
-  assert.deepEqual(output, expected, message);
+        parse("${input}") => ${JSON.stringify(actual)}
+        but should == ${JSON.stringify(expected)}`;
+  assert.deepEqual(actual, expected, message);
 }
 
 describe('pdfobject parser: general objects', () => {
@@ -201,17 +205,16 @@ i am a stream`),
   });
 
   it('should parse a 0-length stream', () => {
-    var input = `<< /Length 25 >>
-stream
-hello there
-i am a stream
+    var input = `<< /Type /XObject /BBox [ 0 0 10 10] /Length 0 >> stream
+
 endstream`;
     var output = {
       dictionary: {
-        Length: 25,
+        Type: 'XObject',
+        BBox: [0, 0, 10, 10],
+        Length: 0,
       },
-      buffer: new Buffer(`hello there
-i am a stream`),
+      buffer: new Buffer(0),
     };
     check(input, output);
   });

@@ -1,7 +1,6 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import {MachineRule as Rule, MachineState} from 'lexing';
 
-import {pushAll, sum, groups, flatMap, range} from 'arrays';
+import {pushAll, sum, groups, flatMap, range} from 'tarry';
 
 import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
@@ -352,9 +351,10 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
     }
 
     var stream_state = new STREAM(this.iterable, this.peek_length);
-    stream_state.stream_length = stream_length;
+    // STREAM gets special handling
+    stream_state.consumeBytes(stream_length);
     var buffer = stream_state.read();
-    return { dictionary: this.value, buffer: buffer };
+    return { dictionary: this.value, buffer };
   }
 }
 
@@ -639,7 +639,6 @@ export class XREF_REFERENCE extends MachineState<PartialCrossReference, PartialC
 }
 
 export class STREAM extends MachineState<Buffer, Buffer> {
-  public stream_length: number;
   protected value: Buffer;
   rules = [
     /**
@@ -650,40 +649,23 @@ export class STREAM extends MachineState<Buffer, Buffer> {
     a newline, before the "endstream" marker.
     */
     Rule(/^\s*endstream/, this.pop),
-    Rule(/^/, this.consumeBytes),
   ]
   /**
   From PDF32000_2008.pdf:7.3.8
   > The sequence of bytes that make up a stream lie between the end-of-line marker following the stream keyword and the endstream keyword; the stream dictionary specifies the exact number of bytes.
   */
-  consumeBytes(matchValue: RegExpMatchArray) {
-    if (typeof this.stream_length !== 'number') {
-      throw new Error(`Stream cannot be read without a numeric length set: ${this.stream_length}`);
-    }
+  consumeBytes(stream_length: number) {
     if (this.iterable['nextBytes']) {
       // this is what will usually be called, when this.iterable is a
       // FileStringIterator.
-      this.value = this.iterable['nextBytes'](this.stream_length);
+      this.value = this.iterable['nextBytes'](stream_length);
     }
     else {
       // hack to accommodate the string-based tests, where the iterable is not a
       // FileStringIterator, but a stubbed StringIterator.
-      this.value = new Buffer(this.iterable.next(this.stream_length), 'ascii');
+      this.value = new Buffer(this.iterable.next(stream_length), 'ascii');
     }
-    return undefined;
   }
-}
-
-function bufferFromUIntBE(value: number, byteLength: number) {
-  var buffer = new Buffer(byteLength);
-  try {
-    buffer.writeUIntBE(value, 0, byteLength);
-  }
-  catch (exception) {
-    logger.error(`Failed to encode UInt, ${value}, within byteLength=${byteLength}: ${exception.message}`);
-    throw exception;
-  }
-  return buffer;
 }
 
 /**

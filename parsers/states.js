@@ -3,9 +3,8 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-/// <reference path="../type_declarations/index.d.ts" />
 var lexing_1 = require('lexing');
-var arrays_1 = require('arrays');
+var tarry_1 = require('tarry');
 var logger_1 = require('../logger');
 var util_1 = require('../util');
 var decoders_1 = require('../filters/decoders');
@@ -371,7 +370,8 @@ var DICTIONARY = (function (_super) {
             stream_length = pdf._resolveObject(stream_length);
         }
         var stream_state = new STREAM(this.iterable, this.peek_length);
-        stream_state.stream_length = stream_length;
+        // STREAM gets special handling
+        stream_state.consumeBytes(stream_length);
         var buffer = stream_state.read();
         return { dictionary: this.value, buffer: buffer };
     };
@@ -520,7 +520,7 @@ var XREF_WITH_TRAILER = (function (_super) {
         var buffer = decoders_1.decodeBuffer(value.buffer, filters, decodeParmss);
         var Size = value.dictionary.Size;
         // object_number_pairs: Array<[number, number]>
-        var object_number_pairs = arrays_1.groups(value.dictionary.Index || [0, Size], 2);
+        var object_number_pairs = tarry_1.groups(value.dictionary.Index || [0, Size], 2);
         // PDF32000_2008.pdf:7.5.8.2-3 describes how we resolve these windows
         // to cross_references
         var _a = value.dictionary.W, field_type_size = _a[0], field_2_size = _a[1], field_3_size = _a[2];
@@ -556,9 +556,9 @@ var XREF_WITH_TRAILER = (function (_super) {
             }
         }
         // now use the dictionary.Index values to zip
-        this.value.cross_references = arrays_1.flatMap(object_number_pairs, function (_a) {
+        this.value.cross_references = tarry_1.flatMap(object_number_pairs, function (_a) {
             var object_number_start = _a[0], size = _a[1];
-            return arrays_1.range(size).map(function (i) {
+            return tarry_1.range(size).map(function (i) {
                 var partial_xref = partial_xrefs.shift();
                 return objectAssign({ object_number: object_number_start + i }, partial_xref);
             });
@@ -651,43 +651,27 @@ var STREAM = (function (_super) {
             a newline, before the "endstream" marker.
             */
             lexing_1.MachineRule(/^\s*endstream/, this.pop),
-            lexing_1.MachineRule(/^/, this.consumeBytes),
         ];
     }
     /**
     From PDF32000_2008.pdf:7.3.8
     > The sequence of bytes that make up a stream lie between the end-of-line marker following the stream keyword and the endstream keyword; the stream dictionary specifies the exact number of bytes.
     */
-    STREAM.prototype.consumeBytes = function (matchValue) {
-        if (typeof this.stream_length !== 'number') {
-            throw new Error("Stream cannot be read without a numeric length set: " + this.stream_length);
-        }
+    STREAM.prototype.consumeBytes = function (stream_length) {
         if (this.iterable['nextBytes']) {
             // this is what will usually be called, when this.iterable is a
             // FileStringIterator.
-            this.value = this.iterable['nextBytes'](this.stream_length);
+            this.value = this.iterable['nextBytes'](stream_length);
         }
         else {
             // hack to accommodate the string-based tests, where the iterable is not a
             // FileStringIterator, but a stubbed StringIterator.
-            this.value = new Buffer(this.iterable.next(this.stream_length), 'ascii');
+            this.value = new Buffer(this.iterable.next(stream_length), 'ascii');
         }
-        return undefined;
     };
     return STREAM;
 })(lexing_1.MachineState);
 exports.STREAM = STREAM;
-function bufferFromUIntBE(value, byteLength) {
-    var buffer = new Buffer(byteLength);
-    try {
-        buffer.writeUIntBE(value, 0, byteLength);
-    }
-    catch (exception) {
-        logger_1.logger.error("Failed to encode UInt, " + value + ", within byteLength=" + byteLength + ": " + exception.message);
-        throw exception;
-    }
-    return buffer;
-}
 /**
 Buffer#readUIntBE supports up to 48 bits of accuracy, so `buffer` should be at
 most 6 bytes long.
@@ -894,17 +878,17 @@ var CMAP = (function (_super) {
     }
     CMAP.prototype.captureCodeSpaceRange = function (matchValue) {
         var ranges = this.attachState(CODESPACERANGE).read();
-        arrays_1.pushAll(this.codeSpaceRanges, ranges);
+        tarry_1.pushAll(this.codeSpaceRanges, ranges);
         return undefined;
     };
     CMAP.prototype.captureBFChar = function (matchValue) {
         var mappings = this.attachState(BFCHAR).read();
-        arrays_1.pushAll(this.mappings, mappings);
+        tarry_1.pushAll(this.mappings, mappings);
         return undefined;
     };
     CMAP.prototype.captureBFRange = function (matchValue) {
         var mappings = this.attachState(BFRANGE).read();
-        arrays_1.pushAll(this.mappings, mappings);
+        tarry_1.pushAll(this.mappings, mappings);
         return undefined;
     };
     CMAP.prototype.pop = function () {
