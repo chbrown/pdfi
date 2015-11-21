@@ -1,5 +1,9 @@
-/// <reference path="../type_declarations/index.d.ts" />
-import zlib = require('zlib');
+var pako = require('pako');
+
+interface List<T> {
+  [index: number]: T;
+  length: number;
+}
 
 interface DecodeParms {
   Predictor?: number;
@@ -35,7 +39,7 @@ When that function is called, it will return one of the following types:
 - null, when the EOF has been reached.
 
 */
-function ASCII85Lexer(input: Buffer) {
+function ASCII85Lexer(input: List<number>) {
   var i = 0;
   return function(): any {
     var stack = [];
@@ -160,7 +164,7 @@ When that function is called, it will return one of the following types:
 - An array of 2 ASCII characters (possibly with a final padding byte of 0).
 - null, when the EOF has been reached.
 */
-function ASCIIHexLexer(input: Buffer): () => any {
+function ASCIIHexLexer(input: List<number>): () => any {
   var index = 0;
   return function(): any {
     var stack = [];
@@ -192,7 +196,7 @@ function ASCIIHexLexer(input: Buffer): () => any {
 /**
 > The ASCIIHexDecode filter shall produce one byte of binary data for each pair of ASCII hexadecimal digits (0–9 and A–F or a–f). All white-space characters (see 7.2, "Lexical Conventions") shall be ignored. A GREATER-THAN SIGN (3Eh) indicates EOD. Any other characters shall cause an error. If the filter encounters the EOD marker after reading an odd number of hexadecimal digits, it shall behave as if a 0 (zero) followed the last digit.
 */
-export function ASCIIHexDecode(ascii: Buffer): Buffer {
+export function ASCIIHexDecode(ascii: List<number>): Buffer {
   var lex = ASCIIHexLexer(ascii);
   var bytes: number[] = [];
   while (1) {
@@ -210,7 +214,7 @@ export function ASCIIHexDecode(ascii: Buffer): Buffer {
 }
 
 export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
-  var inflated = zlib.inflateSync(buffer);
+  var inflated = new Buffer(pako.inflate(buffer));
   if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
     if (decodeParms.Predictor !== 12) {
       throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);
@@ -236,7 +240,7 @@ export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
 
 export class BitIterator {
   /** Internal binary representation from which we read bit strings */
-  private buffer: Buffer
+  private buffer: Buffer;
   /** The number of bits from the front of the buffer */
   offset: number = 0;
   /** The total number of bits available in buffer */
@@ -255,9 +259,7 @@ export class BitIterator {
     var byteLength = end - start;
     // (end - start) is the number of bytes we need to read to extract the
     // desired bits.
-    var bytes = this.buffer.slice(start, end);
-    // readUIntBE(offset: number, byteLength: number, noAssert?: boolean): number;
-    var uint = this.buffer['readUIntBE'](start, byteLength);
+    var uint = this.buffer.readUIntBE(start, byteLength);
     // first, we push some bits off the right edge.
     //   offset % 8 is distance to our bits from the left edge of uint
     //   so ((offset % 8) + n) is the distance from the left edge of uint to the right edge of our bits
@@ -331,6 +333,7 @@ export function LZWDecode(buffer: Buffer): Buffer {
       else if (nextCode > tableMax) {
         // if we don't know the next code, it must be a doubling table entry,
         // which equates to: outputChunk + outputChunk[0]
+        // FIXME: what if outputChunk is undefined?
         nextPrefix = outputChunk[0];
       }
       else if (nextCode > 257)  {

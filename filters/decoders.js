@@ -1,5 +1,4 @@
-/// <reference path="../type_declarations/index.d.ts" />
-var zlib = require('zlib');
+var pako = require('pako');
 /**
 
 FILTER name     [Has Parameters] Description
@@ -187,7 +186,7 @@ function ASCIIHexDecode(ascii) {
 }
 exports.ASCIIHexDecode = ASCIIHexDecode;
 function FlateDecode(buffer, decodeParms) {
-    var inflated = zlib.inflateSync(buffer);
+    var inflated = new Buffer(pako.inflate(buffer));
     if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
         if (decodeParms.Predictor !== 12) {
             throw new Error("Unsupported DecodeParms.Predictor value: \"" + decodeParms.Predictor + "\"");
@@ -227,9 +226,7 @@ var BitIterator = (function () {
         var byteLength = end - start;
         // (end - start) is the number of bytes we need to read to extract the
         // desired bits.
-        var bytes = this.buffer.slice(start, end);
-        // readUIntBE(offset: number, byteLength: number, noAssert?: boolean): number;
-        var uint = this.buffer['readUIntBE'](start, byteLength);
+        var uint = this.buffer.readUIntBE(start, byteLength);
         // first, we push some bits off the right edge.
         //   offset % 8 is distance to our bits from the left edge of uint
         //   so ((offset % 8) + n) is the distance from the left edge of uint to the right edge of our bits
@@ -299,6 +296,7 @@ function LZWDecode(buffer) {
             else if (nextCode > tableMax) {
                 // if we don't know the next code, it must be a doubling table entry,
                 // which equates to: outputChunk + outputChunk[0]
+                // FIXME: what if outputChunk is undefined?
                 nextPrefix = outputChunk[0];
             }
             else if (nextCode > 257) {
