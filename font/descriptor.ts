@@ -1,4 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import * as lexing from 'lexing';
 
 import {logger} from '../logger';
