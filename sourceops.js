@@ -1,4 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
 var bufferops = require('./bufferops');
 /**
 Starting at fromIndex (defaults to 0), read until we find `needle`.

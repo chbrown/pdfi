@@ -1,7 +1,6 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import * as lexing from 'lexing';
-import * as academia from 'academia';
-import {flatMap} from 'arrays';
+import {Paper} from 'academia/types';
+import {flatMap} from 'tarry';
 
 import {logger} from '../logger';
 import {Page, ContentStream, Resources} from '../models';
@@ -47,7 +46,7 @@ export function renderContentStreamLayout(content_stream: ContentStream, skipMis
   return createLayout(canvas);
 }
 
-export function renderPaper(pages: Page[], skipMissingCharacters = true, depth = 0): academia.types.Paper {
+export function renderPaper(pages: Page[], skipMissingCharacters = true, depth = 0): Paper {
  var containers = flatMap(pages, (page, i, pages) => {
     logger.debug(`renderPaper: rendering page ${i + 1}/${pages.length}`);
     var layout = renderPageLayout(page);

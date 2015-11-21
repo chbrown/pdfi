@@ -1,4 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import {StringIterable, StringIterator} from 'lexing';
 
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER, CONTENT_STREAM, CMAP, ContentStreamOperation} from './states';

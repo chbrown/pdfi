@@ -1,4 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
 var lexing_1 = require('lexing');
 var states_1 = require('./states');
 function parsePDFObject(string_iterable) {

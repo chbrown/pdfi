@@ -1,5 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
-
 export interface PDFObject {}
 
 export interface BooleanObject extends PDFObject, Boolean {}

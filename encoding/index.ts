@@ -1,11 +1,10 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import * as lexing from 'lexing';
-import unorm = require('unorm');
+import {nfkc} from 'unorm';
 
 import {logger} from '../logger';
 import {ContentStream} from '../models';
 import {parseCMap} from '../parsers/index';
-import util = require('../util');
+import * as util from '../util';
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -175,7 +174,7 @@ export function normalize(raw: string): string {
   });
   // finally, canonicalize via unorm
   // NFKC: Compatibility Decomposition, followed by Canonical Composition
-  return unorm.nfkc(modifiers_recombined);
+  return nfkc(modifiers_recombined);
 }
 
 /**

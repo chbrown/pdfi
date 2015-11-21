@@ -1,6 +1,5 @@
-/// <reference path="../type_declarations/index.d.ts" />
 var lexing = require('lexing');
-var unorm = require('unorm');
+var unorm_1 = require('unorm');
 var logger_1 = require('../logger');
 var index_1 = require('../parsers/index');
 /**
@@ -163,7 +162,7 @@ function normalize(raw) {
     });
     // finally, canonicalize via unorm
     // NFKC: Compatibility Decomposition, followed by Canonical Composition
-    return unorm.nfkc(modifiers_recombined);
+    return unorm_1.nfkc(modifiers_recombined);
 }
 exports.normalize = normalize;
 /**

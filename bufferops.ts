@@ -1,5 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
-
 /**
 Returns true iff `haystack`, starting at fromIndex, matches `needle`.
 

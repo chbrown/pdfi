@@ -1,22 +1,20 @@
-/// <reference path="type_declarations/index.d.ts" />
 import {StringIterator} from 'lexing';
-import {flatMap, groups} from 'arrays';
+import {flatMap, groups} from 'tarry';
 import objectAssign = require('object-assign');
 
 import {logger} from './logger';
 import {OBJECT} from './parsers/states';
-import pdfdom = require('./pdfdom');
+import {IndirectObject, PDFObject, Rectangle} from './pdfdom';
 import {decodeBuffer} from './filters/decoders';
 
 /**
-Importing PDF like `import PDF = require('./PDF')` introduces a breaking
-circular dependency.
+Importing PDF from './PDF' induces a breaking circular dependency.
 */
 export interface PDF {
-  getObject(object_number: number, generation_number: number): pdfdom.PDFObject;
+  getObject(object_number: number, generation_number: number): PDFObject;
   getModel<T extends Model>(object_number: number,
                             generation_number: number,
-                            ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T;
+                            ctor: { new(pdf: PDF, object: PDFObject): T }): T;
 }
 
 /**
@@ -58,12 +56,12 @@ but Model#object will return null.
 export class Model {
   private _resolved: boolean;
   constructor(protected _pdf: PDF,
-              private _object: pdfdom.PDFObject) {
+              private _object: PDFObject) {
     // if the given _object looks like an indirect reference, mark it unresolved
     this._resolved = !IndirectReference.isIndirectReference(_object);
   }
 
-  get object(): pdfdom.PDFObject {
+  get object(): PDFObject {
     if (!this._resolved) {
       var object_number = this._object['object_number'];
       var generation_number = this._object['generation_number'];
@@ -92,7 +90,7 @@ export class Model {
   This is an (icky?) hack to get around circular dependencies with subclasses
   of Model (like Font).
   */
-  asType<T extends Model>(ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
+  asType<T extends Model>(ctor: { new(pdf: PDF, object: PDFObject): T }): T {
     return new ctor(this._pdf, this.object);
   }
 
@@ -168,7 +166,7 @@ export class Page extends Model {
     return new Pages(this._pdf, this.object['Parent']);
   }
 
-  get MediaBox(): pdfdom.Rectangle {
+  get MediaBox(): Rectangle {
     return this.get('MediaBox');
   }
 
@@ -272,7 +270,7 @@ export class ContentStream extends Model {
 An ObjectStream is denoted by Type='ObjStm', and documented in PDF32000_2008.pdf:7.5.7 Object Streams
 */
 export class ObjectStream extends ContentStream {
-  get objects(): pdfdom.IndirectObject[] {
+  get objects(): IndirectObject[] {
     var buffer = this.buffer;
     // the prefix designates where each object in the stream occurs in the content
     var prefix = buffer.slice(0, this.dictionary.First);

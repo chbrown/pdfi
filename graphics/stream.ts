@@ -1,4 +1,3 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import * as chalk from 'chalk';
 
 import {logger} from '../logger';
@@ -671,7 +670,7 @@ export class DrawingContext {
   > `tag properties BDC`: Begin a marked-content sequence with an associated property list, terminated by a balancing EMC operator. tag shall be a name object indicating the role or significance of the sequence. properties shall be either an inline dictionary containing the property list or a name object associated with it in the Properties subdictionary of the current resource dictionary.
   */
   beginMarkedContentWithDictionary(tag: string, dictionary: any) {
-    logger.debug(`Ignoring beginMarkedContentWithDictionary(${tag}, ${dictionary}) operation`);
+    logger.debug(`Ignoring beginMarkedContentWithDictionary(${tag}, %j) operation`, dictionary);
   }
   /**
   > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.

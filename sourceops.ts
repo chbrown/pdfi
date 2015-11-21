@@ -1,8 +1,5 @@
-/// <reference path="type_declarations/index.d.ts" />
-
 import {Source, SourceStringIterator} from 'lexing';
-import bufferops = require('./bufferops');
-
+import * as bufferops from './bufferops';
 
 /**
 Starting at fromIndex (defaults to 0), read until we find `needle`.
@@ -10,7 +7,10 @@ Starting at fromIndex (defaults to 0), read until we find `needle`.
 1. If we do find needle, return the file's position of the first character of `needle`.
 2. If we reach EOF without finding it, return null.
 */
-export function indexOf(source: Source, searchValue: string, fromIndex = 0, BLOCK_SIZE = 1024): number {
+export function indexOf(source: Source,
+                        searchValue: string,
+                        fromIndex = 0,
+                        BLOCK_SIZE = 1024): number {
   var needle = new Buffer(searchValue);
   var position = fromIndex;
   var haystack = new Buffer(0);
@@ -49,7 +49,10 @@ Starting at fromIndex (defaults to EOF), read backwards until we find `needle`.
 1. If we do find needle, return the file's position of the first character of `needle`.
 2. If we reach the beginning of the file before finding it, return null.
 */
-export function lastIndexOf(source: Source, searchValue: string, fromIndex = source.size, BLOCK_SIZE = 1024): number {
+export function lastIndexOf(source: Source,
+                            searchValue: string,
+                            fromIndex = source.size,
+                            BLOCK_SIZE = 1024): number {
   var needle = new Buffer(searchValue);
   var position = fromIndex;
   var haystack = new Buffer(0);

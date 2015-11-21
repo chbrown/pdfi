@@ -1,7 +1,6 @@
-/// <reference path="../type_declarations/index.d.ts" />
-import lexing = require('lexing');
-import academia = require('academia');
-import {flatMap, mean, median, quantile} from 'arrays';
+import * as lexing from 'lexing';
+import {Paper} from 'academia/types';
+import {flatMap, mean, median, quantile} from 'tarry';
 
 import {normalize} from '../encoding/index';
 import {Multiset} from '../util';
@@ -269,7 +268,7 @@ export class Section {
 /**
 Recombine an array of arbitrary TextSpan Containers into an array of Sections
 */
-export function paperFromContainers(containers: Container<TextSpan>[]): academia.types.Paper {
+export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   // containers is an array of basic Containers for the whole PDF / document
   // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
   // 1. the easiest first step is to get the mean and median font size

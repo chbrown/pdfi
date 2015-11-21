@@ -3,9 +3,8 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-/// <reference path="type_declarations/index.d.ts" />
 var lexing_1 = require('lexing');
-var arrays_1 = require('arrays');
+var tarry_1 = require('tarry');
 var objectAssign = require('object-assign');
 var states_1 = require('./parsers/states');
 var decoders_1 = require('./filters/decoders');
@@ -126,7 +125,7 @@ var Pages = (function (_super) {
     at the leaves of the pages tree.
     */
     Pages.prototype.getLeaves = function () {
-        return arrays_1.flatMap(this.Kids, function (Kid) {
+        return tarry_1.flatMap(this.Kids, function (Kid) {
             // return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
             if (Kid instanceof Pages) {
                 return Kid.getLeaves();
@@ -321,7 +320,7 @@ var ObjectStream = (function (_super) {
             // the prefix designates where each object in the stream occurs in the content
             var prefix = buffer.slice(0, this.dictionary.First);
             // var content = buffer.slice(this.dictionary.First)
-            var object_number_index_pairs = arrays_1.groups(prefix.toString('ascii').trim().split(/\s+/).map(function (x) { return parseInt(x, 10); }), 2);
+            var object_number_index_pairs = tarry_1.groups(prefix.toString('ascii').trim().split(/\s+/).map(function (x) { return parseInt(x, 10); }), 2);
             return object_number_index_pairs.map(function (_a) {
                 var object_number = _a[0], offset = _a[1];
                 var iterable = lexing_1.StringIterator.fromBuffer(buffer, 'binary', _this.dictionary.First + offset);
