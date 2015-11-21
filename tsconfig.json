@@ -25,6 +25,7 @@
     "graphics/models.ts",
     "graphics/stream.ts",
     "index.ts",
+    "logger.ts",
     "models.ts",
     "parsers/index.ts",
     "parsers/states.ts",

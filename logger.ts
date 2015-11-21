@@ -1,17 +1,13 @@
-/// <reference path="type_declarations/index.d.ts" />
 import {Logger, Level, Writable} from 'loge';
+import {format} from 'util';
 
-var outputStream: Writable;
-if (process.stderr) {
-  outputStream = process.stderr;
-}
-else {
-  outputStream = {
-    write: (str: string) => {
-      console.log(str);
-      return true;
+class ConsoleLogger extends Logger {
+  log(level: Level, args: any[]) {
+    if (level >= this.level) {
+      var text = format.apply(null, args);
+      console.error(`[${Level[level]}] ${text}`);
     }
   }
 }
 
-export var logger = new Logger(outputStream, Level.debug);
+export var logger = new ConsoleLogger(null, Level.info);
