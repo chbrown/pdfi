@@ -1,13 +1,11 @@
-/// <reference path="../type_declarations/index.d.ts" />
 import * as afm from 'afm';
 
-import {logger} from '../logger';
-import {memoize, checkArguments} from '../util';
-import pdfdom = require('../pdfdom');
-
 import {FontDescriptor} from './descriptor';
-import {PDF, Model, ContentStream, Resources} from '../models';
 import {glyphlist, Encoding, decodeGlyphname} from '../encoding/index';
+import {logger} from '../logger';
+import {PDF, Model, ContentStream, Resources} from '../models';
+import {PDFObject} from '../pdfdom';
+import {memoize, checkArguments} from '../util';
 
 /**
 Font is a general, sometimes abstract (see Font#measureString), representation
@@ -133,8 +131,8 @@ export class Font extends Model {
       encoding.mergeLatinCharset(BaseEncoding);
     }
     else if (BaseEncoding == 'Identity-H') {
-      logger.debug(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (setting characterByteLength to 2)`);
-      encoding.characterByteLength = 2;
+      logger.debug(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (but not setting characterByteLength to 2)`);
+      // encoding.characterByteLength = 2;
     }
     else if (BaseEncoding !== undefined) {
       logger.info(`[Font=${this.Name}] Unrecognized Encoding/BaseEncoding: %j`, BaseEncoding);
@@ -174,13 +172,6 @@ export class Font extends Model {
     }
 
     // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-
-    // if (this.object['FontName']) {
-    //   var [prefix, name] = this.object['FontName'].split('+');
-    //   if (name) {
-    //     // try to lookup an AFM file to resolve characters to glyphnames
-    //   }
-    // }
 
     var usingStandardEncoding = encoding.mapping.length === 0;
     if (usingStandardEncoding) {
@@ -234,6 +225,9 @@ export class Font extends Model {
   */
   @checkArguments([{type: 'Buffer'}, {type: 'Boolean'}])
   decodeString(buffer: Buffer, skipMissing = false): string {
+    if (buffer.length % this.encoding.characterByteLength !== 0) {
+      logger.debug(`Font[${this.Name}] cannot decodeString with bad length (${buffer.length} !/ ${this.encoding.characterByteLength})`);
+    }
     return this.encoding.decodeCharCodes(buffer).map(charCode => {
       var string = this.encoding.decodeCharacter(charCode);
       if (string === undefined) {
@@ -276,7 +270,7 @@ export class Font extends Model {
 
   <T extends Font>
   */
-  static getConstructor(Subtype: string): { new(pdf: PDF, object: pdfdom.PDFObject): Font } {
+  static getConstructor(Subtype: string): { new(pdf: PDF, object: PDFObject): Font } {
     if (Subtype === 'Type0') {
       return Type0Font;
     }
@@ -395,9 +389,9 @@ export class Type1Font extends Font {
       }
     }
     // if Widths cannot be found, try to load BaseFont as a vendor font from the afm repo
-    else if (afm.vendor_font_names.indexOf(BaseFont_name) > -1) {
+    else if (BaseFont_name in afm.fonts) {
       this._widthMapping = {};
-      afm.readVendorFontMetricsSync(BaseFont_name).forEach(charMetrics => {
+      afm.fonts[BaseFont_name].forEach(charMetrics => {
         var string = glyphlist[charMetrics.name];
         this._widthMapping[string] = charMetrics.width;
       });

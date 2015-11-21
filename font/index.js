@@ -4,20 +4,17 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") return Reflect.decorate(decorators, target, key, desc);
-    switch (arguments.length) {
-        case 2: return decorators.reduceRight(function(o, d) { return (d && d(o)) || o; }, target);
-        case 3: return decorators.reduceRight(function(o, d) { return (d && d(target, key)), void 0; }, void 0);
-        case 4: return decorators.reduceRight(function(o, d) { return (d && d(target, key, o)) || o; }, desc);
-    }
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-/// <reference path="../type_declarations/index.d.ts" />
 var afm = require('afm');
-var logger_1 = require('../logger');
-var util_1 = require('../util');
 var descriptor_1 = require('./descriptor');
-var models_1 = require('../models');
 var index_1 = require('../encoding/index');
+var logger_1 = require('../logger');
+var models_1 = require('../models');
+var util_1 = require('../util');
 /**
 Font is a general, sometimes abstract (see Font#measureString), representation
 of a PDF Font of any Subtype.
@@ -158,18 +155,17 @@ var Font = (function (_super) {
                 encoding.mergeLatinCharset(BaseEncoding);
             }
             else if (BaseEncoding == 'Identity-H') {
-                loge_1.logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (setting characterByteLength to 2)");
-                encoding.characterByteLength = 2;
+                logger_1.logger.debug("[Font=" + this.Name + "] Encoding/BaseEncoding = \"Identity-H\" (but not setting characterByteLength to 2)");
             }
             else if (BaseEncoding !== undefined) {
-                loge_1.logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
+                logger_1.logger.info("[Font=" + this.Name + "] Unrecognized Encoding/BaseEncoding: %j", BaseEncoding);
             }
             // ToUnicode is a better encoding indicator, but it is not always present,
             // and even when it is, it may be only complementary to the
             // Encoding/BaseEncoding value
             var ToUnicode = new models_1.ContentStream(this._pdf, this.object['ToUnicode']);
             if (ToUnicode.object) {
-                loge_1.logger.debug("[Font=" + this.Name + "] Merging CMapContentStream");
+                logger_1.logger.debug("[Font=" + this.Name + "] Merging CMapContentStream");
                 encoding.mergeCMapContentStream(ToUnicode);
             }
             // still no luck? try the FontDescriptor
@@ -192,12 +188,6 @@ var Font = (function (_super) {
                 }
             }
             // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-            // if (this.object['FontName']) {
-            //   var [prefix, name] = this.object['FontName'].split('+');
-            //   if (name) {
-            //     // try to lookup an AFM file to resolve characters to glyphnames
-            //   }
-            // }
             var usingStandardEncoding = encoding.mapping.length === 0;
             if (usingStandardEncoding) {
                 encoding.mergeLatinCharset('StandardEncoding');
@@ -220,7 +210,7 @@ var Font = (function (_super) {
                         encoding.mapping[current_character_code] = str;
                         // TODO: handle missing glyphnames
                         if (str === undefined && glyphname !== '.notdef') {
-                            loge_1.logger.warning("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
+                            logger_1.logger.warning("[Font=" + _this.Name + "] Encoding.Difference " + current_character_code + " -> " + difference + ", but that is not an existing glyphname");
                         }
                         current_character_code++;
                     }
@@ -249,15 +239,18 @@ var Font = (function (_super) {
     Font.prototype.decodeString = function (buffer, skipMissing) {
         var _this = this;
         if (skipMissing === void 0) { skipMissing = false; }
+        if (buffer.length % this.encoding.characterByteLength !== 0) {
+            logger_1.logger.debug("Font[" + this.Name + "] cannot decodeString with bad length (" + buffer.length + " !/ " + this.encoding.characterByteLength + ")");
+        }
         return this.encoding.decodeCharCodes(buffer).map(function (charCode) {
             var string = _this.encoding.decodeCharacter(charCode);
             if (string === undefined) {
                 if (skipMissing) {
-                    loge_1.logger.debug("[Font=" + _this.Name + "] Skipping missing character code: " + charCode);
+                    logger_1.logger.debug("[Font=" + _this.Name + "] Skipping missing character code: " + charCode);
                     return '';
                 }
                 var placeholder = '\\u{' + charCode.toString(16) + '}';
-                loge_1.logger.debug("[Font=" + _this.Name + "] Could not decode character code: " + charCode + " = " + placeholder);
+                logger_1.logger.debug("[Font=" + _this.Name + "] Could not decode character code: " + charCode + " = " + placeholder);
                 return placeholder;
             }
             return string;
@@ -306,22 +299,18 @@ var Font = (function (_super) {
         // TODO: add the other types of fonts
         return Font;
     };
-    Object.defineProperty(Font.prototype, "bold",
-        __decorate([
-            util_1.memoize
-        ], Font.prototype, "bold", Object.getOwnPropertyDescriptor(Font.prototype, "bold")));
-    Object.defineProperty(Font.prototype, "italic",
-        __decorate([
-            util_1.memoize
-        ], Font.prototype, "italic", Object.getOwnPropertyDescriptor(Font.prototype, "italic")));
-    Object.defineProperty(Font.prototype, "encoding",
-        __decorate([
-            util_1.memoize
-        ], Font.prototype, "encoding", Object.getOwnPropertyDescriptor(Font.prototype, "encoding")));
-    Object.defineProperty(Font.prototype, "decodeString",
-        __decorate([
-            util_1.checkArguments([{ type: 'Buffer' }, { type: 'Boolean' }])
-        ], Font.prototype, "decodeString", Object.getOwnPropertyDescriptor(Font.prototype, "decodeString")));
+    __decorate([
+        util_1.memoize
+    ], Font.prototype, "bold", null);
+    __decorate([
+        util_1.memoize
+    ], Font.prototype, "italic", null);
+    __decorate([
+        util_1.memoize
+    ], Font.prototype, "encoding", null);
+    __decorate([
+        util_1.checkArguments([{ type: 'Buffer' }, { type: 'Boolean' }])
+    ], Font.prototype, "decodeString", null);
     return Font;
 })(models_1.Model);
 exports.Font = Font;
@@ -421,13 +410,13 @@ var Type1Font = (function (_super) {
                 this._defaultWidth = MissingWidth;
             }
             else {
-                loge_1.logger.debug("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");
+                logger_1.logger.debug("Font[" + this.Name + "] has no FontDescriptor with \"MissingWidth\" field");
                 this._defaultWidth = null;
             }
         }
-        else if (afm.vendor_font_names.indexOf(BaseFont_name) > -1) {
+        else if (BaseFont_name in afm.fonts) {
             this._widthMapping = {};
-            afm.readVendorFontMetricsSync(BaseFont_name).forEach(function (charMetrics) {
+            afm.fonts[BaseFont_name].forEach(function (charMetrics) {
                 var string = index_1.glyphlist[charMetrics.name];
                 _this._widthMapping[string] = charMetrics.width;
             });
