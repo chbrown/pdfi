@@ -205,7 +205,7 @@ var PDF = (function () {
     };
     PDF.prototype.printContext = function (start_position, error_position, margin) {
         if (margin === void 0) { margin = 256; }
-        logger_1.logger.error("context preface=" + chalk.cyan(start_position) + " error=" + chalk.yellow(error_position) + "...");
+        logger_1.logger.error("context preface=" + chalk.cyan(start_position.toString()) + " error=" + chalk.yellow(error_position.toString()) + "...");
         // File#readBuffer(length: number, position: number): Buffer
         // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
         var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);

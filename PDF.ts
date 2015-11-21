@@ -1,13 +1,12 @@
-/// <reference path="type_declarations/index.d.ts" />
-import fs = require('fs');
-import chalk = require('chalk');
-import academia = require('academia');
+import * as fs from 'fs';
+import * as chalk from 'chalk';
+import {Paper} from 'academia/types';
 import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
 
 import {logger} from './logger';
-import pdfdom = require('./pdfdom');
-import models = require('./models');
-import graphics = require('./graphics/index');
+import * as pdfdom from './pdfdom';
+import * as models from './models';
+import * as graphics from './graphics/index';
 
 import {parsePDFObject} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
@@ -185,7 +184,7 @@ export class PDF {
 
   If `section_names` is empty, return all sections.
   */
-  renderPaper(): academia.types.Paper {
+  renderPaper(): Paper {
     return graphics.renderPaper(this.pages);
   }
 
@@ -208,7 +207,7 @@ export class PDF {
   }
 
   printContext(start_position: number, error_position: number, margin: number = 256): void {
-    logger.error(`context preface=${chalk.cyan(start_position)} error=${chalk.yellow(error_position)}...`)
+    logger.error(`context preface=${chalk.cyan(start_position.toString())} error=${chalk.yellow(error_position.toString())}...`)
     // File#readBuffer(length: number, position: number): Buffer
     // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
     var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
