@@ -25,6 +25,23 @@ function clone(source, target) {
 }
 exports.clone = clone;
 /**
+More naive than, say, object-assign's shim, but simpler.
+*/
+function assign(target) {
+    if (target === void 0) { target = {}; }
+    var sources = [];
+    for (var _i = 1; _i < arguments.length; _i++) {
+        sources[_i - 1] = arguments[_i];
+    }
+    sources.forEach(function (source) {
+        Object.keys(source).forEach(function (key) {
+            target[key] = source[key];
+        });
+    });
+    return target;
+}
+exports.assign = assign;
+/**
 Search the codebase for @util.memoize or @memoize for usage examples.
 */
 function memoize(target, propertyKey, descriptor) {

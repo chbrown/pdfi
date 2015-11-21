@@ -5,9 +5,9 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var lexing_1 = require('lexing');
 var tarry_1 = require('tarry');
-var objectAssign = require('object-assign');
 var states_1 = require('./parsers/states');
 var decoders_1 = require('./filters/decoders');
+var util_1 = require('./util');
 /**
 Most of the classes in this module are wrappers for typed objects in a PDF,
 where the object's Type indicates useful ways it may be processed.
@@ -478,7 +478,7 @@ var Trailer = (function () {
     should be preferred, so we merge the older trailers under the newer ones.
     */
     Trailer.prototype.merge = function (object) {
-        this._object = objectAssign(object, this._object);
+        this._object = util_1.assign(object, this._object);
     };
     Object.defineProperty(Trailer.prototype, "Size", {
         get: function () {

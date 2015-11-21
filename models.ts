@@ -1,11 +1,11 @@
 import {StringIterator} from 'lexing';
 import {flatMap, groups} from 'tarry';
-import objectAssign = require('object-assign');
 
 import {logger} from './logger';
 import {OBJECT} from './parsers/states';
 import {IndirectObject, PDFObject, Rectangle} from './pdfdom';
 import {decodeBuffer} from './filters/decoders';
+import {assign} from './util';
 
 /**
 Importing PDF from './PDF' induces a breaking circular dependency.
@@ -419,7 +419,7 @@ export class Trailer {
   should be preferred, so we merge the older trailers under the newer ones.
   */
   merge(object: any): void {
-    this._object = objectAssign(object, this._object);
+    this._object = assign(object, this._object);
   }
 
   get Size(): number {

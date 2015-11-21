@@ -24,6 +24,18 @@ export function clone(source: any, target: any = {}): any {
 }
 
 /**
+More naive than, say, object-assign's shim, but simpler.
+*/
+export function assign(target = {}, ...sources): any {
+  sources.forEach(source => {
+    Object.keys(source).forEach(key => {
+      target[key] = source[key];
+    });
+  });
+  return target;
+}
+
+/**
 Search the codebase for @util.memoize or @memoize for usage examples.
 */
 export function memoize<T>(target: Object,

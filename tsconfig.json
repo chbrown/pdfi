@@ -9,7 +9,6 @@
     "node_modules/declarations/chalk/chalk.d.ts",
     "node_modules/declarations/mocha/mocha.d.ts",
     "node_modules/declarations/node/node.d.ts",
-    "node_modules/declarations/object-assign/object-assign.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
     "PDF.ts",
     "bufferops.ts",

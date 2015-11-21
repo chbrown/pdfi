@@ -4,10 +4,8 @@ import {pushAll, sum, groups, flatMap, range} from 'tarry';
 
 import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
-import {makeString} from '../util';
+import {makeString, assign} from '../util';
 import {decodeBuffer} from '../filters/decoders';
-
-var objectAssign = require('object-assign');
 
 const escapeCharCodes = {
   '\\n': 10,
@@ -565,7 +563,7 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     this.value.cross_references = flatMap<number[], CrossReference>(object_number_pairs, ([object_number_start, size]) => {
       return range(size).map(i => {
         var partial_xref = partial_xrefs.shift();
-        return objectAssign({object_number: object_number_start + i}, partial_xref);
+        return assign({object_number: object_number_start + i}, partial_xref);
       });
     });
 

@@ -8,7 +8,6 @@ var tarry_1 = require('tarry');
 var logger_1 = require('../logger');
 var util_1 = require('../util');
 var decoders_1 = require('../filters/decoders');
-var objectAssign = require('object-assign');
 var escapeCharCodes = {
     '\\n': 10,
     '\\r': 13,
@@ -560,7 +559,7 @@ var XREF_WITH_TRAILER = (function (_super) {
             var object_number_start = _a[0], size = _a[1];
             return tarry_1.range(size).map(function (i) {
                 var partial_xref = partial_xrefs.shift();
-                return objectAssign({ object_number: object_number_start + i }, partial_xref);
+                return util_1.assign({ object_number: object_number_start + i }, partial_xref);
             });
         });
         this.value.trailer = value.dictionary;

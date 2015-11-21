@@ -23,7 +23,6 @@
     "chalk": "*",
     "lexing": "*",
     "loge": "*",
-    "object-assign": "*",
     "pako": "*",
     "streaming": "*",
     "tarry": "*",
