@@ -2,10 +2,15 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES5",
-    "experimentalDecorators": true,
-    "moduleResolution": "classic"
+    "experimentalDecorators": true
   },
   "files": [
+    "node_modules/declarations/async/async.d.ts",
+    "node_modules/declarations/chalk/chalk.d.ts",
+    "node_modules/declarations/mocha/mocha.d.ts",
+    "node_modules/declarations/node/node.d.ts",
+    "node_modules/declarations/object-assign/object-assign.d.ts",
+    "node_modules/declarations/unorm/unorm.d.ts",
     "PDF.ts",
     "bufferops.ts",
     "encoding/index.ts",
@@ -25,11 +30,6 @@
     "parsers/states.ts",
     "pdfdom.ts",
     "sourceops.ts",
-    "test/cmap.ts",
-    "test/filters.ts",
-    "test/pdfobject.ts",
-    "test/textparser.ts",
-    "test/xref.ts",
     "util.ts"
   ]
 }

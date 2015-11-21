@@ -1,23 +1,15 @@
 BIN := node_modules/.bin
-TYPESCRIPT := $(wildcard *.ts encoding/*.ts filters/*.ts font/*.ts graphics/*.ts parsers/*.ts test/*.ts)
-DTS := async/async mocha/mocha node/node chalk/chalk unorm/unorm object-assign/object-assign
+TYPESCRIPT := $(shell jq -r '.files[] | select(test("node_modules") | not)' tsconfig.json)
+JAVASCRIPT := $(TYPESCRIPT:%.ts=%.js)
 
-all: $(TYPESCRIPT:%.ts=%.js) encoding/glyphlist.json
+all: $(JAVASCRIPT)
 
-type_declarations: $(DTS:%=type_declarations/DefinitelyTyped/%.d.ts)
-
-# $(BIN)/tsc --experimentalDecorators -m commonjs -t ES5 $<
-%.js: %.ts type_declarations $(BIN)/tsc
+%.js: %.ts $(BIN)/tsc
 	$(BIN)/tsc
 
-# e.g., make -B type_declarations/DefinitelyTyped/async/async.d.ts
-type_declarations/DefinitelyTyped/%:
-	mkdir -p $(@D)
-	curl -s https://raw.githubusercontent.com/chbrown/DefinitelyTyped/master/$* > $@
-
 .PHONY: test
-test: all
-	$(BIN)/mocha --recursive test/
+test: $(BIN)/mocha
+	$(BIN)/mocha --compilers js:babel-core/register --recursive test/
 
 encoding/glyphlist.txt:
 	# glyphlist.txt is pure ASCII

@@ -1,4 +1,3 @@
-/// <reference path="type_declarations/index.d.ts" />
 // This file provides the most abstract API to pdfi. The type signatures of
 // this module should following proper versioning practices.
 import * as academia from 'academia';
