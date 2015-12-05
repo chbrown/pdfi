@@ -1,6 +1,5 @@
 import {MachineRule as Rule, MachineState} from 'lexing';
-
-import {pushAll, sum, groups, flatMap, range} from 'tarry';
+import {groups, flatMap, range} from 'tarry';
 
 import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
@@ -30,19 +29,19 @@ export class HEXSTRING extends MachineState<Buffer, Buffer> {
     Rule(/^([A-Fa-f0-9]{2})+/, this.pushBytes),
     Rule(/^[A-Fa-f0-9]$/, this.pushHalfByte),
   ]
-  pushBytes(matchValue: RegExpMatchArray) {
+  pushBytes(matchValue: RegExpMatchArray): Buffer {
     var match_buffer = new Buffer(matchValue[0], 'hex');
     this.value = Buffer.concat([this.value, match_buffer]);
-    return undefined;
+    return;
   }
   /**
   handle implied final 0 (PDF32000_2008.pdf:16)
   by adding 0 character to end of odd-length strings
   */
-  pushHalfByte(matchValue: RegExpMatchArray) {
+  pushHalfByte(matchValue: RegExpMatchArray): Buffer {
     var match_buffer = new Buffer(matchValue[0] + '0', 'hex');
     this.value = Buffer.concat([this.value, match_buffer]);
-    return undefined;
+    return;
   }
 }
 
@@ -77,25 +76,25 @@ export class STRING extends MachineState<Buffer, Buffer> {
     Rule(/^\\([0-8]{3})/, this.captureOct),
     Rule(/^(.|\n|\r)/, this.captureGroup),
   ]
-  captureNestedString(matchValue: RegExpMatchArray) {
+  captureNestedString(matchValue: RegExpMatchArray): Buffer {
     var nested_buffer = this.attachState(STRING).read();
     this.value = Buffer.concat([this.value, new Buffer('('), nested_buffer, new Buffer(')')]);
-    return undefined;
+    return;
   }
-  captureGroup(matchValue: RegExpMatchArray) {
+  captureGroup(matchValue: RegExpMatchArray): Buffer {
     var str = matchValue[1];
     this.value = Buffer.concat([this.value, new Buffer(str)]);
-    return undefined;
+    return;
   }
-  captureEscape(matchValue: RegExpMatchArray) {
+  captureEscape(matchValue: RegExpMatchArray): Buffer {
     var byte = escapeCharCodes[matchValue[0]];
     this.value = Buffer.concat([this.value, new Buffer([byte])]);
-    return undefined;
+    return;
   }
-  captureOct(matchValue: RegExpMatchArray) {
+  captureOct(matchValue: RegExpMatchArray): Buffer {
     var byte = parseInt(matchValue[1], 8);
     this.value = Buffer.concat([this.value, new Buffer([byte])]);
-    return undefined;
+    return;
   }
 }
 
@@ -108,9 +107,9 @@ export class IMAGEDATA extends MachineState<string, string[]> {
     Rule(/^(\S+)/, this.captureGroup),
     Rule(/^(.|\n|\r)/, this.captureGroup),
   ]
-  captureGroup(matchValue: RegExpMatchArray) {
+  captureGroup(matchValue: RegExpMatchArray): string {
     this.value.push(matchValue[1]);
-    return undefined;
+    return;
   }
   pop(): string {
     return this.value.join('');
@@ -234,7 +233,7 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     // maybe create a regex based on the valid operators?
     Rule(/^[A-Za-z'"]+[01*]?/, this.captureOperator),
   ]
-  captureOperator(matchValue: RegExpMatchArray) {
+  captureOperator(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     this.value.push({
       operands: this.stack,
       operator: matchValue[0],
@@ -244,9 +243,9 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
       logger.warning('Unaliased operator: %j', matchValue[0]);
     }
     this.stack = [];
-    return undefined;
+    return;
   }
-  captureImageData(matchValue: RegExpMatchArray) {
+  captureImageData(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     // var image_data = new IMAGEDATA(this.iterable).read();
     // TODO: Figure out why TypeScript can't infer the type of image_data with
     // the following syntax:
@@ -259,60 +258,60 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
       alias: content_stream_operator_aliases['EI'],
     });
     this.stack = [];
-    return undefined;
+    return;
   }
-  captureHex(matchValue: RegExpMatchArray) {
+  captureHex(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     var hexstring = matchValue[1].replace(/\s+/g, '');
     // range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
     var buffer = new Buffer(hexstring, 'hex');
     this.stack.push(buffer);
-    return undefined;
+    return;
   }
-  captureDictionary(matchValue: RegExpMatchArray) {
+  captureDictionary(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     var dictionary = this.attachState(DICTIONARY).read();
     this.stack.push(dictionary);
-    return undefined;
+    return;
   }
-  captureArray(matchValue: RegExpMatchArray) {
+  captureArray(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     var array = this.attachState(ARRAY).read();
     this.stack.push(array);
-    return undefined;
+    return;
   }
-  captureBytestring(matchValue: RegExpMatchArray) {
+  captureBytestring(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     var buffer = this.attachState(STRING).read();
     this.stack.push(buffer);
-    return undefined;
+    return;
   }
-  captureName(matchValue: RegExpMatchArray) {
+  captureName(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     var name = unescapeName(matchValue[1])
     this.stack.push(name);
-    return undefined;
+    return;
   }
-  captureBoolean(matchValue: RegExpMatchArray) {
+  captureBoolean(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     this.stack.push(matchValue[0] === 'true');
-    return undefined;
+    return;
   }
-  captureFloat(matchValue: RegExpMatchArray) {
+  captureFloat(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     this.stack.push(parseFloat(matchValue[0]));
-    return undefined;
+    return;
   }
-  captureInt(matchValue: RegExpMatchArray) {
+  captureInt(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     this.stack.push(parseInt(matchValue[0], 10));
-    return undefined;
+    return;
   }
 }
 
 export class ARRAY extends MachineState<PDFObject[], PDFObject[]> {
-  protected value = [];
+  protected value: PDFObject[] = [];
   rules = [
     Rule(/^\]/, this.pop),
     Rule(/^\s+/, this.ignore),
     Rule(/^/, this.captureObject),
   ]
-  captureObject(matchValue: any) {
+  captureObject(matchValue: RegExpMatchArray): PDFObject[] {
     var object = this.attachState(OBJECT).read();
     this.value.push(object);
-    return undefined;
+    return;
   }
 }
 
@@ -327,10 +326,10 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
     Rule(/^\s+/, this.ignore),
     Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
   ]
-  captureName(matchValue: RegExpMatchArray) {
+  captureName(matchValue: RegExpMatchArray): DictionaryObject {
     var name = unescapeName(matchValue[1])
     this.value[name] = this.attachState(OBJECT).read();
-    return undefined;
+    return;
   }
   /**
   We cannot read the actual stream until we know how long it is, and Length
@@ -352,7 +351,7 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
     // STREAM gets special handling
     stream_state.consumeBytes(stream_length);
     var buffer = stream_state.read();
-    return { dictionary: this.value, buffer };
+    return {dictionary: this.value, buffer};
   }
 }
 
@@ -362,9 +361,9 @@ export class INDIRECT_OBJECT_VALUE extends MachineState<PDFObject, PDFObject> {
     Rule(/^endobj/, this.pop),
     Rule(/^/, this.captureValue),
   ]
-  captureValue(matchValue: RegExpMatchArray) {
+  captureValue(matchValue: RegExpMatchArray): PDFObject {
     this.value = this.attachState(OBJECT).read();
-    return undefined;
+    return;
   }
 }
 
@@ -397,8 +396,7 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
     return this.attachState(ARRAY).read();
   }
   captureBytestring(matchValue: RegExpMatchArray) {
-    var buffer = this.attachState(STRING).read();
-    return buffer;
+    return this.attachState(STRING).read();
   }
   captureReference(matchValue: RegExpMatchArray) {
     return {
@@ -432,35 +430,6 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
     return parseInt(matchValue[0], 10);
   }
 }
-
-// each action function has the BufferedLexer instance bound as `this`,
-// allowing manipulating this.states, or this.reader (a BufferedReader)
-// var default_rules: lexing.RegexRule<any>[] = [
-// ];
-
-// [/^trailer/, match => Token('TRAILER', match[0]) ],
-// [/^startxref/, match => Token('STARTXREF', match[0]) ],
-// // %%EOF isn't really EOF, but we never want to read past it in one go,
-// // so we might as well treat it like one
-// [/^%%EOF/, match => Token('EOF', match[0]) ],
-// [/^xref\s*(\r\n|\n|\r)/, function(match) {
-//   this.states.push('XREF');
-//   return Token('XREF_START', match[0]);
-// }],
-
-// "STARTXREF_ONLY": [
-//   [ "STARTXREF NUMBER EOF", "return $2" ]
-// ],
-// "XREF_ONLY": [
-//   ["CROSS_REFERENCES TRAILER", "return $1"],
-//   ["CROSS_REFERENCES EOF", "return $1"],
-// ],
-// "XREF_TRAILER_ONLY": [
-//   [
-//     "CROSS_REFERENCES TRAILER DICTIONARY STARTXREF NUMBER EOF",
-//     "return {cross_references: $1, trailer: $3, startxref: $5};"
-//   ]
-// ],
 
 interface XrefWithTrailer {
   cross_references?: CrossReference[];
@@ -497,35 +466,38 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     Rule(/^startxref\s+(\d+)\s+%%EOF/, this.captureStartXref),
     Rule(/^([0-9]+)\s+([0-9]+)\s+obj/, this.captureIndirectObject),
   ]
-  captureXref(matchValue: RegExpMatchArray) {
+  // the functions that return `undefined` must return `undefined` of type T,
+  // (as in MachineState<T, I>), or else the rules array gets abstracted to
+  // Rule<any>[], which breaks type inference on the whole class
+  captureXref(matchValue: RegExpMatchArray): XrefWithTrailer {
     this.value.cross_references = this.attachState(XREF).read();
-    return undefined;
+    return;
   }
-  captureTrailer(matchValue: RegExpMatchArray) {
+  captureTrailer(matchValue: RegExpMatchArray): XrefWithTrailer {
     // in particular, a DICTIONARY object
     this.value.trailer = this.attachState(OBJECT).read();
-    return undefined;
+    return;
   }
-  captureStartXref(matchValue: RegExpMatchArray) {
+  captureStartXref(matchValue: RegExpMatchArray): XrefWithTrailer {
     this.value.startxref = parseInt(matchValue[1], 10);
     return this.value;
   }
-  captureIndirectObject(matchValue: RegExpMatchArray) {
+  captureIndirectObject(matchValue: RegExpMatchArray): XrefWithTrailer {
     // object_number: parseInt(matchValue[1], 10),
     // generation_number: parseInt(matchValue[2], 10),
     var value = this.attachState(INDIRECT_OBJECT_VALUE).read();
     // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
-    var filters = [].concat(value.dictionary.Filter || []);
-    var decodeParmss = [].concat(value.dictionary.DecodeParms || []);
-    var buffer = decodeBuffer(value.buffer, filters, decodeParmss);
+    var filters = [].concat(value['dictionary'].Filter || []);
+    var decodeParmss = [].concat(value['dictionary'].DecodeParms || []);
+    var buffer = decodeBuffer(value['buffer'], filters, decodeParmss);
 
-    var Size = value.dictionary.Size;
+    var Size = value['dictionary'].Size;
     // object_number_pairs: Array<[number, number]>
-    var object_number_pairs: number[][] = groups<number>(value.dictionary.Index || [0, Size], 2);
+    var object_number_pairs: number[][] = groups<number>(value['dictionary'].Index || [0, Size], 2);
 
     // PDF32000_2008.pdf:7.5.8.2-3 describes how we resolve these windows
     // to cross_references
-    var [field_type_size, field_2_size, field_3_size] = value.dictionary.W;
+    var [field_type_size, field_2_size, field_3_size] = value['dictionary'].W;
     var columns = field_type_size + field_2_size + field_3_size;
 
     // first, parse out the PartialCrossReferences
@@ -567,8 +539,8 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
       });
     });
 
-    this.value.trailer = value.dictionary;
-    this.value.startxref = value.dictionary.Prev;
+    this.value.trailer = value['dictionary'];
+    this.value.startxref = value['dictionary'].Prev;
 
     return this.value;
   }
@@ -578,7 +550,7 @@ export class STARTXREF extends MachineState<number, number> {
   rules = [
     Rule(/^startxref\s+(\d+)\s+%%EOF/, this.captureStartXref),
   ]
-  captureStartXref(matchValue: RegExpMatchArray) {
+  captureStartXref(matchValue: RegExpMatchArray): number {
     return parseInt(matchValue[1], 10);
   }
 }
@@ -598,7 +570,7 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
     Rule(/^/, this.pop), // anything else signals the end, but we can have multiple sections
     // TODO: should be it /^(trailer|$)/ ?
   ]
-  captureSection(matchValue: RegExpMatchArray) {
+  captureSection(matchValue: RegExpMatchArray): CrossReference[] {
     var object_number_start = parseInt(matchValue[1], 10);
     var object_count = parseInt(matchValue[2], 10);
     for (var i = 0; i < object_count; i++) {
@@ -610,7 +582,7 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
         in_use: partial_cross_reference.in_use,
       });
     }
-    return undefined;
+    return;
   }
 }
 
@@ -637,7 +609,6 @@ export class XREF_REFERENCE extends MachineState<PartialCrossReference, PartialC
 }
 
 export class STREAM extends MachineState<Buffer, Buffer> {
-  protected value: Buffer;
   rules = [
     /**
     From PDF32000_2008.pdf:7.3.8
@@ -694,12 +665,12 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
     Rule(/^</, this.captureHexstring),
     Rule(/^endcodespacerange/, this.pop),
   ]
-  captureHexstring(matchValue: RegExpMatchArray) {
+  captureHexstring(matchValue: RegExpMatchArray): CharRange[] {
     var buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
-    return undefined;
+    return;
   }
-  popStack(matchValue: RegExpMatchArray) {
+  popStack(matchValue: RegExpMatchArray): CharRange[] {
     // stack: [HEX, HEX]
     if (this.stack.length !== 2) {
       throw new Error(`Parsing CODESPACERANGE failed; argument stack must be 2-long: ${this.stack}`);
@@ -707,7 +678,7 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
     var [low, high] = this.stack.map(decodeNumber);
     this.value.push({low, high});
     this.stack = [];
-    return undefined;
+    return;
   }
 }
 
@@ -760,12 +731,12 @@ export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^</, this.captureHexstring),
     Rule(/^endbfchar/, this.pop),
   ]
-  captureHexstring(matchValue: RegExpMatchArray) {
+  captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
     var buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
-    return undefined;
+    return;
   }
-  popStack(matchValue: RegExpMatchArray) {
+  popStack(matchValue: RegExpMatchArray): CharMapping[] {
     // stack: [HEX, HEX]
     if (this.stack.length !== 2) {
       throw new Error(`Parsing BFCHAR failed; argument stack must be 2-long: ${this.stack}`);
@@ -778,7 +749,7 @@ export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
       byteLength: src_buffer.length,
     });
     this.stack = [];
-    return undefined;
+    return;
   }
 }
 
@@ -798,17 +769,18 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^\[/, this.captureArray),
     Rule(/^endbfrange/, this.pop),
   ]
-  captureHexstring(matchValue: RegExpMatchArray) {
+  captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
     var buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
-    return undefined;
+    return;
   }
-  captureArray(matchValue: RegExpMatchArray) {
-    var array = this.attachState(ARRAY).read();
-    this.stack.push(array)
-    return undefined;
+  captureArray(matchValue: RegExpMatchArray): CharMapping[] {
+    // the ARRAY substate should find an array of hexstrings
+    var array = <Buffer[]>this.attachState(ARRAY).read();
+    this.stack.push(array);
+    return;
   }
-  popStack(matchValue: RegExpMatchArray) {
+  popStack(matchValue: RegExpMatchArray): CharMapping[] {
     // stack: [HEX, HEX, HEX | ARRAY<HEX>]
     if (this.stack.length !== 3) {
       throw new Error(`Parsing BFRANGE failed; argument stack must be 3-long: ${this.stack}`);
@@ -855,7 +827,7 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
       }
     }
     this.stack = [];
-    return undefined;
+    return;
   }
 }
 
@@ -881,20 +853,20 @@ export class CMAP extends MachineState<CMap, any> {
     Rule(/^$/, this.pop),
     Rule(/^\S+/, this.ignore), // TODO: optimize this
   ]
-  captureCodeSpaceRange(matchValue: RegExpMatchArray) {
+  captureCodeSpaceRange(matchValue: RegExpMatchArray): CMap {
     var ranges = this.attachState(CODESPACERANGE).read();
-    pushAll(this.codeSpaceRanges, ranges);
-    return undefined;
+    this.codeSpaceRanges.push(...ranges);
+    return;
   }
-  captureBFChar(matchValue: RegExpMatchArray) {
+  captureBFChar(matchValue: RegExpMatchArray): CMap {
     var mappings = this.attachState(BFCHAR).read();
-    pushAll(this.mappings, mappings);
-    return undefined;
+    this.mappings.push(...mappings);
+    return;
   }
-  captureBFRange(matchValue: RegExpMatchArray) {
+  captureBFRange(matchValue: RegExpMatchArray): CMap {
     var mappings = this.attachState(BFRANGE).read();
-    pushAll(this.mappings, mappings);
-    return undefined;
+    this.mappings.push(...mappings);
+    return;
   }
   pop(): CMap {
     var byteLengths = this.mappings.map(mapping => mapping.byteLength);

@@ -36,7 +36,7 @@ var HEXSTRING = (function (_super) {
     HEXSTRING.prototype.pushBytes = function (matchValue) {
         var match_buffer = new Buffer(matchValue[0], 'hex');
         this.value = Buffer.concat([this.value, match_buffer]);
-        return undefined;
+        return;
     };
     /**
     handle implied final 0 (PDF32000_2008.pdf:16)
@@ -45,7 +45,7 @@ var HEXSTRING = (function (_super) {
     HEXSTRING.prototype.pushHalfByte = function (matchValue) {
         var match_buffer = new Buffer(matchValue[0] + '0', 'hex');
         this.value = Buffer.concat([this.value, match_buffer]);
-        return undefined;
+        return;
     };
     return HEXSTRING;
 })(lexing_1.MachineState);
@@ -88,22 +88,22 @@ var STRING = (function (_super) {
     STRING.prototype.captureNestedString = function (matchValue) {
         var nested_buffer = this.attachState(STRING).read();
         this.value = Buffer.concat([this.value, new Buffer('('), nested_buffer, new Buffer(')')]);
-        return undefined;
+        return;
     };
     STRING.prototype.captureGroup = function (matchValue) {
         var str = matchValue[1];
         this.value = Buffer.concat([this.value, new Buffer(str)]);
-        return undefined;
+        return;
     };
     STRING.prototype.captureEscape = function (matchValue) {
         var byte = escapeCharCodes[matchValue[0]];
         this.value = Buffer.concat([this.value, new Buffer([byte])]);
-        return undefined;
+        return;
     };
     STRING.prototype.captureOct = function (matchValue) {
         var byte = parseInt(matchValue[1], 8);
         this.value = Buffer.concat([this.value, new Buffer([byte])]);
-        return undefined;
+        return;
     };
     return STRING;
 })(lexing_1.MachineState);
@@ -123,7 +123,7 @@ var IMAGEDATA = (function (_super) {
     }
     IMAGEDATA.prototype.captureGroup = function (matchValue) {
         this.value.push(matchValue[1]);
-        return undefined;
+        return;
     };
     IMAGEDATA.prototype.pop = function () {
         return this.value.join('');
@@ -255,7 +255,7 @@ var CONTENT_STREAM = (function (_super) {
             logger_1.logger.warning('Unaliased operator: %j', matchValue[0]);
         }
         this.stack = [];
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureImageData = function (matchValue) {
         // var image_data = new IMAGEDATA(this.iterable).read();
@@ -270,46 +270,46 @@ var CONTENT_STREAM = (function (_super) {
             alias: content_stream_operator_aliases['EI'],
         });
         this.stack = [];
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureHex = function (matchValue) {
         var hexstring = matchValue[1].replace(/\s+/g, '');
         // range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
         var buffer = new Buffer(hexstring, 'hex');
         this.stack.push(buffer);
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureDictionary = function (matchValue) {
         var dictionary = this.attachState(DICTIONARY).read();
         this.stack.push(dictionary);
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureArray = function (matchValue) {
         var array = this.attachState(ARRAY).read();
         this.stack.push(array);
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureBytestring = function (matchValue) {
         var buffer = this.attachState(STRING).read();
         this.stack.push(buffer);
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureName = function (matchValue) {
         var name = unescapeName(matchValue[1]);
         this.stack.push(name);
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureBoolean = function (matchValue) {
         this.stack.push(matchValue[0] === 'true');
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureFloat = function (matchValue) {
         this.stack.push(parseFloat(matchValue[0]));
-        return undefined;
+        return;
     };
     CONTENT_STREAM.prototype.captureInt = function (matchValue) {
         this.stack.push(parseInt(matchValue[0], 10));
-        return undefined;
+        return;
     };
     return CONTENT_STREAM;
 })(lexing_1.MachineState);
@@ -328,7 +328,7 @@ var ARRAY = (function (_super) {
     ARRAY.prototype.captureObject = function (matchValue) {
         var object = this.attachState(OBJECT).read();
         this.value.push(object);
-        return undefined;
+        return;
     };
     return ARRAY;
 })(lexing_1.MachineState);
@@ -351,7 +351,7 @@ var DICTIONARY = (function (_super) {
     DICTIONARY.prototype.captureName = function (matchValue) {
         var name = unescapeName(matchValue[1]);
         this.value[name] = this.attachState(OBJECT).read();
-        return undefined;
+        return;
     };
     /**
     We cannot read the actual stream until we know how long it is, and Length
@@ -389,7 +389,7 @@ var INDIRECT_OBJECT_VALUE = (function (_super) {
     }
     INDIRECT_OBJECT_VALUE.prototype.captureValue = function (matchValue) {
         this.value = this.attachState(OBJECT).read();
-        return undefined;
+        return;
     };
     return INDIRECT_OBJECT_VALUE;
 })(lexing_1.MachineState);
@@ -426,8 +426,7 @@ var OBJECT = (function (_super) {
         return this.attachState(ARRAY).read();
     };
     OBJECT.prototype.captureBytestring = function (matchValue) {
-        var buffer = this.attachState(STRING).read();
-        return buffer;
+        return this.attachState(STRING).read();
     };
     OBJECT.prototype.captureReference = function (matchValue) {
         return {
@@ -496,14 +495,17 @@ var XREF_WITH_TRAILER = (function (_super) {
             lexing_1.MachineRule(/^([0-9]+)\s+([0-9]+)\s+obj/, this.captureIndirectObject),
         ];
     }
+    // the functions that return `undefined` must return `undefined` of type T,
+    // (as in MachineState<T, I>), or else the rules array gets abstracted to
+    // Rule<any>[], which breaks type inference on the whole class
     XREF_WITH_TRAILER.prototype.captureXref = function (matchValue) {
         this.value.cross_references = this.attachState(XREF).read();
-        return undefined;
+        return;
     };
     XREF_WITH_TRAILER.prototype.captureTrailer = function (matchValue) {
         // in particular, a DICTIONARY object
         this.value.trailer = this.attachState(OBJECT).read();
-        return undefined;
+        return;
     };
     XREF_WITH_TRAILER.prototype.captureStartXref = function (matchValue) {
         this.value.startxref = parseInt(matchValue[1], 10);
@@ -514,15 +516,15 @@ var XREF_WITH_TRAILER = (function (_super) {
         // generation_number: parseInt(matchValue[2], 10),
         var value = this.attachState(INDIRECT_OBJECT_VALUE).read();
         // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
-        var filters = [].concat(value.dictionary.Filter || []);
-        var decodeParmss = [].concat(value.dictionary.DecodeParms || []);
-        var buffer = decoders_1.decodeBuffer(value.buffer, filters, decodeParmss);
-        var Size = value.dictionary.Size;
+        var filters = [].concat(value['dictionary'].Filter || []);
+        var decodeParmss = [].concat(value['dictionary'].DecodeParms || []);
+        var buffer = decoders_1.decodeBuffer(value['buffer'], filters, decodeParmss);
+        var Size = value['dictionary'].Size;
         // object_number_pairs: Array<[number, number]>
-        var object_number_pairs = tarry_1.groups(value.dictionary.Index || [0, Size], 2);
+        var object_number_pairs = tarry_1.groups(value['dictionary'].Index || [0, Size], 2);
         // PDF32000_2008.pdf:7.5.8.2-3 describes how we resolve these windows
         // to cross_references
-        var _a = value.dictionary.W, field_type_size = _a[0], field_2_size = _a[1], field_3_size = _a[2];
+        var _a = value['dictionary'].W, field_type_size = _a[0], field_2_size = _a[1], field_3_size = _a[2];
         var columns = field_type_size + field_2_size + field_3_size;
         // first, parse out the PartialCrossReferences
         var partial_xrefs = [];
@@ -562,8 +564,8 @@ var XREF_WITH_TRAILER = (function (_super) {
                 return util_1.assign({ object_number: object_number_start + i }, partial_xref);
             });
         });
-        this.value.trailer = value.dictionary;
-        this.value.startxref = value.dictionary.Prev;
+        this.value.trailer = value['dictionary'];
+        this.value.startxref = value['dictionary'].Prev;
         return this.value;
     };
     return XREF_WITH_TRAILER;
@@ -613,7 +615,7 @@ var XREF = (function (_super) {
                 in_use: partial_cross_reference.in_use,
             });
         }
-        return undefined;
+        return;
     };
     return XREF;
 })(lexing_1.MachineState);
@@ -696,7 +698,7 @@ var CODESPACERANGE = (function (_super) {
     CODESPACERANGE.prototype.captureHexstring = function (matchValue) {
         var buffer = this.attachState(HEXSTRING).read();
         this.stack.push(buffer);
-        return undefined;
+        return;
     };
     CODESPACERANGE.prototype.popStack = function (matchValue) {
         // stack: [HEX, HEX]
@@ -706,7 +708,7 @@ var CODESPACERANGE = (function (_super) {
         var _a = this.stack.map(decodeNumber), low = _a[0], high = _a[1];
         this.value.push({ low: low, high: high });
         this.stack = [];
-        return undefined;
+        return;
     };
     return CODESPACERANGE;
 })(lexing_1.MachineState);
@@ -759,7 +761,7 @@ var BFCHAR = (function (_super) {
     BFCHAR.prototype.captureHexstring = function (matchValue) {
         var buffer = this.attachState(HEXSTRING).read();
         this.stack.push(buffer);
-        return undefined;
+        return;
     };
     BFCHAR.prototype.popStack = function (matchValue) {
         // stack: [HEX, HEX]
@@ -774,7 +776,7 @@ var BFCHAR = (function (_super) {
             byteLength: src_buffer.length,
         });
         this.stack = [];
-        return undefined;
+        return;
     };
     return BFCHAR;
 })(lexing_1.MachineState);
@@ -802,12 +804,13 @@ var BFRANGE = (function (_super) {
     BFRANGE.prototype.captureHexstring = function (matchValue) {
         var buffer = this.attachState(HEXSTRING).read();
         this.stack.push(buffer);
-        return undefined;
+        return;
     };
     BFRANGE.prototype.captureArray = function (matchValue) {
+        // the ARRAY substate should find an array of hexstrings
         var array = this.attachState(ARRAY).read();
         this.stack.push(array);
-        return undefined;
+        return;
     };
     BFRANGE.prototype.popStack = function (matchValue) {
         // stack: [HEX, HEX, HEX | ARRAY<HEX>]
@@ -855,7 +858,7 @@ var BFRANGE = (function (_super) {
             }
         }
         this.stack = [];
-        return undefined;
+        return;
     };
     return BFRANGE;
 })(lexing_1.MachineState);
@@ -877,18 +880,21 @@ var CMAP = (function (_super) {
     }
     CMAP.prototype.captureCodeSpaceRange = function (matchValue) {
         var ranges = this.attachState(CODESPACERANGE).read();
-        tarry_1.pushAll(this.codeSpaceRanges, ranges);
-        return undefined;
+        (_a = this.codeSpaceRanges).push.apply(_a, ranges);
+        return;
+        var _a;
     };
     CMAP.prototype.captureBFChar = function (matchValue) {
         var mappings = this.attachState(BFCHAR).read();
-        tarry_1.pushAll(this.mappings, mappings);
-        return undefined;
+        (_a = this.mappings).push.apply(_a, mappings);
+        return;
+        var _a;
     };
     CMAP.prototype.captureBFRange = function (matchValue) {
         var mappings = this.attachState(BFRANGE).read();
-        tarry_1.pushAll(this.mappings, mappings);
-        return undefined;
+        (_a = this.mappings).push.apply(_a, mappings);
+        return;
+        var _a;
     };
     CMAP.prototype.pop = function () {
         var byteLengths = this.mappings.map(function (mapping) { return mapping.byteLength; });
