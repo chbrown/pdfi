@@ -5,9 +5,7 @@
     "experimentalDecorators": true
   },
   "files": [
-    "node_modules/declarations/async/async.d.ts",
     "node_modules/declarations/chalk/chalk.d.ts",
-    "node_modules/declarations/mocha/mocha.d.ts",
     "node_modules/declarations/node/node.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
     "PDF.ts",
