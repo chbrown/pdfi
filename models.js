@@ -468,35 +468,55 @@ The Trailer is not a typical extension of models.Model, because it is not
 backed by a single PDFObject, but by a collection of PDFObjects.
 */
 var Trailer = (function () {
-    function Trailer(_pdf, _object) {
-        if (_object === void 0) { _object = {}; }
+    function Trailer(_pdf, objects) {
+        if (objects === void 0) { objects = []; }
         this._pdf = _pdf;
-        this._object = _object;
+        this.objects = objects;
     }
     /**
-    The PDF's trailers are read from newer to older. The newer trailers' values
-    should be preferred, so we merge the older trailers under the newer ones.
+    The PDF's trailers are read from newer to older.
     */
-    Trailer.prototype.merge = function (object) {
-        this._object = util_1.assign(object, this._object);
+    Trailer.prototype.add = function (object) {
+        this.objects.push(object);
     };
+    Object.defineProperty(Trailer.prototype, "object", {
+        /**
+        this._objects contains the trailers from older to newer, so merging the
+        the newer trailers' values over the older trailers is straightfoward.
+      
+        Not as generic as the typical Model#object getter, but similar enough to
+        warrant using the same name.
+        */
+        get: function () {
+            // TODO: memoize this (but bust the cache if the underlying objects change)
+            return util_1.assign.apply(void 0, [{}].concat(this.objects));
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(Trailer.prototype, "Size", {
         get: function () {
-            return this._object['Size'];
+            return this.object['Size'];
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(Trailer.prototype, "Root", {
+        /**
+        I'm pretty sure the `Root` reference is always a reference.
+        */
         get: function () {
-            return new Catalog(this._pdf, this._object['Root']);
+            return new Catalog(this._pdf, this.object['Root']);
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(Trailer.prototype, "Info", {
+        /**
+        I'm pretty sure the `Info` reference is also always a reference.
+        */
         get: function () {
-            return new Model(this._pdf, this._object['Info']).object;
+            return new Model(this._pdf, this.object['Info']).object;
         },
         enumerable: true,
         configurable: true

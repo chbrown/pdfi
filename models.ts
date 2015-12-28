@@ -3,7 +3,7 @@ import {flatMap, groups} from 'tarry';
 
 import {logger} from './logger';
 import {OBJECT} from './parsers/states';
-import {IndirectObject, PDFObject, Rectangle} from './pdfdom';
+import {IndirectObject, PDFObject, Rectangle, DictionaryObject} from './pdfdom';
 import {decodeBuffer} from './filters/decoders';
 import {assign} from './util';
 
@@ -412,26 +412,43 @@ The Trailer is not a typical extension of models.Model, because it is not
 backed by a single PDFObject, but by a collection of PDFObjects.
 */
 export class Trailer {
-  constructor(private _pdf: PDF, private _object: any = {}) { }
+  constructor(private _pdf: PDF, public objects: DictionaryObject[] = []) { }
 
   /**
-  The PDF's trailers are read from newer to older. The newer trailers' values
-  should be preferred, so we merge the older trailers under the newer ones.
+  The PDF's trailers are read from newer to older.
   */
-  merge(object: any): void {
-    this._object = assign(object, this._object);
+  add(object: DictionaryObject) {
+    this.objects.push(object);
   }
 
-  get Size(): number {
-    return this._object['Size'];
+  /**
+  this._objects contains the trailers from older to newer, so merging the
+  the newer trailers' values over the older trailers is straightfoward.
+
+  Not as generic as the typical Model#object getter, but similar enough to
+  warrant using the same name.
+  */
+  get object() {
+    // TODO: memoize this (but bust the cache if the underlying objects change)
+    return <DictionaryObject>assign({}, ...this.objects);
   }
 
-  get Root(): Catalog {
-    return new Catalog(this._pdf, this._object['Root']);
+  get Size() {
+    return <number>this.object['Size'];
   }
 
-  get Info(): any {
-    return new Model(this._pdf, this._object['Info']).object;
+  /**
+  I'm pretty sure the `Root` reference is always a reference.
+  */
+  get Root() {
+    return new Catalog(this._pdf, this.object['Root']);
+  }
+
+  /**
+  I'm pretty sure the `Info` reference is also always a reference.
+  */
+  get Info() {
+    return new Model(this._pdf, this.object['Info']).object;
   }
 
   toJSON() {
