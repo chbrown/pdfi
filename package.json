@@ -17,24 +17,20 @@
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
     "academia": "*",
-    "adts": "*",
     "afm": "*",
-    "async": "*",
     "chalk": "*",
     "lexing": "*",
     "loge": "*",
     "pako": "*",
-    "streaming": "*",
     "tarry": "*",
-    "unorm": "*",
-    "util-enhanced": "*",
-    "visible": "*"
+    "unorm": "*"
   },
   "devDependencies": {
     "babel-core": "^5.0.0",
     "declarations": "*",
     "mocha": "*",
-    "typescript": "next"
+    "streaming": "*",
+    "typescript": "*"
   },
   "scripts": {
     "test": "make test"
