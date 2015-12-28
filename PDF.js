@@ -46,15 +46,14 @@ var PDF = (function () {
         var next_xref_position = this.parseStateAt(states_1.STARTXREF, startxref_position);
         this._trailer = new models.Trailer(this);
         while (next_xref_position) {
-            // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
             var xref_trailer = this.parseStateAt(states_1.XREF_WITH_TRAILER, next_xref_position);
-            // TODO: are there really chains of trailers and multiple `Prev` links?
-            next_xref_position = xref_trailer['trailer']['Prev'];
-            // merge the cross references
-            var cross_references = xref_trailer['cross_references'];
-            Array.prototype.push.apply(this._cross_references, cross_references);
-            this._trailer.merge(xref_trailer['trailer']);
+            // TODO (or to check): are there really chains of trailers and multiple `Prev` links?
+            next_xref_position = xref_trailer.trailer['Prev'];
+            // add the cross references
+            (_a = this._cross_references).push.apply(_a, xref_trailer.cross_references);
+            this._trailer.add(xref_trailer.trailer);
         }
+        var _a;
     };
     Object.defineProperty(PDF.prototype, "trailer", {
         /**

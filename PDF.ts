@@ -41,19 +41,18 @@ export class PDF {
     if (startxref_position === null) {
       throw new Error('Could not find "startxref" marker in file');
     }
-    var next_xref_position = <number>this.parseStateAt(STARTXREF, startxref_position);
+    var next_xref_position = this.parseStateAt(STARTXREF, startxref_position);
 
-    this._trailer = new models.Trailer(this)
+    this._trailer = new models.Trailer(this);
     while (next_xref_position) { // !== null
-      // XREF_TRAILER_ONLY -> "return {cross_references: $1, trailer: $3, startxref: $5};"
       var xref_trailer = this.parseStateAt(XREF_WITH_TRAILER, next_xref_position);
-      // TODO: are there really chains of trailers and multiple `Prev` links?
-      next_xref_position = xref_trailer['trailer']['Prev'];
-      // merge the cross references
-      var cross_references = <pdfdom.CrossReference[]>xref_trailer['cross_references'];
-      Array.prototype.push.apply(this._cross_references, cross_references);
+      // TODO (or to check): are there really chains of trailers and multiple `Prev` links?
+      next_xref_position = xref_trailer.trailer['Prev'];
 
-      this._trailer.merge(xref_trailer['trailer']);
+      // add the cross references
+      this._cross_references.push(...xref_trailer.cross_references);
+
+      this._trailer.add(xref_trailer.trailer);
     }
   }
 
@@ -218,7 +217,7 @@ export class PDF {
     logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
   }
 
-  parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): pdfdom.PDFObject {
+  parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): T {
     var iterable = new PDFStringIterator(this.source, 'ascii', position, this);
     try {
       return new STATE(iterable, peek_length).read();
