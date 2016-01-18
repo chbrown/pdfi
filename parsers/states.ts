@@ -10,7 +10,7 @@ const escapeCharCodes = {
   '\\n': 10,
   '\\r': 13,
   '\\\\': 92,
-}
+};
 
 /**
 Unescape all #-escaped sequences in a name.
