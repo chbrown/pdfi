@@ -27,9 +27,11 @@
   },
   "devDependencies": {
     "babel-core": "^5.0.0",
+    "coveralls": "*",
     "declarations": "*",
+    "istanbul": "*",
     "mocha": "*",
-    "streaming": "*",
+    "mocha-lcov-reporter": "*",
     "typescript": "*"
   },
   "scripts": {

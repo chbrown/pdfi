@@ -1,15 +1,24 @@
 BIN := node_modules/.bin
-TYPESCRIPT := $(shell jq -r '.files[]' tsconfig.json | grep -v node_modules)
-JAVASCRIPT := $(TYPESCRIPT:%.ts=%.js)
+TYPESCRIPT := $(shell jq -r '.files[]' tsconfig.json | grep -Fv .d.ts)
 
-all: $(JAVASCRIPT)
+# $(TYPESCRIPT:%.ts=%.d.ts)
+all: $(TYPESCRIPT:%.ts=%.js) .npmignore .gitignore
+
+$(BIN)/tsc $(BIN)/_mocha $(BIN)/istanbul $(BIN)/coveralls:
+	npm install
+
+.npmignore: tsconfig.json
+	echo $(TYPESCRIPT) Makefile tsconfig.json coverage/ | tr ' ' '\n' > $@
+
+.gitignore: tsconfig.json
+	echo $(TYPESCRIPT:%.ts=/%.js) $(TYPESCRIPT:%.ts=/%.d.ts) coverage/ | tr ' ' '\n' > $@
 
 %.js: %.ts $(BIN)/tsc
 	$(BIN)/tsc
 
-.PHONY: test
-test: $(BIN)/mocha
-	$(BIN)/mocha --compilers js:babel-core/register --recursive test/
+test: $(TYPESCRIPT:%.ts=%.js) $(BIN)/istanbul $(BIN)/_mocha $(BIN)/coveralls
+	$(BIN)/istanbul cover $(BIN)/_mocha -- --compilers js:babel-core/register tests/ -R spec
+	cat coverage/lcov.info | $(BIN)/coveralls || true
 
 encoding/glyphlist.txt:
 	# glyphlist.txt is pure ASCII
@@ -29,3 +38,6 @@ encoding/glyphlist.json: encoding/cmr-glyphlist.txt encoding/additional_glyphlis
 encoding/latin_charset.json: encoding/latin_charset.tsv
 	# encoding/latin_charset.tsv comes from PDF32000_2008.pdf: Appendix D.2
 	node dev/read_charset.js <$< >$@
+
+clean:
+	rm -f $(TYPESCRIPT:%.ts=%.d.ts) $(TYPESCRIPT:%.ts=%.js)

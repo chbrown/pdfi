@@ -1,4 +1,9 @@
-# pdf
+# pdfi
+
+[![npm version](https://badge.fury.io/js/pdfi.svg)](https://www.npmjs.com/package/pdfi)
+[![Travis CI Build Status](https://travis-ci.org/chbrown/pdfi.svg)](https://travis-ci.org/chbrown/pdfi)
+[![Coverage Status](https://coveralls.io/repos/chbrown/pdfi/badge.svg)](https://coveralls.io/github/chbrown/pdfi)
+
 
 ## Installation
 
@@ -21,4 +26,4 @@ See general PDF documentation at [docs/pdf](http://chbrown.github.io/docs/pdf)
 
 ## License
 
-Copyright 2014-2015 Christopher Brown. [MIT Licensed](http://chbrown.github.io/licenses/MIT/#2014-2015).
+Copyright 2014-2016 Christopher Brown. [MIT Licensed](http://chbrown.github.io/licenses/MIT/#2014-2016).
