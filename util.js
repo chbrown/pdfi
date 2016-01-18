@@ -68,7 +68,7 @@ function typeOf(object) {
     if (object === null) {
         return 'null';
     }
-    if (object.constructor.name) {
+    if (object.constructor && object.constructor.name) {
         return object.constructor.name;
     }
     return typeof object;
