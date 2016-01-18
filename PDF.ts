@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
+import {indexOf, lastIndexOf} from 'lexing/source';
 
 import {logger} from './logger';
 import * as pdfdom from './pdfdom';
@@ -10,7 +11,6 @@ import * as graphics from './graphics/index';
 
 import {parsePDFObject} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
-import {indexOf, lastIndexOf} from './sourceops';
 
 class PDFStringIterator extends SourceStringIterator {
   constructor(source: Source, _encoding: string, _position: number, public pdf: PDF) {

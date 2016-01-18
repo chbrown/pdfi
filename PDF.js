@@ -5,11 +5,11 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var chalk = require('chalk');
 var lexing_1 = require('lexing');
+var source_1 = require('lexing/source');
 var logger_1 = require('./logger');
 var models = require('./models');
 var graphics = require('./graphics/index');
 var states_1 = require('./parsers/states');
-var sourceops_1 = require('./sourceops');
 var PDFStringIterator = (function (_super) {
     __extends(PDFStringIterator, _super);
     function PDFStringIterator(source, _encoding, _position, pdf) {
@@ -39,7 +39,7 @@ var PDF = (function () {
     */
     PDF.prototype.readTrailers = function () {
         // Find the offset of the first item in the xref-trailer chain
-        var startxref_position = sourceops_1.lastIndexOf(this.source, 'startxref');
+        var startxref_position = source_1.lastIndexOf(this.source, 'startxref');
         if (startxref_position === null) {
             throw new Error('Could not find "startxref" marker in file');
         }
