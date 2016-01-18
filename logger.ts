@@ -1,4 +1,4 @@
-import {Logger, Level, Writable} from 'loge';
+import {Logger, Level} from 'loge';
 import {format} from 'util';
 
 class ConsoleLogger extends Logger {
