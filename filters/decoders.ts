@@ -1,11 +1,11 @@
 import * as pako from 'pako';
 
-interface List<T> {
+export interface List<T> {
   [index: number]: T;
   length: number;
 }
 
-interface DecodeParms {
+export interface DecodeParms {
   Predictor?: number;
   Colors?: number;
   BitsPerComponent?: number;

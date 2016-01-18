@@ -1,6 +1,6 @@
 import {StringIterable, StringIterator} from 'lexing';
 
-import {OBJECT, STARTXREF, XREF_WITH_TRAILER, CONTENT_STREAM, CMAP, ContentStreamOperation} from './states';
+import {OBJECT, STARTXREF, XREF_WITH_TRAILER, CONTENT_STREAM, CMAP, ContentStreamOperation, CMap} from './states';
 import {PDFObject, IndirectObject} from '../pdfdom';
 
 export function parsePDFObject(string_iterable: StringIterable): PDFObject {
@@ -14,6 +14,6 @@ export function parseContentStream(content_stream_string: string): ContentStream
   return new CONTENT_STREAM(string_iterable, 1024).read();
 }
 
-export function parseCMap(string_iterable: StringIterable) {
+export function parseCMap(string_iterable: StringIterable): CMap {
   return new CMAP(string_iterable, 1024).read();
 }

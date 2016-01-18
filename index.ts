@@ -13,7 +13,7 @@ export function setLoggerLevel(level: Level) {
   logger.level = level;
 }
 
-interface ReadOptions {
+export interface ReadOptions {
   type?: string;
 }
 

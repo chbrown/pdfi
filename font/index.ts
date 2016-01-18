@@ -473,7 +473,7 @@ Goes well with Type 0 fonts.
     value: none (the DW value shall be used for all glyphs).
 
 */
-class CIDFont extends Font {
+export class CIDFont extends Font {
   get CIDSystemInfo(): string {
     return this.get('CIDSystemInfo');
   }

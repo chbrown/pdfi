@@ -38,7 +38,7 @@ export enum LineJoinStyle {
   Bevel = 2,
 }
 
-class TextState {
+export class TextState {
   charSpacing: number = 0;
   wordSpacing: number = 0;
   horizontalScaling: number = 100;
@@ -58,7 +58,7 @@ We need to be able to clone it since we need a copy when we process a
 `pushGraphicsState` (`q`) command, and it'd be easier to clone if the variables
 were in the constructor, but there are a lot of variables!
 */
-class GraphicsState {
+export class GraphicsState {
   ctMatrix: number[] = mat3ident; // defaults to the identity matrix
   strokeColor: Color = new Color();
   fillColor: Color = new Color();

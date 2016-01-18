@@ -1,4 +1,4 @@
-import {MachineRule as Rule, MachineState} from 'lexing';
+import {MachineRule as Rule, MachineState, MachineCallback} from 'lexing';
 import {groups, flatMap, range} from 'tarry';
 
 import {logger} from '../logger';
@@ -431,7 +431,7 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
   }
 }
 
-interface XrefWithTrailer {
+export interface XrefWithTrailer {
   cross_references?: CrossReference[];
   trailer?: DictionaryObject;
   startxref?: number;
@@ -586,7 +586,7 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
   }
 }
 
-interface PartialCrossReference {
+export interface PartialCrossReference {
   generation_number: number;
   in_use: boolean;
   offset?: number;
@@ -711,7 +711,7 @@ function ucsChar(code: number): string {
   }
 }
 
-interface CharMapping {
+export interface CharMapping {
   src: number;
   dst: string;
   byteLength: number;
@@ -871,7 +871,7 @@ export class CMAP extends MachineState<CMap, any> {
   pop(): CMap {
     var byteLengths = this.mappings.map(mapping => mapping.byteLength);
     if (!byteLengths.every(byteLength => byteLength === byteLengths[0])) {
-      logger.warning(`Mismatched byte lengths in mappings in CMap: ${byteLengths.join(', ')}; using only the first.`);
+      logger.warning(`Mismatched byte lengths in mappings in CMAP: ${byteLengths.join(', ')}; using only the first.`);
     }
     return {
       codeSpaceRanges: this.codeSpaceRanges,
