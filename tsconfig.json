@@ -7,9 +7,8 @@
   "files": [
     "node_modules/declarations/chalk/chalk.d.ts",
     "node_modules/declarations/node/node.d.ts",
+    "node_modules/declarations/pako/pako.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
-    "PDF.ts",
-    "bufferops.ts",
     "encoding/index.ts",
     "filters/decoders.ts",
     "font/descriptor.ts",
@@ -21,13 +20,13 @@
     "graphics/math.ts",
     "graphics/models.ts",
     "graphics/stream.ts",
+    "parsers/index.ts",
+    "parsers/states.ts",
     "index.ts",
     "logger.ts",
     "models.ts",
-    "parsers/index.ts",
-    "parsers/states.ts",
+    "PDF.ts",
     "pdfdom.ts",
-    "sourceops.ts",
     "util.ts"
   ]
 }
