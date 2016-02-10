@@ -1,10 +1,9 @@
 // This file provides the most abstract API to pdfi. The type signatures of
 // this module should following proper versioning practices.
 import * as academia from 'academia';
-import * as chalk from 'chalk';
 import {Source} from 'lexing';
-
 import {Level} from 'loge';
+
 import {logger} from './logger';
 import {PDF} from './PDF';
 import {IndirectReference, Model, ContentStream} from './models';
@@ -31,24 +30,23 @@ options.type determines the return value.
 - 'xref': returns the PDF's trailer section
 - anything else: returns null
 */
-export function readSourceSync(source: Source,
-                               options: ReadOptions = {type: 'string'}): any {
+export function readSourceSync(source: Source, {type = 'string'}: ReadOptions): any {
   var pdf = new PDF(source);
-  if (options.type == 'pdf') {
+  if (type == 'pdf') {
     return pdf;
   }
-  if (options.type == 'metadata') {
+  if (type == 'metadata') {
     return pdf.trailer.toJSON();
   }
-  if (options.type == 'xref') {
+  if (type == 'xref') {
     return pdf.cross_references;
   }
   // otherwise, we need to extract the paper
   var paper = pdf.renderPaper();
-  if (options.type == 'paper') {
+  if (type == 'paper') {
     return paper;
   }
-  if (options.type == 'string') {
+  if (type == 'string') {
     return paper.sections.map(section => {
       return `# ${section.title}\n${section.paragraphs.join('\n')}`;
     }).join('\n\n')
