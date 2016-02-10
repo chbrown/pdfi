@@ -223,7 +223,7 @@ export class Font extends Model {
   be resolved to a string (unless the `skipMissing` argument is set to `true`,
   in which case, it simply skips those characters).
   */
-  @checkArguments([{type: 'Buffer'}, {type: 'Boolean'}])
+  // @checkArguments([{type: 'Buffer'}, {type: 'Boolean'}])
   decodeString(buffer: Buffer, skipMissing = false): string {
     if (buffer.length % this.encoding.characterByteLength !== 0) {
       logger.debug(`Font[${this.Name}] cannot decodeString with bad length (${buffer.length} !/ ${this.encoding.characterByteLength})`);

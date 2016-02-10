@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
+    "experimentalDecorators": true,
     "module": "commonjs",
-    "target": "ES5",
-    "experimentalDecorators": true
+    "target": "ES5"
   },
   "files": [
     "node_modules/declarations/chalk/chalk.d.ts",

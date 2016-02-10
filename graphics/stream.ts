@@ -807,7 +807,7 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
   single glyph, but for "simple" fonts, that is the case.
 
   */
-  @checkArguments([{type: 'Buffer'}])
+  // @checkArguments([{type: 'Buffer'}])
   showString(buffer: Buffer) {
     // the Font instance handles most of the character code resolution
     var font = this.resources.getFont(this.graphicsState.textState.fontName);
