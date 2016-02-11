@@ -85,15 +85,15 @@ export class Canvas extends Container<TextSpan> {
   drawText(string: string, origin: Point, size: Size,
            fontSize: number, fontBold: boolean, fontItalic: boolean, fontName: string) {
     // transform into origin at top left
-    var canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
-    var span = new TextSpan(string,
-                            canvas_origin.x,
-                            canvas_origin.y,
-                            canvas_origin.x + size.width,
-                            canvas_origin.y + size.height,
-                            fontSize,
-                            fontBold,
-                            fontItalic);
+    const canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
+    const span = new TextSpan(string,
+                              canvas_origin.x,
+                              canvas_origin.y,
+                              canvas_origin.x + size.width,
+                              canvas_origin.y + size.height,
+                              fontSize,
+                              fontBold,
+                              fontItalic);
     // span.details is an option for debugging
     span.details = `${span.toString(0)} fontName=${fontName}`;
     this.push(span);

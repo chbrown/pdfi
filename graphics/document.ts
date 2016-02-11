@@ -12,12 +12,12 @@ Group horizontally contiguous elements into containers. Usually this is called
 with an array of all TextSpans on a single page.
 */
 function groupHorizontallyContiguousElements<T extends Rectangle>(elements: T[]): Container<T>[] {
-  var containers: Container<T>[] = [];
-  var currentContainer: Container<T>;
+  const containers: Container<T>[] = [];
+  let currentContainer: Container<T>;
   elements.forEach(element => {
-    var dy = currentContainer ? (element.minY - currentContainer.minY) : Infinity;
+    const dy = currentContainer ? (element.minY - currentContainer.minY) : Infinity;
     // 5 is approximately half the mean font size
-    var new_container = Math.abs(dy) > 5;
+    const new_container = Math.abs(dy) > 5;
     if (new_container) {
       // flush current container
       if (currentContainer) {
@@ -41,12 +41,12 @@ Merge containers that are vertically overlapping in incremental text mode.
 function mergeVerticallyContiguousContainers<T extends Rectangle>(containers: Container<T>[],
                                                                   threshold_dx: number,
                                                                   threshold_dy: number): Container<T>[] {
-  var mergedContainers: Container<T>[] = [];
-  var currentContainer: Container<T>;
-  var previousBounds: Rectangle;
+  const mergedContainers: Container<T>[] = [];
+  let currentContainer: Container<T>;
+  let previousBounds: Rectangle;
   containers.forEach(container => {
-    var [dx, dy] = previousBounds ? previousBounds.distance(container) : [Infinity, Infinity];
-    var new_container = dx > threshold_dx || dy > threshold_dy;
+    const [dx, dy] = previousBounds ? previousBounds.distance(container) : [Infinity, Infinity];
+    const new_container = dx > threshold_dx || dy > threshold_dy;
     if (new_container) {
       // flush current container
       if (currentContainer) {
@@ -100,9 +100,9 @@ for each container in containers:
 export function autodetectLayout(textSpans: TextSpan[]): Container<TextSpan>[] {
   // threshold_dx: number = 20, threshold_dy: number = 5
   // 1. first pass -- linear aggregation
-  var containers = groupHorizontallyContiguousElements(textSpans);
+  const containers = groupHorizontallyContiguousElements(textSpans);
   // 2. second pass -- exhaustive aggregation
-  var merged_containers = mergeVerticallyContiguousContainers(containers, 0, 5);
+  const merged_containers = mergeVerticallyContiguousContainers(containers, 0, 5);
   return merged_containers;
 }
 
@@ -114,7 +114,7 @@ This is useful when we want to determine whether a given line is atypical
 within its specific container.
 */
 function typicalLeftOffset(container: Rectangle, elements: Rectangle[]): number {
-  var leftOffsets = elements.map(element => element.minX - container.minX);
+  const leftOffsets = elements.map(element => element.minX - container.minX);
   // special handling to avoid taking the mean of two elements:
   if (elements.length == 2) {
     // consider the first of the two (or the single line) to be the "atypical"
@@ -130,8 +130,8 @@ The given textSpans should all have approximately the same Y value.
 normalize(...) ensures that there is no whitespace, besides SPACE, in the result.
 */
 function flattenLine(textSpans: TextSpan[], spaceWidth = 1): string {
-  var line = textSpans.map((currentTextSpan, i) => {
-    var previousTextSpan: TextSpan = textSpans[i - 1];
+  const line = textSpans.map((currentTextSpan, i) => {
+    const previousTextSpan: TextSpan = textSpans[i - 1];
     // dX measures the distance between the right bound of the previous span
     // and the left bound of the current one. It may be negative.
     if (previousTextSpan) {
@@ -163,15 +163,15 @@ The optional parameter, `line_gap`, is the the maximum distance between lines
 before we consider the next line a new paragraph.
 */
 function groupIntoLines(textSpans: TextSpan[], line_gap = -5): TextSpan[][] {
-  var lines: TextSpan[][] = [];
-  var currentLine: TextSpan[];
-  var previousTextSpan: TextSpan;
+  const lines: TextSpan[][] = [];
+  let currentLine: TextSpan[];
+  let previousTextSpan: TextSpan;
   textSpans.forEach(textSpan => {
     // dY is the distance from bottom of the current (active) line to the
     // top of the next span (this should come out negative if the span is
     // on the same line as the last one)
     // set dY if currentMaxY has been initialized
-    var dY: number = previousTextSpan ? (textSpan.minY - previousTextSpan.maxY) : Infinity;
+    const dY: number = previousTextSpan ? (textSpan.minY - previousTextSpan.maxY) : Infinity;
     // if the new span does not vertically overlap with the previous one
     // at all, or if there was no previous line, or we've moved to a new
     // container, we consider it a new line
@@ -221,19 +221,19 @@ determining the oddity of the left offset of any given line, we only want to
 compare its left offset to the left offsets of other lines in the same layout component.
 */
 function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 5): string[][] {
-  var lines = linesOfTextSpans.map(textSpans => new Line(textSpans));
+  const lines = linesOfTextSpans.map(textSpans => new Line(textSpans));
 
-  var paragraphs: string[][] = [];
-  var currentParagraph: string[] = [];
+  const paragraphs: string[][] = [];
+  let currentParagraph: string[] = [];
   lines.forEach(currentLine => {
     // lineContainer's elements represent a single line of text
-    var layoutContainerLines = lines.filter(line => line.layoutContainer == currentLine.layoutContainer);
+    const layoutContainerLines = lines.filter(line => line.layoutContainer == currentLine.layoutContainer);
     // typicalLineLeftOffset measures the typical (like, median) left offset of
     // each line relative to the lines' layoutContainer
     // TODO: implement caching somehow
-    var typicalLineLeftOffset = typicalLeftOffset(currentLine.layoutContainer, layoutContainerLines);
-    var lineLeftOffset = currentLine.minX - currentLine.layoutContainer.minX;
-    var diff_leftOffset = currentParagraph ? Math.abs(typicalLineLeftOffset - lineLeftOffset) : Infinity;
+    const typicalLineLeftOffset = typicalLeftOffset(currentLine.layoutContainer, layoutContainerLines);
+    const lineLeftOffset = currentLine.minX - currentLine.layoutContainer.minX;
+    const diff_leftOffset = currentParagraph ? Math.abs(typicalLineLeftOffset - lineLeftOffset) : Infinity;
     // a large diff_leftOffset (set to infinity if the current paragraph has
     // not been initialized) indicates that we should start a new paragraph
     if (diff_leftOffset > min_indent) {
@@ -243,7 +243,7 @@ function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 5): string
       currentParagraph = [];
     }
     // each line boils down to a single string
-    var lineString = flattenLine(currentLine.textSpans);
+    const lineString = flattenLine(currentLine.textSpans);
     currentParagraph.push(lineString);
   });
   // flush the current paragraph
@@ -272,25 +272,25 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   // containers is an array of basic Containers for the whole PDF / document
   // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
   // 1. the easiest first step is to get the mean and median font size
-  var textSpans = flatMap(containers, container => container.getElements());
-  var fontSizes = textSpans.map(textSpan => textSpan.fontSize);
-  // var mean_fontSize = mean(fontSizes);
+  const textSpans = flatMap(containers, container => container.getElements());
+  const fontSizes = textSpans.map(textSpan => textSpan.fontSize);
+  // const mean_fontSize = mean(fontSizes);
   // use the 75% quartile (quantile() returns the endpoints, too) as the normal font size
-  var content_fontSize = quantile(fontSizes, 4)[3];
+  const content_fontSize = quantile(fontSizes, 4)[3];
   // jump up a half pixel/pt to set the section header font size threshold
-  var header_fontSize = content_fontSize + 0.5;
+  const header_fontSize = content_fontSize + 0.5;
   // 2. the second step is to iterate through the sections and re-group them
-  var sections: Section[] = [];
-  var currentSection = new Section();
+  const sections: Section[] = [];
+  let currentSection = new Section();
   containers.forEach(container => {
     container.getElements().forEach(textSpan => {
       // new sections can be distinguished by larger sizes
-      var isHeaderSized = textSpan.fontSize > header_fontSize;
+      const isHeaderSized = textSpan.fontSize > header_fontSize;
       // or by leading boldface (boldface within other normal content does not
       // trigger a new section
-      var isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
+      const isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
       // logger.info(`textSpan isHeaderSized=${isHeaderSized}; isLeadingBold=${isLeadingBold}; isWhiteSpace=${isWhiteSpace}; content length=${currentSection.contentElements.length}: "${textSpan.string}"`);
-      var isWhiteSpace = !textSpan.string.match(/\S/);
+      const isWhiteSpace = !textSpan.string.match(/\S/);
       if (isWhiteSpace) {
         // whitespace never triggers a new section or a transition to content section
         // we just have to determine which it goes in: header or content
@@ -325,14 +325,14 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   sections.forEach(section => {
     // 1. First step: basic line detection. There are no such things as
     //    paragraphs if we have no concept of lines.
-    var lines: TextSpan[][] = groupIntoLines(section.contentElements);
+    const lines: TextSpan[][] = groupIntoLines(section.contentElements);
     // 2. iterate through the lines, regrouping into paragraphs
     section.paragraphs = detectParagaphs(lines);
   });
 
   // Each section's `paragraphs` is now set to a list of lists of lines (string[][])
   // We now need to derive a bag of words for the entire document.
-  var bag_of_words = new Multiset();
+  const bag_of_words = new Multiset();
   sections.forEach(section => {
     section.paragraphs.forEach(lines => {
       lines.forEach(line => {
@@ -346,11 +346,11 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   return {
     sections: sections.map(section => {
       // TODO: handle multi-line section headers better
-      var title_lines: TextSpan[][] = groupIntoLines(section.headerElements);
-      var title_paragraphs = detectParagaphs(title_lines);
-      var title = title_paragraphs.map(lines => joinLines(lines, bag_of_words)).join(' ');
+      const title_lines: TextSpan[][] = groupIntoLines(section.headerElements);
+      const title_paragraphs = detectParagaphs(title_lines);
+      const title = title_paragraphs.map(lines => joinLines(lines, bag_of_words)).join(' ');
       // finish up: convert each paragraph (list of strings) to a single string
-      var paragraphs = section.paragraphs.map(lines => joinLines(lines, bag_of_words));
+      const paragraphs = section.paragraphs.map(lines => joinLines(lines, bag_of_words));
       return { title: title, paragraphs: paragraphs };
     })
   };
@@ -371,17 +371,17 @@ function joinLines(lines: string[], bag_of_words: Multiset): string {
   // SPACE, since they've all been run through flattenLine, so when we join
   // with newline characters here, we know that only newlines in the string
   // are the ones we've just added
-  var joined = lines.join('\n');
+  const joined = lines.join('\n');
   // now look for all occurrences of "-\n", capturing the words before and after
-  var rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, left: string, right: string) => {
+  const rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, left: string, right: string) => {
     // if line is hyphenated, and the word that is broken turns up in the corpus
     // more times WITH the hyphen than WITHOUT, return it WITH the hyphen
-    var left_lower = left.toLowerCase();
-    var right_lower = right.toLowerCase();
-    var hyphenated = `${left}-${right}`;
-    var nhyphenated = bag_of_words.get(`${left_lower}-${right_lower}`);
-    var dehyphenated = `${left}${right}`;
-    var ndehyphenated = bag_of_words.get(`${left_lower}${right_lower}`);
+    const left_lower = left.toLowerCase();
+    const right_lower = right.toLowerCase();
+    const hyphenated = `${left}-${right}`;
+    const nhyphenated = bag_of_words.get(`${left_lower}-${right_lower}`);
+    const dehyphenated = `${left}${right}`;
+    const ndehyphenated = bag_of_words.get(`${left_lower}${right_lower}`);
     if (nhyphenated > ndehyphenated) {
       return hyphenated
     }
@@ -391,14 +391,14 @@ function joinLines(lines: string[], bag_of_words: Multiset): string {
     // otherwise, they're equal (both 0, usually), which is tougher
     // 1. if the second of the two parts is capitalized (Uppercase-Lowercase),
     //    it's probably a hyphenated name, so keep it hyphenated
-    var capitalized = right[0] === right[0].toUpperCase();
+    const capitalized = right[0] === right[0].toUpperCase();
     if (capitalized) {
       return hyphenated;
     }
     // TODO: what about Uppercase-lowercase? Can we assume anything?
     // 2. if the two parts are reasonable words in themselves, keep them
     //    hyphenated (it's probably something like "one-vs-all", or "bag-of-words")
-    var common_parts = (bag_of_words.get(left_lower) + bag_of_words.get(right_lower)) > 2;
+    const common_parts = (bag_of_words.get(left_lower) + bag_of_words.get(right_lower)) > 2;
     if (common_parts) {
       return hyphenated;
     }

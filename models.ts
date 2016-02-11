@@ -33,9 +33,9 @@ export class IndirectReference {
   Create an IndirectReference from an "object[:reference=0]" string.
   */
   static fromString(reference: string): IndirectReference {
-    var reference_parts = reference.split(':');
-    var object_number = parseInt(reference_parts[0], 10);
-    var generation_number = (reference_parts.length > 1) ? parseInt(reference_parts[1], 10) : 0;
+    const reference_parts = reference.split(':');
+    const object_number = parseInt(reference_parts[0], 10);
+    const generation_number = (reference_parts.length > 1) ? parseInt(reference_parts[1], 10) : 0;
     return new IndirectReference(object_number, generation_number);
   }
   toString(): string {
@@ -63,8 +63,8 @@ export class Model {
 
   get object(): PDFObject {
     if (!this._resolved) {
-      var object_number = this._object['object_number'];
-      var generation_number = this._object['generation_number'];
+      const object_number = this._object['object_number'];
+      const generation_number = this._object['generation_number'];
       this._object = this._pdf.getObject(object_number, generation_number);
       this._resolved = true;
     }
@@ -79,7 +79,7 @@ export class Model {
   a whole new Model.
   */
   get(key: string): any {
-    var value = this.object[key];
+    let value = this.object[key];
     if (value !== undefined && value['object_number'] !== undefined && value['generation_number'] !== undefined) {
       value = this._pdf.getObject(value['object_number'], value['generation_number']);
     }
@@ -108,7 +108,7 @@ interface Pages {
 export class Pages extends Model {
   get Kids(): Array<Pages | Page> {
     return this.object['Kids'].map(Kid => {
-      var kid_object = new Model(this._pdf, Kid).object;
+      const kid_object = new Model(this._pdf, Kid).object;
       return (kid_object['Type'] === 'Pages') ?
         new Pages(this._pdf, kid_object) : new Page(this._pdf, kid_object);
     });
@@ -199,7 +199,7 @@ export class Page extends Model {
         see MultiStringIterator in scratch.txt
   */
   joinContents(separator: string): string {
-    var strings = [].concat(this.Contents.object).map(stream => {
+    const strings = [].concat(this.Contents.object).map(stream => {
       return new ContentStream(this._pdf, stream).buffer.toString('binary');
     });
     return strings.join(separator);
@@ -231,7 +231,7 @@ export class ContentStream extends Model {
   }
 
   get Resources(): Resources {
-    var object = this.object['dictionary']['Resources'];
+    const object = this.object['dictionary']['Resources'];
     return object ? new Resources(this._pdf, object) : undefined;
   }
 
@@ -248,8 +248,8 @@ export class ContentStream extends Model {
   Return the object's buffer, decoding if necessary.
   */
   get buffer(): Buffer {
-    var filters = [].concat(this.object['dictionary']['Filter'] || []);
-    var decodeParmss = [].concat(this.object['dictionary']['DecodeParms'] || []);
+    const filters = [].concat(this.object['dictionary']['Filter'] || []);
+    const decodeParmss = [].concat(this.object['dictionary']['DecodeParms'] || []);
     return decodeBuffer(this.object['buffer'], filters, decodeParmss);
   }
 
@@ -271,14 +271,14 @@ An ObjectStream is denoted by Type='ObjStm', and documented in PDF32000_2008.pdf
 */
 export class ObjectStream extends ContentStream {
   get objects(): IndirectObject[] {
-    var buffer = this.buffer;
+    const buffer = this.buffer;
     // the prefix designates where each object in the stream occurs in the content
-    var prefix = buffer.slice(0, this.dictionary.First);
-    // var content = buffer.slice(this.dictionary.First)
-    var object_number_index_pairs = groups(prefix.toString('ascii').trim().split(/\s+/).map(x => parseInt(x, 10)), 2);
+    const prefix = buffer.slice(0, this.dictionary.First);
+    // const content = buffer.slice(this.dictionary.First)
+    const object_number_index_pairs = groups(prefix.toString('ascii').trim().split(/\s+/).map(x => parseInt(x, 10)), 2);
     return object_number_index_pairs.map(([object_number, offset]) => {
-      var iterable = StringIterator.fromBuffer(buffer, 'binary', this.dictionary.First + offset);
-      var value = new OBJECT(iterable, 1024).read();
+      const iterable = StringIterator.fromBuffer(buffer, 'binary', this.dictionary.First + offset);
+      const value = new OBJECT(iterable, 1024).read();
       return {object_number, generation_number: 0, value};
     });
   }
@@ -311,8 +311,8 @@ export class Resources extends Model {
   returns `undefined` if no matching XObject is found.
   */
   getXObject(name: string): ContentStream {
-    var XObject_dictionary = this.get('XObject');
-    var object = XObject_dictionary[name];
+    const XObject_dictionary = this.get('XObject');
+    const object = XObject_dictionary[name];
     return object ? new ContentStream(this._pdf, object) : undefined;
   }
 
@@ -329,16 +329,16 @@ export class Resources extends Model {
   throws an Error if the Font dictionary has no matching `name` key.
   */
   getFont(name: string): Font {
-    var cached_font = this._cached_fonts[name];
+    let cached_font = this._cached_fonts[name];
     if (cached_font === undefined) {
-      var Font_dictionary = this.get('Font');
+      const Font_dictionary = this.get('Font');
 
-      var dictionary_value = Font_dictionary[name];
-      var font_object = new Model(this._pdf, dictionary_value).object;
+      const dictionary_value = Font_dictionary[name];
+      const font_object = new Model(this._pdf, dictionary_value).object;
       if (font_object === undefined) {
         throw new Error(`Cannot find font object for name=${name}`);
       }
-      var ctor = Font.getConstructor(font_object['Subtype']);
+      const ctor = Font.getConstructor(font_object['Subtype']);
       // this `object` will usually be an indirect reference.
       if (IndirectReference.isIndirectReference(dictionary_value)) {
         cached_font = this._cached_fonts[name] = this._pdf.getModel(dictionary_value['object_number'], dictionary_value['generation_number'], ctor);
@@ -361,8 +361,8 @@ export class Resources extends Model {
   returns `undefined` if no matching ExtGState is found.
   */
   getExtGState(name: string): Model {
-    var ExtGState_dictionary = this.get('ExtGState');
-    var object = ExtGState_dictionary[name];
+    const ExtGState_dictionary = this.get('ExtGState');
+    const object = ExtGState_dictionary[name];
     return object ? new Model(this._pdf, object) : undefined;
   }
 

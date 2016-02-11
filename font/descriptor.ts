@@ -9,7 +9,7 @@ See PDF32000_2008.pdf:9.8 Font Descriptors
 */
 export class FontDescriptor extends Model {
   get CharSet(): string[] {
-    var CharSet = this.get('CharSet');
+    const CharSet = this.get('CharSet');
     return CharSet ? CharSet.toString().slice(1).split('/') : [];
   }
 
@@ -43,18 +43,18 @@ export class FontDescriptor extends Model {
   // }
 
   private getType1FontProgramClearText(): string {
-    var Type1FontProgram = new ContentStream(this._pdf, this.object['FontFile']);
+    const Type1FontProgram = new ContentStream(this._pdf, this.object['FontFile']);
     if (Type1FontProgram.object) {
-      var Length1 = <number>Type1FontProgram.dictionary['Length1'];
+      const Length1 = <number>Type1FontProgram.dictionary['Length1'];
       return Type1FontProgram.buffer.toString('ascii', 0, Length1);
     }
   }
 
   getWeight(): string {
-    var Type1FontProgram_string = this.getType1FontProgramClearText();
+    const Type1FontProgram_string = this.getType1FontProgramClearText();
     if (Type1FontProgram_string) {
-      var weightRegExp = /\/Weight\s+\(([^\)]+)\)/;
-      var weightMatch = Type1FontProgram_string.match(weightRegExp);
+      const weightRegExp = /\/Weight\s+\(([^\)]+)\)/;
+      const weightMatch = Type1FontProgram_string.match(weightRegExp);
       if (weightMatch !== null) {
         return weightMatch[1];
       }
@@ -69,26 +69,26 @@ export class FontDescriptor extends Model {
   > where index is an integer corresponding to an entry in the Encoding vector, and charactername refers to a PostScript language name token, such as /Alpha or /A, giving the character name assigned to a particular character code. The Adobe Type Manager parser skips to the first dup token after /Encoding to find the first character encoding assignment. This sequence of assignments must be followed by an instance of the token def or readonly; such a token may not occur within the sequence of assignments.
   */
   getEncoding(): Encoding {
-    var encoding = new Encoding();
+    const encoding = new Encoding();
 
-    var Type1FontProgram_string = this.getType1FontProgramClearText();
+    const Type1FontProgram_string = this.getType1FontProgramClearText();
     if (Type1FontProgram_string) {
-      var Encoding_start_index = Type1FontProgram_string.indexOf('/Encoding');
-      var Encoding_string = Type1FontProgram_string.slice(Encoding_start_index);
+      const Encoding_start_index = Type1FontProgram_string.indexOf('/Encoding');
+      const Encoding_string = Type1FontProgram_string.slice(Encoding_start_index);
 
-      var encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
-      var encodingNameMatch = Encoding_string.match(encodingNameRegExp);
+      const encodingNameRegExp = /\/Encoding\s+(StandardEncoding|MacRomanEncoding|WinAnsiEncoding|PDFDocEncoding)/;
+      const encodingNameMatch = Encoding_string.match(encodingNameRegExp);
       if (encodingNameMatch !== null) {
-        var encodingName = encodingNameMatch[1];
+        const encodingName = encodingNameMatch[1];
         encoding.mergeLatinCharset(encodingName);
       }
 
-      var charRegExp = /dup (\d+) \/(\w+) put/g;
-      var match;
+      const charRegExp = /dup (\d+) \/(\w+) put/g;
+      let match;
       while ((match = charRegExp.exec(Encoding_string))) {
-        var index = parseInt(match[1], 10);
-        var glyphname = match[2];
-        var str = decodeGlyphname(glyphname);
+        const index = parseInt(match[1], 10);
+        const glyphname = match[2];
+        const str = decodeGlyphname(glyphname);
         if (str !== undefined) {
           encoding.mapping[index] = str;
         }

@@ -50,7 +50,7 @@ export class Rectangle {
   }
 
   toString(digits = 0): string {
-    // var size_string = `(${this.dX.toFixed(digits)}x${this.dY.toFixed(digits)})`;
+    // const size_string = `(${this.dX.toFixed(digits)}x${this.dY.toFixed(digits)})`;
     // return `${point_string} ${size_string}`;
     // [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
     return `[${this.minX.toFixed(digits)}, ${this.minY.toFixed(digits)}, ${this.maxX.toFixed(digits)}, ${this.maxY.toFixed(digits)}]`;
@@ -66,7 +66,7 @@ export class Rectangle {
   */
   distance(other: Rectangle): [number, number] {
     // 1) measure x-axis displacement
-    var dx = 0; // default to the overlap case
+    let dx = 0; // default to the overlap case
     if (other.maxX < this.minX) {
       // other Rectangle is completely disjoint to the left
       dx = this.minX - other.maxX;
@@ -76,7 +76,7 @@ export class Rectangle {
       dx = other.minX - this.maxX;
     }
     // 2) measure y-axis displacement
-    var dy = 0;
+    let dy = 0;
     if (other.maxY < this.minY) {
       // other Rectangle is completely disjoint above
       dy = this.minY - other.maxY;

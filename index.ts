@@ -31,7 +31,7 @@ options.type determines the return value.
 - anything else: returns null
 */
 export function readSourceSync(source: Source, {type = 'string'}: ReadOptions): any {
-  var pdf = new PDF(source);
+  const pdf = new PDF(source);
   if (type == 'pdf') {
     return pdf;
   }
@@ -42,7 +42,7 @@ export function readSourceSync(source: Source, {type = 'string'}: ReadOptions): 
     return pdf.cross_references;
   }
   // otherwise, we need to extract the paper
-  var paper = pdf.renderPaper();
+  const paper = pdf.renderPaper();
   if (type == 'paper') {
     return paper;
   }

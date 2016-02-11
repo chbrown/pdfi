@@ -10,7 +10,7 @@ export function parsePDFObject(string_iterable: StringIterable): PDFObject {
 export type ContentStreamOperation = ContentStreamOperation;
 
 export function parseContentStream(content_stream_string: string): ContentStreamOperation[] {
-  var string_iterable = new StringIterator(content_stream_string);
+  const string_iterable = new StringIterator(content_stream_string);
   return new CONTENT_STREAM(string_iterable, 1024).read();
 }
 

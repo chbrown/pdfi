@@ -9,7 +9,7 @@ import * as util from '../util';
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
-export var glyphlist: {[index: string]: string} = require('./glyphlist');
+export const glyphlist: {[index: string]: string} = require('./glyphlist');
 
 interface CharacterSpecification {
   char: string;
@@ -19,7 +19,7 @@ interface CharacterSpecification {
   WinAnsiEncoding: number;
   PDFDocEncoding: number;
 }
-var latin_charset: CharacterSpecification[] = require('./latin_charset');
+const latin_charset: CharacterSpecification[] = require('./latin_charset');
 
 /**
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
@@ -57,7 +57,7 @@ export class Encoding {
     }
     // proceed, assuming that name is one of the base Latin character set names
     latin_charset.forEach(charspec => {
-      var charCode: number = charspec[name];
+      const charCode: number = charspec[name];
       if (charCode !== null) {
         this.mapping[charCode] = glyphlist[charspec.glyphname];
       }
@@ -68,8 +68,8 @@ export class Encoding {
   This is called with a ToUnicode content stream for font types that specify one.
   */
   mergeCMapContentStream(contentStream: ContentStream): void {
-    var string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
-    var cMap = parseCMap(string_iterable);
+    const string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
+    const cMap = parseCMap(string_iterable);
     this.characterByteLength = cMap.byteLength;
     cMap.mappings.forEach(mapping => {
       this.mapping[mapping.src] = mapping.dst;
@@ -82,9 +82,9 @@ export class Encoding {
   `bytes` should all be in the range: 0 ≤ byte < 256
   */
   decodeCharCodes(buffer: Buffer): number[] {
-    var charCodes: number[] = [];
-    for (var offset = 0, length = buffer.length; offset < length; offset += this.characterByteLength) {
-      var charCode = buffer.readUIntBE(offset, this.characterByteLength);
+    const charCodes: number[] = [];
+    for (let offset = 0, length = buffer.length; offset < length; offset += this.characterByteLength) {
+      const charCode = buffer.readUIntBE(offset, this.characterByteLength);
       charCodes.push(charCode);
     }
     return charCodes;
@@ -108,7 +108,7 @@ Combiners modify the character before them. This is the Unicode way.
 
 The Unicode modifier block is (0x02B0-0x02FF) = (688-767)
 */
-var modifier_to_combiner = {
+const modifier_to_combiner = {
   '\u005E': '\u0302', // CIRCUMFLEX ACCENT
   '\u0060': '\u0300', // GRAVE ACCENT
   '\u00A8': '\u0308', // DIAERESIS
@@ -153,14 +153,14 @@ So, it's ambiguous?
 export function normalize(raw: string): string {
   // ensure that the only whitespace is SPACE
   // TODO: is this too draconian?
-  var flattened = raw.replace(/\s+/g, ' ');
+  const flattened = raw.replace(/\s+/g, ' ');
   // remove any other character codes 0 through 31 (space is 32 == 0x20)
-  var visible = flattened.replace(/[\x00-\x1F]/g, '');
+  const visible = flattened.replace(/[\x00-\x1F]/g, '');
   // replace modifier characters that are currently combining with a space
   // (sort of) with the lone combiner, so that they'll combine with the
   // following character instead, as intended.
-  var modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, (_, modifier, modified) => {
-    var combiner = modifier_to_combiner[modifier];
+  const modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, (_, modifier, modified) => {
+    const combiner = modifier_to_combiner[modifier];
     if (combiner) {
       // if the next span was far enough away to be merit a space, this was
       // probably a horizontal-shift diacritic hack, and so it should combine
@@ -203,20 +203,20 @@ export function decodeGlyphname(glyphname: string): string {
     return undefined;
   }
 
-  var str = glyphlist[glyphname];
+  const str = glyphlist[glyphname];
   if (str !== undefined) {
     return str;
   }
 
-  var uniMatch = glyphname.match(glyphUniRegExp);
+  const uniMatch = glyphname.match(glyphUniRegExp);
   if (uniMatch !== null) {
-    var charCode = parseInt(uniMatch[1], 16);
+    const charCode = parseInt(uniMatch[1], 16);
     return String.fromCharCode(charCode);
   }
 
-  var charMatch = glyphname.match(glyphCharRegExp);
+  const charMatch = glyphname.match(glyphCharRegExp);
   if (charMatch !== null) {
-    var charCode = parseInt(charMatch[1], 16);
+    const charCode = parseInt(charMatch[1], 16);
     return String.fromCharCode(charCode);
   }
 }

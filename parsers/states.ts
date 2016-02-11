@@ -30,7 +30,7 @@ export class HEXSTRING extends MachineState<Buffer, Buffer> {
     Rule(/^[A-Fa-f0-9]$/, this.pushHalfByte),
   ]
   pushBytes(matchValue: RegExpMatchArray): Buffer {
-    var match_buffer = new Buffer(matchValue[0], 'hex');
+    const match_buffer = new Buffer(matchValue[0], 'hex');
     this.value = Buffer.concat([this.value, match_buffer]);
     return;
   }
@@ -39,7 +39,7 @@ export class HEXSTRING extends MachineState<Buffer, Buffer> {
   by adding 0 character to end of odd-length strings
   */
   pushHalfByte(matchValue: RegExpMatchArray): Buffer {
-    var match_buffer = new Buffer(matchValue[0] + '0', 'hex');
+    const match_buffer = new Buffer(matchValue[0] + '0', 'hex');
     this.value = Buffer.concat([this.value, match_buffer]);
     return;
   }
@@ -77,22 +77,22 @@ export class STRING extends MachineState<Buffer, Buffer> {
     Rule(/^(.|\n|\r)/, this.captureGroup),
   ]
   captureNestedString(matchValue: RegExpMatchArray): Buffer {
-    var nested_buffer = this.attachState(STRING).read();
+    const nested_buffer = this.attachState(STRING).read();
     this.value = Buffer.concat([this.value, new Buffer('('), nested_buffer, new Buffer(')')]);
     return;
   }
   captureGroup(matchValue: RegExpMatchArray): Buffer {
-    var str = matchValue[1];
+    const str = matchValue[1];
     this.value = Buffer.concat([this.value, new Buffer(str)]);
     return;
   }
   captureEscape(matchValue: RegExpMatchArray): Buffer {
-    var byte = escapeCharCodes[matchValue[0]];
+    const byte = escapeCharCodes[matchValue[0]];
     this.value = Buffer.concat([this.value, new Buffer([byte])]);
     return;
   }
   captureOct(matchValue: RegExpMatchArray): Buffer {
-    var byte = parseInt(matchValue[1], 8);
+    const byte = parseInt(matchValue[1], 8);
     this.value = Buffer.concat([this.value, new Buffer([byte])]);
     return;
   }
@@ -116,7 +116,7 @@ export class IMAGEDATA extends MachineState<string, string[]> {
   }
 }
 
-var content_stream_operator_aliases = {
+const content_stream_operator_aliases = {
   // General graphics state
   'w': 'setLineWidth',
   'J': 'setLineCap',
@@ -246,10 +246,10 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     return;
   }
   captureImageData(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    // var image_data = new IMAGEDATA(this.iterable).read();
+    // const image_data = new IMAGEDATA(this.iterable).read();
     // TODO: Figure out why TypeScript can't infer the type of image_data with
     // the following syntax:
-    var image_data = this.attachState(IMAGEDATA).read();
+    const image_data = this.attachState(IMAGEDATA).read();
     // EI is what triggers the IMAGEDATA state pop
     this.stack.push(image_data);
     this.value.push({
@@ -261,29 +261,29 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     return;
   }
   captureHex(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    var hexstring = matchValue[1].replace(/\s+/g, '');
+    const hexstring = matchValue[1].replace(/\s+/g, '');
     // range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
-    var buffer = new Buffer(hexstring, 'hex');
+    const buffer = new Buffer(hexstring, 'hex');
     this.stack.push(buffer);
     return;
   }
   captureDictionary(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    var dictionary = this.attachState(DICTIONARY).read();
+    const dictionary = this.attachState(DICTIONARY).read();
     this.stack.push(dictionary);
     return;
   }
   captureArray(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    var array = this.attachState(ARRAY).read();
+    const array = this.attachState(ARRAY).read();
     this.stack.push(array);
     return;
   }
   captureBytestring(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    var buffer = this.attachState(STRING).read();
+    const buffer = this.attachState(STRING).read();
     this.stack.push(buffer);
     return;
   }
   captureName(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    var name = unescapeName(matchValue[1])
+    const name = unescapeName(matchValue[1])
     this.stack.push(name);
     return;
   }
@@ -309,7 +309,7 @@ export class ARRAY extends MachineState<PDFObject[], PDFObject[]> {
     Rule(/^/, this.captureObject),
   ]
   captureObject(matchValue: RegExpMatchArray): PDFObject[] {
-    var object = this.attachState(OBJECT).read();
+    const object = this.attachState(OBJECT).read();
     this.value.push(object);
     return;
   }
@@ -327,7 +327,7 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
     Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
   ]
   captureName(matchValue: RegExpMatchArray): DictionaryObject {
-    var name = unescapeName(matchValue[1])
+    const name = unescapeName(matchValue[1])
     this.value[name] = this.attachState(OBJECT).read();
     return;
   }
@@ -338,19 +338,19 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
   the PDF, so that we can call pdf._resolveObject on the object reference.
   */
   popStream(matchValue: RegExpMatchArray): DictionaryObject {
-    var stream_length = this.value['Length'];
+    let stream_length = this.value['Length'];
     if (typeof stream_length !== 'number') {
-      var pdf = this.iterable['pdf'];
+      const pdf = this.iterable['pdf'];
       if (pdf === undefined) {
         throw new Error('Cannot read stream unless a PDF instance is attached to the underlying iterable');
       }
       stream_length = pdf._resolveObject(stream_length);
     }
 
-    var stream_state = new STREAM(this.iterable, this.peek_length);
+    const stream_state = new STREAM(this.iterable, this.peek_length);
     // STREAM gets special handling
     stream_state.consumeBytes(stream_length);
-    var buffer = stream_state.read();
+    const buffer = stream_state.read();
     return {dictionary: this.value, buffer};
   }
 }
@@ -485,28 +485,28 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
   captureIndirectObject(matchValue: RegExpMatchArray): XrefWithTrailer {
     // object_number: parseInt(matchValue[1], 10),
     // generation_number: parseInt(matchValue[2], 10),
-    var value = this.attachState(INDIRECT_OBJECT_VALUE).read();
+    const value = this.attachState(INDIRECT_OBJECT_VALUE).read();
     // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
-    var filters = [].concat(value['dictionary'].Filter || []);
-    var decodeParmss = [].concat(value['dictionary'].DecodeParms || []);
-    var buffer = decodeBuffer(value['buffer'], filters, decodeParmss);
+    const filters = [].concat(value['dictionary'].Filter || []);
+    const decodeParmss = [].concat(value['dictionary'].DecodeParms || []);
+    const buffer = decodeBuffer(value['buffer'], filters, decodeParmss);
 
-    var Size = value['dictionary'].Size;
+    const Size = value['dictionary'].Size;
     // object_number_pairs: Array<[number, number]>
-    var object_number_pairs: number[][] = groups<number>(value['dictionary'].Index || [0, Size], 2);
+    const object_number_pairs: number[][] = groups<number>(value['dictionary'].Index || [0, Size], 2);
 
     // PDF32000_2008.pdf:7.5.8.2-3 describes how we resolve these windows
     // to cross_references
-    var [field_type_size, field_2_size, field_3_size] = value['dictionary'].W;
-    var columns = field_type_size + field_2_size + field_3_size;
+    const [field_type_size, field_2_size, field_3_size] = value['dictionary'].W;
+    const columns = field_type_size + field_2_size + field_3_size;
 
     // first, parse out the PartialCrossReferences
-    var partial_xrefs: PartialCrossReference[] = [];
-    for (var offset = 0; offset < buffer.length; offset += columns) {
+    const partial_xrefs: PartialCrossReference[] = [];
+    for (let offset = 0; offset < buffer.length; offset += columns) {
       // TODO: handle field sizes that are 0
-      var field_type = buffer.readUIntBE(offset, field_type_size);
-      var field_2 = buffer.readUIntBE(offset + field_type_size, field_2_size);
-      var field_3 = buffer.readUIntBE(offset + field_type_size + field_2_size, field_3_size);
+      const field_type = buffer.readUIntBE(offset, field_type_size);
+      const field_2 = buffer.readUIntBE(offset + field_type_size, field_2_size);
+      const field_3 = buffer.readUIntBE(offset + field_type_size + field_2_size, field_3_size);
       if (field_type === 0) {
         logger.warning('CrossReferenceStream with field Type=0 is not fully implemented');
         partial_xrefs.push({
@@ -534,7 +534,7 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     // now use the dictionary.Index values to zip
     this.value.cross_references = flatMap<number[], CrossReference>(object_number_pairs, ([object_number_start, size]) => {
       return range(size).map(i => {
-        var partial_xref = partial_xrefs.shift();
+        const partial_xref = partial_xrefs.shift();
         return assign({object_number: object_number_start + i}, partial_xref);
       });
     });
@@ -571,10 +571,10 @@ export class XREF extends MachineState<CrossReference[], CrossReference[]> {
     // TODO: should be it /^(trailer|$)/ ?
   ]
   captureSection(matchValue: RegExpMatchArray): CrossReference[] {
-    var object_number_start = parseInt(matchValue[1], 10);
-    var object_count = parseInt(matchValue[2], 10);
-    for (var i = 0; i < object_count; i++) {
-      var partial_cross_reference = this.attachState<PartialCrossReference, PartialCrossReference>(XREF_REFERENCE).read();
+    const object_number_start = parseInt(matchValue[1], 10);
+    const object_count = parseInt(matchValue[2], 10);
+    for (let i = 0; i < object_count; i++) {
+      const partial_cross_reference = this.attachState<PartialCrossReference, PartialCrossReference>(XREF_REFERENCE).read();
       this.value.push({
         object_number: object_number_start + i,
         offset: partial_cross_reference.offset,
@@ -666,7 +666,7 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
     Rule(/^endcodespacerange/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharRange[] {
-    var buffer = this.attachState(HEXSTRING).read();
+    const buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
     return;
   }
@@ -675,7 +675,7 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
     if (this.stack.length !== 2) {
       throw new Error(`Parsing CODESPACERANGE failed; argument stack must be 2-long: ${this.stack}`);
     }
-    var [low, high] = this.stack.map(decodeNumber);
+    const [low, high] = this.stack.map(decodeNumber);
     this.value.push({low, high});
     this.stack = [];
     return;
@@ -686,8 +686,8 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
 `buffer` should be an even number of characters
 */
 function decodeUTF16BE(buffer: Buffer): string {
-  var charCodes: number[] = [];
-  for (var i = 0; i < buffer.length; i += 2) {
+  const charCodes: number[] = [];
+  for (let i = 0; i < buffer.length; i += 2) {
     charCodes.push(buffer.readUInt16BE(i));
   }
   return makeString(charCodes);
@@ -701,8 +701,8 @@ function ucsChar(code: number): string {
     throw new Error(`Cannot decode numbers larger than 32 bits (${code})`);
   }
   else if (code > 0xFFFF) {
-    var big = code >>> 16;
-    var little = code % 0x10000;
+    const big = code >>> 16;
+    const little = code % 0x10000;
     return String.fromCharCode(big, little);
   }
   else {
@@ -732,7 +732,7 @@ export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^endbfchar/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
-    var buffer = this.attachState(HEXSTRING).read();
+    const buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
     return;
   }
@@ -742,7 +742,7 @@ export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
       throw new Error(`Parsing BFCHAR failed; argument stack must be 2-long: ${this.stack}`);
     }
     // the CIDFont_Spec uses src/dst naming
-    var [src_buffer, dst_buffer] = this.stack;
+    const [src_buffer, dst_buffer] = this.stack;
     this.value.push({
       src: decodeNumber(src_buffer),
       dst: decodeUTF16BE(dst_buffer),
@@ -770,13 +770,13 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^endbfrange/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
-    var buffer = this.attachState(HEXSTRING).read();
+    const buffer = this.attachState(HEXSTRING).read();
     this.stack.push(buffer)
     return;
   }
   captureArray(matchValue: RegExpMatchArray): CharMapping[] {
     // the ARRAY substate should find an array of hexstrings
-    var array = <Buffer[]>this.attachState(ARRAY).read();
+    const array = <Buffer[]>this.attachState(ARRAY).read();
     this.stack.push(array);
     return;
   }
@@ -785,24 +785,24 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     if (this.stack.length !== 3) {
       throw new Error(`Parsing BFRANGE failed; argument stack must be 3-long: ${this.stack}`);
     }
-    var [src_code_lo_buffer, src_code_hi_buffer, dst] = <[Buffer, Buffer, Buffer | Buffer[]]>this.stack;
-    var byteLength = src_code_lo_buffer.length;
+    const [src_code_lo_buffer, src_code_hi_buffer, dst] = <[Buffer, Buffer, Buffer | Buffer[]]>this.stack;
+    const byteLength = src_code_lo_buffer.length;
     if (src_code_hi_buffer.length !== byteLength) {
       throw new Error(`Parsing BFRANGE failed; high offset has byteLength=${src_code_hi_buffer.length} but low offset has byteLength=${byteLength}`);
     }
     // the CIFFont_Spec documentation uses srcCodeLo and srcCodeHi naming
-    var src_code_lo = src_code_lo_buffer.readUIntBE(0, byteLength);
-    var src_code_hi = src_code_hi_buffer.readUIntBE(0, byteLength);
-    var src_code_offset = src_code_hi - src_code_lo;
+    const src_code_lo = src_code_lo_buffer.readUIntBE(0, byteLength);
+    const src_code_hi = src_code_hi_buffer.readUIntBE(0, byteLength);
+    const src_code_offset = src_code_hi - src_code_lo;
 
     if (Array.isArray(dst)) {
       // dst is an array of Buffers
-      var dst_array = <Buffer[]>dst;
+      const dst_array = <Buffer[]>dst;
       if ((src_code_offset + 1) !== dst_array.length) {
         throw new Error(`Parsing BFRANGE failed; destination offset array has length=${dst.length} but high (${src_code_hi}) - low (${src_code_lo}) = ${src_code_offset} (${dst_array.map(buffer => buffer.toString('hex'))})`);
       }
       for (let i = 0; i <= src_code_offset; i++) {
-        let dst_buffer = dst_array[i];
+        const dst_buffer = dst_array[i];
         this.value.push({
           src: src_code_lo + i,
           dst: decodeUTF16BE(dst_buffer),
@@ -812,11 +812,11 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     }
     else {
       // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
-      var dst_buffer = <Buffer>dst;
+      const dst_buffer = <Buffer>dst;
       if (dst_buffer.length > 4) {
         throw new Error(`bfchar dst is a buffer larger than 32 bytes: ${dst_buffer.toString('hex')}; only numbers smaller than 32 bytes can be converted to characters.`);
       }
-      var dst_code_lo = decodeNumber(dst_buffer);
+      const dst_code_lo = decodeNumber(dst_buffer);
       for (let i = 0; i <= src_code_offset; i++) {
         let dst_code = dst_code_lo + i;
         this.value.push({
@@ -854,22 +854,22 @@ export class CMAP extends MachineState<CMap, any> {
     Rule(/^\S+/, this.ignore), // TODO: optimize this
   ]
   captureCodeSpaceRange(matchValue: RegExpMatchArray): CMap {
-    var ranges = this.attachState(CODESPACERANGE).read();
+    const ranges = this.attachState(CODESPACERANGE).read();
     this.codeSpaceRanges.push(...ranges);
     return;
   }
   captureBFChar(matchValue: RegExpMatchArray): CMap {
-    var mappings = this.attachState(BFCHAR).read();
+    const mappings = this.attachState(BFCHAR).read();
     this.mappings.push(...mappings);
     return;
   }
   captureBFRange(matchValue: RegExpMatchArray): CMap {
-    var mappings = this.attachState(BFRANGE).read();
+    const mappings = this.attachState(BFRANGE).read();
     this.mappings.push(...mappings);
     return;
   }
   pop(): CMap {
-    var byteLengths = this.mappings.map(mapping => mapping.byteLength);
+    const byteLengths = this.mappings.map(mapping => mapping.byteLength);
     if (!byteLengths.every(byteLength => byteLength === byteLengths[0])) {
       logger.warning(`Mismatched byte lengths in mappings in CMAP: ${byteLengths.join(', ')}; using only the first.`);
     }

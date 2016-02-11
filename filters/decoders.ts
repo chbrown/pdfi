@@ -40,11 +40,11 @@ When that function is called, it will return one of the following types:
 
 */
 function ASCII85Lexer(input: List<number>) {
-  var i = 0;
+  let i = 0;
   return function(): any {
-    var stack = [];
+    const stack = [];
     while (1) {
-      var next = input[i++];
+      const next = input[i++];
       if (next === undefined) {
         if (stack.length !== 0) {
           return stack;
@@ -67,7 +67,7 @@ function ASCII85Lexer(input: List<number>) {
         return 'ZERO';
       }
       else {
-        var stack_size = stack.push(next);
+        const stack_size = stack.push(next);
         if (stack_size === 5) {
           return stack;
         }
@@ -95,18 +95,18 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
   // ascii.length * (4 / 5) <- we can't use this for the length since we have
   // to ignore newlines and handle z's specially
 
-  var c0_pow = 52200625; // 85^4
-  var c1_pow = 614125; // 85^3
-  var c2_pow = 7225; // 85^2
-  var c3_pow = 85; // 85^1
+  const c0_pow = 52200625; // 85^4
+  const c1_pow = 614125; // 85^3
+  const c2_pow = 7225; // 85^2
+  const c3_pow = 85; // 85^1
 
-  // var binary_length = 0;
-  var bytes: number[] = [];
+  // const binary_length = 0;
+  const bytes: number[] = [];
 
-  var lex = ASCII85Lexer(ascii);
+  const lex = ASCII85Lexer(ascii);
 
   while (1) {
-    var token = lex();
+    const token = lex();
     if (token === null) {
       break;
     }
@@ -116,27 +116,27 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
     else {
       // pad the current stack with u's == 117 if needed
       // TODO: optimize this
-      var padded_token = token;
+      let padded_token = token;
       if (token.length !== 5) {
         padded_token = token.concat(117, 117, 117, 117).slice(0, 5);
       }
 
       // subtract 33 == '!' for each ascii character code
-      var c0 = (padded_token[0] - 33);
-      var c1 = (padded_token[1] - 33);
-      var c2 = (padded_token[2] - 33);
-      var c3 = (padded_token[3] - 33);
-      var c4 = (padded_token[4] - 33);
+      const c0 = (padded_token[0] - 33);
+      const c1 = (padded_token[1] - 33);
+      const c2 = (padded_token[2] - 33);
+      const c3 = (padded_token[3] - 33);
+      const c4 = (padded_token[4] - 33);
 
-      var sum = c0 * c0_pow + c1 * c1_pow + c2 * c2_pow + c3 * c3_pow + c4;
+      const sum = c0 * c0_pow + c1 * c1_pow + c2 * c2_pow + c3 * c3_pow + c4;
 
-      var b0 = (sum >> 24);
-      // var b1 = (sum >> 16) - (b0 << 8);
-      var b1 = (sum >> 16) & 255;
-      // var b2 = (sum >>  8) - (b1 << 8) - (b0 << 16);
-      var b2 = (sum >> 8) & 255;
-      // var b3 = (sum      ) - (b2 << 8) - (b1 << 16) - (b0 << 24);
-      var b3 = sum & 255;
+      const b0 = (sum >> 24);
+      // const b1 = (sum >> 16) - (b0 << 8);
+      const b1 = (sum >> 16) & 255;
+      // const b2 = (sum >>  8) - (b1 << 8) - (b0 << 16);
+      const b2 = (sum >> 8) & 255;
+      // const b3 = (sum      ) - (b2 << 8) - (b1 << 16) - (b0 << 24);
+      const b3 = sum & 255;
 
       // if the final chunk has 4 chars -> 3 byte; 3 chars -> 2 bytes; 2 chars -> 1 byte
       if (token.length === 5) {
@@ -165,11 +165,11 @@ When that function is called, it will return one of the following types:
 - null, when the EOF has been reached.
 */
 function ASCIIHexLexer(input: List<number>): () => any {
-  var index = 0;
+  let index = 0;
   return function(): any {
-    var stack = [];
+    const stack = [];
     while (1) {
-      var next = input[index++];
+      const next = input[index++];
       if (next === undefined || next == 62) { // 0x3E == 62 == '>' (EOF)
         if (stack.length > 0) {
           if (stack.length == 1) {
@@ -184,7 +184,7 @@ function ASCIIHexLexer(input: List<number>): () => any {
       }
       else {
         // TODO: check that next is in the range 0-9, A-F, or a-f
-        var stack_size = stack.push(next);
+        const stack_size = stack.push(next);
         if (stack_size === 2) {
           return stack;
         }
@@ -197,16 +197,16 @@ function ASCIIHexLexer(input: List<number>): () => any {
 > The ASCIIHexDecode filter shall produce one byte of binary data for each pair of ASCII hexadecimal digits (0–9 and A–F or a–f). All white-space characters (see 7.2, "Lexical Conventions") shall be ignored. A GREATER-THAN SIGN (3Eh) indicates EOD. Any other characters shall cause an error. If the filter encounters the EOD marker after reading an odd number of hexadecimal digits, it shall behave as if a 0 (zero) followed the last digit.
 */
 export function ASCIIHexDecode(ascii: List<number>): Buffer {
-  var lex = ASCIIHexLexer(ascii);
-  var bytes: number[] = [];
+  const lex = ASCIIHexLexer(ascii);
+  const bytes: number[] = [];
   while (1) {
-    var token = lex();
+    const token = lex();
     if (token === null) {
       break;
     }
     else {
-      var pair = new Buffer(token).toString('ascii');
-      var byte = parseInt(pair, 16);
+      const pair = new Buffer(token).toString('ascii');
+      const byte = parseInt(pair, 16);
       bytes.push(byte);
     }
   }
@@ -214,7 +214,7 @@ export function ASCIIHexDecode(ascii: List<number>): Buffer {
 }
 
 export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
-  var inflated = new Buffer(pako.inflate(<any>buffer));
+  const inflated = new Buffer(pako.inflate(<any>buffer));
   if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
     if (decodeParms.Predictor !== 12) {
       throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);
@@ -223,13 +223,13 @@ export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
     // PDF32000_2008.pdf:7.4.4.4 "LZW and Flate Predictor Functions"
     // http://tools.ietf.org/html/rfc2083#page-33
     // https://forums.adobe.com/thread/664902
-    var columns = decodeParms.Columns;
-    var rows = inflated.length / (columns + 1);
-    var decoded = new Buffer(rows * columns); // decoded.fill(0);
+    const columns = decodeParms.Columns;
+    const rows = inflated.length / (columns + 1);
+    const decoded = new Buffer(rows * columns); // decoded.fill(0);
     inflated.copy(decoded, 0, 1, columns + 1);
     // assuming PNG predictor == 2
-    for (var row = 1; row < rows; row++) {
-      for (var column = 0; column < columns; column++) {
+    for (let row = 1; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
         decoded[row * columns + column] = decoded[(row - 1) * columns + column] + inflated[row * (columns + 1) + (column + 1)];
       }
     }
@@ -254,20 +254,20 @@ export class BitIterator {
   Read the next `n` bits from the underlying buffer, but do not advance the offset.
   */
   peek(n: number): number {
-    var start = Math.floor(this.offset / 8);
-    var end = Math.ceil((this.offset + n) / 8);
-    var byteLength = end - start;
+    const start = Math.floor(this.offset / 8);
+    const end = Math.ceil((this.offset + n) / 8);
+    const byteLength = end - start;
     // (end - start) is the number of bytes we need to read to extract the
     // desired bits.
-    var uint = this.buffer.readUIntBE(start, byteLength);
+    const uint = this.buffer.readUIntBE(start, byteLength);
     // first, we push some bits off the right edge.
     //   offset % 8 is distance to our bits from the left edge of uint
     //   so ((offset % 8) + n) is the distance from the left edge of uint to the right edge of our bits
     //   and (byteLength * 8) - ((offset % 8) + n) is the distance from the right edge to the right edge of our bits
-    var base = uint >> (byteLength * 8) - ((this.offset % 8) + n);
+    const base = uint >> (byteLength * 8) - ((this.offset % 8) + n);
     // we need to chop off some bits from the front. The max number we can return
     // if we are asking for n bits, is 2^n - 1 == (2 << (n - 1)) - 1
-    var code = base & ((2 << (n - 1)) - 1);
+    const code = base & ((2 << (n - 1)) - 1);
     return code;
   }
 
@@ -275,7 +275,7 @@ export class BitIterator {
   Read the next `n` bits from the underlying buffer and advance the offset by `n`.
   */
   next(n: number): number {
-    var code = this.peek(n);
+    const code = this.peek(n);
     // advance
     this.offset += n;
     return code;
@@ -299,17 +299,17 @@ From Wikipedia's http://en.wikipedia.org/wiki/Lempel-Ziv-Welch:
 */
 export function LZWDecode(buffer: Buffer): Buffer {
   // logger.error(`Using LZWDecode on buffer of length ${buffer.length}`);
-  var bits = new BitIterator(buffer);
+  const bits = new BitIterator(buffer);
 
-  var tableMax: number;
-  var table: {[index: number]: Buffer};
+  let tableMax: number;
+  let table: {[index: number]: Buffer};
 
-  var chunks: Buffer[] = [];
+  const chunks: Buffer[] = [];
 
-  var codeLength = 9;
+  let codeLength = 9;
 
   while (bits.length > bits.offset) {
-    var code = bits.next(codeLength);
+    const code = bits.next(codeLength);
     if (code == 256) { // clear table marker
       table = {};
       tableMax = 257;
@@ -319,12 +319,12 @@ export function LZWDecode(buffer: Buffer): Buffer {
     }
     else {
       // emit the table buffer, or a single character if there is no table entry
-      var outputChunk = (code < 255) ? new Buffer([code]) : table[code];
+      const outputChunk = (code < 255) ? new Buffer([code]) : table[code];
       chunks.push(outputChunk);
       // add the corresponding new table entry
-      var nextCode = bits.peek(codeLength);
+      const nextCode = bits.peek(codeLength);
       // the default next code is a basic character code in the range 0-255
-      var nextPrefix: number = nextCode;
+      let nextPrefix: number = nextCode;
       // but it may be outside that range
       if (nextCode === 256 || nextCode === 257) {
         // it's a control code; so it doesn't really matter
@@ -340,8 +340,8 @@ export function LZWDecode(buffer: Buffer): Buffer {
         // otherwise we can look it up from the table entry
         nextPrefix = table[nextCode][0];
       }
-      var tableChunk = Buffer.concat([outputChunk, new Buffer([nextPrefix])]);
-      var tableIndex = tableMax + 1;
+      const tableChunk = Buffer.concat([outputChunk, new Buffer([nextPrefix])]);
+      const tableIndex = tableMax + 1;
       table[tableIndex] = tableChunk;
 
       // The first output code that is 10 bits long shall be the one following the creation of table entry 511, and similarly for 11 (1023) and 12 (2047) bits. Codes shall never be longer than 12 bits; therefore, entry 4095 is the last entry of the LZW table.
@@ -372,7 +372,7 @@ const decoders = {
 
 export function decodeBuffer(buffer: Buffer, filters: string[], decodeParmss: any[]) {
   filters.forEach((filter, i) => {
-    var decoder = decoders[filter];
+    const decoder = decoders[filter];
     if (decoder !== undefined) {
       buffer = decoder(buffer, decodeParmss ? decodeParmss[i] : undefined);
     }

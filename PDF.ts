@@ -37,15 +37,15 @@ export class PDF {
   */
   readTrailers(): void {
     // Find the offset of the first item in the xref-trailer chain
-    var startxref_position = lastIndexOf(this.source, 'startxref');
+    const startxref_position = lastIndexOf(this.source, 'startxref');
     if (startxref_position === null) {
       throw new Error('Could not find "startxref" marker in file');
     }
-    var next_xref_position = this.parseStateAt(STARTXREF, startxref_position);
+    let next_xref_position = this.parseStateAt(STARTXREF, startxref_position);
 
     this._trailer = new models.Trailer(this);
     while (next_xref_position) { // !== null
-      var xref_trailer = this.parseStateAt(XREF_WITH_TRAILER, next_xref_position);
+      const xref_trailer = this.parseStateAt(XREF_WITH_TRAILER, next_xref_position);
       // TODO (or to check): are there really chains of trailers and multiple `Prev` links?
       next_xref_position = xref_trailer.trailer['Prev'];
 
@@ -96,7 +96,7 @@ export class PDF {
   Throws an Error if no match is found.
   */
   private findCrossReference(object_number: number, generation_number: number): pdfdom.CrossReference {
-    for (var i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
+    for (let i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
       if (cross_reference.in_use &&
           cross_reference.object_number === object_number &&
           cross_reference.generation_number === generation_number) {
@@ -107,8 +107,8 @@ export class PDF {
   }
 
   getObject(object_number: number, generation_number: number): pdfdom.PDFObject {
-    var object_id = `${object_number}:${generation_number}`;
-    var cached_object = this._cached_objects[object_id];
+    const object_id = `${object_number}:${generation_number}`;
+    let cached_object = this._cached_objects[object_id];
     if (cached_object === undefined) {
       cached_object = this._cached_objects[object_id] = this._readObject(object_number, generation_number);
     }
@@ -123,12 +123,12 @@ export class PDF {
   getModel<T extends models.Model>(object_number: number,
                                    generation_number: number,
                                    ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
-    var model_id = `${ctor['name']}(${object_number}:${generation_number})`;
+    const model_id = `${ctor['name']}(${object_number}:${generation_number})`;
     // the type coersion below assumes that the caller read the doc comment
     // on this function.
-    var cached_model = <T>this._cached_models[model_id];
+    let cached_model = <T>this._cached_models[model_id];
     if (cached_model === undefined) {
-      var object = this.getObject(object_number, generation_number);
+      const object = this.getObject(object_number, generation_number);
       cached_model = this._cached_models[model_id] = new ctor(this, object);
     }
     return cached_model;
@@ -145,13 +145,13 @@ export class PDF {
   that doesn't match the originally requested IndirectReference.
   */
   private _readObject(object_number: number, generation_number: number): pdfdom.PDFObject {
-    var cross_reference = this.findCrossReference(object_number, generation_number);
-    var indirect_object: pdfdom.IndirectObject;
+    const cross_reference = this.findCrossReference(object_number, generation_number);
+    let indirect_object: pdfdom.IndirectObject;
     if (cross_reference.offset) {
       indirect_object = <pdfdom.IndirectObject>this.parseStateAt(OBJECT, cross_reference.offset);
     }
     else {
-      var object_stream = this.getModel(cross_reference.object_stream_object_number, 0, models.ObjectStream);
+      const object_stream = this.getModel(cross_reference.object_stream_object_number, 0, models.ObjectStream);
       indirect_object = object_stream.objects[cross_reference.object_stream_index];
     }
     // indirect_object is a pdfdom.IndirectObject, but we already knew the object number
@@ -199,7 +199,7 @@ export class PDF {
   private _resolveObject(object: pdfdom.PDFObject): pdfdom.PDFObject {
     // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
     if (models.IndirectReference.isIndirectReference(object)) {
-      var reference = <pdfdom.IndirectReference>object;
+      const reference = <pdfdom.IndirectReference>object;
       return this.getObject(reference.object_number, reference.generation_number);
     }
     return object;
@@ -209,16 +209,16 @@ export class PDF {
     logger.error(`context preface=${chalk.cyan(start_position.toString())} error=${chalk.yellow(error_position.toString())}...`)
     // File#readBuffer(length: number, position: number): Buffer
     // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
-    var preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
-    var preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    var error_buffer = this.source.readBuffer(margin, error_position);
-    var error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
+    const preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
+    const preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
+    const error_buffer = this.source.readBuffer(margin, error_position);
+    const error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
     // logger.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
     logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
   }
 
   parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): T {
-    var iterable = new PDFStringIterator(this.source, 'ascii', position, this);
+    const iterable = new PDFStringIterator(this.source, 'ascii', position, this);
     try {
       return new STATE(iterable, peek_length).read();
     }

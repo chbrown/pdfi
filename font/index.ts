@@ -27,7 +27,7 @@ export class Font extends Model {
   the plain `Encoding` value, if it's a string.
   */
   get BaseEncoding(): string {
-    var Encoding = this.get('Encoding');
+    const Encoding = this.get('Encoding');
     // logger.info(`[Font=${this.Name}] Encoding=${Encoding}`);
     if (Encoding && Encoding['BaseEncoding']) {
       return Encoding['BaseEncoding'];
@@ -38,7 +38,7 @@ export class Font extends Model {
   }
 
   get Differences(): Array<number | string> {
-    var Encoding = this.get('Encoding');
+    const Encoding = this.get('Encoding');
     return Encoding ? Encoding['Differences'] : null;
   }
 
@@ -55,7 +55,7 @@ export class Font extends Model {
   rather than an empty Model.
   */
   get FontDescriptor(): FontDescriptor {
-    var object = this.object['FontDescriptor'];
+    const object = this.object['FontDescriptor'];
     return object ? new FontDescriptor(this._pdf, object) : undefined;
   }
 
@@ -66,23 +66,23 @@ export class Font extends Model {
   */
   @memoize
   get bold(): boolean {
-    var BaseFont = this.BaseFont;
+    const BaseFont = this.BaseFont;
     if (BaseFont && BaseFont.match(/bold/i)) {
       return true;
     }
-    var FontDescriptor = this.FontDescriptor;
+    const FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      var FontName = FontDescriptor.get('FontName');
+      const FontName = FontDescriptor.get('FontName');
       if (FontName && FontName.match(/bold/i)) {
         return true;
       }
 
-      var FontWeight: number = FontDescriptor.get('FontWeight');
+      const FontWeight: number = FontDescriptor.get('FontWeight');
       if (FontWeight && FontWeight >= 700) {
         return true;
       }
 
-      var Weight = FontDescriptor.getWeight();
+      const Weight = FontDescriptor.getWeight();
       if (Weight && Weight == 'Bold') {
         return true;
       }
@@ -92,19 +92,19 @@ export class Font extends Model {
 
   @memoize
   get italic(): boolean {
-    var BaseFont = this.BaseFont;
+    const BaseFont = this.BaseFont;
     if (BaseFont && BaseFont.match(/italic/i)) {
       return true;
     }
-    var FontDescriptor = this.FontDescriptor;
+    const FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
-      var FontName = FontDescriptor.get('FontName');
+      const FontName = FontDescriptor.get('FontName');
       if (FontName && FontName.match(/italic/i)) {
         return true;
       }
       // should I have a threshold on italics? Are there small italic angles,
       // e.g., with script-type fonts, but which don't really designate italics?
-      var ItalicAngle: number = FontDescriptor.get('ItalicAngle');
+      const ItalicAngle: number = FontDescriptor.get('ItalicAngle');
       if (ItalicAngle && ItalicAngle !== 0) {
         return true;
       }
@@ -122,10 +122,10 @@ export class Font extends Model {
   */
   @memoize
   get encoding(): Encoding {
-    var encoding = new Encoding()
+    const encoding = new Encoding()
 
     // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
-    var BaseEncoding = this.BaseEncoding;
+    const BaseEncoding = this.BaseEncoding;
     // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
     if (Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
       encoding.mergeLatinCharset(BaseEncoding);
@@ -141,20 +141,20 @@ export class Font extends Model {
     // ToUnicode is a better encoding indicator, but it is not always present,
     // and even when it is, it may be only complementary to the
     // Encoding/BaseEncoding value
-    var ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
+    const ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
     if (ToUnicode.object) {
       logger.debug(`[Font=${this.Name}] Merging CMapContentStream`);
       encoding.mergeCMapContentStream(ToUnicode);
     }
 
     // still no luck? try the FontDescriptor
-    var FontDescriptor = this.FontDescriptor;
+    const FontDescriptor = this.FontDescriptor;
     if (FontDescriptor) {
       // logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
       // check for the easy-out: 1-character fonts
-      var FirstChar = <number>this.get('FirstChar');
-      var LastChar = <number>this.get('LastChar');
-      var CharSet = FontDescriptor.CharSet;
+      const FirstChar = <number>this.get('FirstChar');
+      const LastChar = <number>this.get('LastChar');
+      const CharSet = FontDescriptor.CharSet;
       if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
         encoding.mapping[FirstChar] = decodeGlyphname(CharSet[0]);
       }
@@ -173,16 +173,16 @@ export class Font extends Model {
 
     // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
 
-    var usingStandardEncoding = encoding.mapping.length === 0;
+    const usingStandardEncoding = encoding.mapping.length === 0;
     if (usingStandardEncoding) {
       encoding.mergeLatinCharset('StandardEncoding');
     }
 
     // Finally, apply differences, if there are any.
     // even if ToUnicode is specified, there might still be Differences to incorporate.
-    var differences = this.Differences;
+    const differences = this.Differences;
     if (differences && differences.length > 0) {
-      var current_character_code = 0;
+      let current_character_code = 0;
       differences.forEach(difference => {
         if (typeof difference === 'number') {
           current_character_code = difference;
@@ -191,8 +191,8 @@ export class Font extends Model {
           // difference is a glyph name, but we want a mapping from character
           // codes to native unicode strings, so we resolve the glyphname via the
           // PDF standard glyphlist
-          var glyphname: string = difference;
-          var str = decodeGlyphname(glyphname);
+          const glyphname: string = difference;
+          const str = decodeGlyphname(glyphname);
           encoding.mapping[current_character_code] = str;
 
           // TODO: handle missing glyphnames
@@ -229,13 +229,13 @@ export class Font extends Model {
       logger.debug(`Font[${this.Name}] cannot decodeString with bad length (${buffer.length} !/ ${this.encoding.characterByteLength})`);
     }
     return this.encoding.decodeCharCodes(buffer).map(charCode => {
-      var string = this.encoding.decodeCharacter(charCode);
+      const string = this.encoding.decodeCharacter(charCode);
       if (string === undefined) {
         if (skipMissing) {
           logger.debug(`[Font=${this.Name}] Skipping missing character code: ${charCode}`)
           return '';
         }
-        var placeholder = '\\u{' + charCode.toString(16) + '}';
+        const placeholder = '\\u{' + charCode.toString(16) + '}';
         logger.debug(`[Font=${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
         return placeholder;
       }
@@ -350,8 +350,8 @@ export class Type1Font extends Font {
       this._initializeWidthMapping();
     }
     return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
-      var string = this.encoding.decodeCharacter(charCode);
-      var width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
+      const string = this.encoding.decodeCharacter(charCode);
+      const width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
       return sum + width;
     }, 0);
   }
@@ -366,20 +366,20 @@ export class Type1Font extends Font {
   private _initializeWidthMapping() {
     // Try using the local Widths, etc., configuration first.
     // TODO: avoid this BaseFont_name hack and resolve TrueType fonts properly
-    var BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
-    var Widths = <number[]>new Model(this._pdf, this.get('Widths')).object;
+    const BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
+    const Widths = <number[]>new Model(this._pdf, this.get('Widths')).object;
     if (Widths) {
-      var FirstChar = <number>this.get('FirstChar');
+      const FirstChar = <number>this.get('FirstChar');
       // TODO: verify LastChar?
       this._widthMapping = {};
       Widths.forEach((width, width_index) => {
-        var charCode = FirstChar + width_index;
-        var string = this.encoding.decodeCharacter(charCode);
+        const charCode = FirstChar + width_index;
+        const string = this.encoding.decodeCharacter(charCode);
         this._widthMapping[string] = width;
       });
       // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
-      var FontDescriptor = this.FontDescriptor;
-      var MissingWidth = FontDescriptor && FontDescriptor.get('MissingWidth');
+      const FontDescriptor = this.FontDescriptor;
+      const MissingWidth = FontDescriptor && FontDescriptor.get('MissingWidth');
       if (MissingWidth) {
         this._defaultWidth = MissingWidth;
       }
@@ -392,7 +392,7 @@ export class Type1Font extends Font {
     else if (BaseFont_name in afm.fonts) {
       this._widthMapping = {};
       afm.fonts[BaseFont_name].forEach(charMetrics => {
-        var string = glyphlist[charMetrics.name];
+        const string = glyphlist[charMetrics.name];
         this._widthMapping[string] = charMetrics.width;
       });
       this._defaultWidth = 1000;
@@ -432,7 +432,7 @@ export class Type0Font extends Font {
   > CIDFont dictionary that is the descendant of this Type 0 font.
   */
   get DescendantFont(): CIDFont {
-    var array = new Model(this._pdf, this.get('DescendantFonts')).object;
+    const array = new Model(this._pdf, this.get('DescendantFonts')).object;
     return new CIDFont(this._pdf, array[0]);
   }
 
@@ -446,7 +446,7 @@ export class Type0Font extends Font {
       this._initializeWidthMapping();
     }
     return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
-      var width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
+      const width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
       return sum + width;
     }, 0);
   }
@@ -479,7 +479,7 @@ export class CIDFont extends Font {
   }
 
   get W(): Array<number | number[]> {
-    var model = new Model(this._pdf, this.object['W']);
+    const model = new Model(this._pdf, this.object['W']);
     return <Array<number | number[]>>model.object;
   }
 
@@ -498,31 +498,31 @@ export class CIDFont extends Font {
     `c_first` to `c_last` (inclusive).
   */
   getWidthMapping(): number[] {
-    var mapping: number[] = [];
-    var addConsecutive = (starting_cid_value: number, widths: number[]) => {
+    const mapping: number[] = [];
+    const addConsecutive = (starting_cid_value: number, widths: number[]) => {
       widths.forEach((width, width_offset) => {
         mapping[starting_cid_value + width_offset] = width;
       });
     };
-    var addRange = (c_first: number, c_last: number, width: number) => {
-      for (var cid = c_first; cid <= c_last; cid++) {
+    const addRange = (c_first: number, c_last: number, width: number) => {
+      for (let cid = c_first; cid <= c_last; cid++) {
         mapping[cid] = width;
       }
     };
-    var cid_widths = (this.W || []);
-    var index = 0;
-    var length = cid_widths.length;
+    const cid_widths = (this.W || []);
+    let index = 0;
+    const length = cid_widths.length;
     while (index < length) {
       if (Array.isArray(cid_widths[index + 1])) {
-        var starting_cid_value = <number>cid_widths[index];
-        var widths = <number[]>cid_widths[index + 1];
+        const starting_cid_value = <number>cid_widths[index];
+        const widths = <number[]>cid_widths[index + 1];
         addConsecutive(starting_cid_value, widths);
         index += 2;
       }
       else {
-        var c_first = <number>cid_widths[index];
-        var c_last = <number>cid_widths[index + 1];
-        var width = <number>cid_widths[index + 2];
+        const c_first = <number>cid_widths[index];
+        const c_last = <number>cid_widths[index + 1];
+        const width = <number>cid_widths[index + 2];
         addRange(c_first, c_last, width);
         index += 3;
       }
