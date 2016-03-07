@@ -19,6 +19,9 @@ $(BIN)/tsc $(BIN)/_mocha $(BIN)/istanbul $(BIN)/coveralls:
 %.js %.d.ts: %.ts $(BIN)/tsc
 	$(BIN)/tsc -d
 
+compile:
+	$(BIN)/tsc -d
+
 test: $(TYPESCRIPT:%.ts=%.js) $(BIN)/istanbul $(BIN)/_mocha $(BIN)/coveralls
 	$(BIN)/istanbul cover $(BIN)/_mocha -- --compilers js:babel-core/register tests/ -R spec
 	cat coverage/lcov.info | $(BIN)/coveralls || true
