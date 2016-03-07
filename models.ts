@@ -122,14 +122,7 @@ export class Pages extends Model {
   */
   getLeaves(): Page[] {
     return flatMap(this.Kids, Kid => {
-      // return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
-      if (Kid instanceof Pages) {
-        return Kid.getLeaves();
-      }
-      // TypeScript should realize that `else {` is exhaustive
-      else if (Kid instanceof Page) {
-        return [Kid];
-      }
+      return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
     });
   }
 
