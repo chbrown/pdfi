@@ -1,9 +1,9 @@
 import {MachineRule as Rule, MachineState, MachineCallback} from 'lexing';
-import {groups, flatMap, range} from 'tarry';
+import {groups, flatMap, range, assign} from 'tarry';
 
 import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
-import {makeString, assign} from '../util';
+import {makeString} from '../util';
 import {decodeBuffer} from '../filters/decoders';
 
 const escapeCharCodes = {

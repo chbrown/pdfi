@@ -1,11 +1,10 @@
 import {StringIterator} from 'lexing';
-import {flatMap, groups} from 'tarry';
+import {flatMap, groups, assign} from 'tarry';
 
 import {logger} from './logger';
 import {OBJECT} from './parsers/states';
 import {IndirectObject, PDFObject, Rectangle, DictionaryObject} from './pdfdom';
 import {decodeBuffer} from './filters/decoders';
-import {assign} from './util';
 
 /**
 Importing PDF from './PDF' induces a breaking circular dependency.
