@@ -105,6 +105,16 @@ interface Pages {
 }
 */
 export class Pages extends Model {
+  /**
+  All Pages objects except for the root object (i.e., the Pages indicated by Trailer.Root.Pages)
+  must have a 'Parent' field that points to their immediate ancestor in the Pages/Page tree.
+  It's an indirect reference (since it's a pointer back up the tree, it has to be).
+  */
+  get Parent(): Pages {
+    const parent = this.object['Parent'];
+    return parent ? new Pages(this._pdf, parent) : undefined;
+  }
+
   get Kids(): Array<Pages | Page> {
     return this.object['Kids'].map(Kid => {
       const kid_object = new Model(this._pdf, Kid).object;
@@ -124,6 +134,17 @@ export class Pages extends Model {
     return flatMap(this.Kids, Kid => {
       return (Kid instanceof Pages) ? Kid.getLeaves() : [Kid];
     });
+  }
+
+  get MediaBox(): Rectangle {
+    let mediaBox = this.get('MediaBox');
+    if (mediaBox === undefined) {
+      const parent = this.Parent;
+      if (parent !== undefined) {
+        mediaBox = parent.MediaBox;
+      }
+    }
+    return mediaBox;
   }
 
   toJSON() {
@@ -159,7 +180,11 @@ export class Page extends Model {
   }
 
   get MediaBox(): Rectangle {
-    return this.get('MediaBox');
+    let mediaBox = this.get('MediaBox');
+    if (mediaBox === undefined) {
+      mediaBox = this.Parent.MediaBox;
+    }
+    return mediaBox;
   }
 
   get Resources(): Resources {
