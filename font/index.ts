@@ -135,7 +135,8 @@ export class Font extends Model {
       // encoding.characterByteLength = 2;
     }
     else if (BaseEncoding !== undefined) {
-      logger.info(`[Font=${this.Name}] Unrecognized Encoding/BaseEncoding: %j`, BaseEncoding);
+      const BaseEncodingJSON = JSON.stringify(BaseEncoding);
+      logger.info(`[Font=${this.Name}] Unrecognized Encoding/BaseEncoding: ${BaseEncodingJSON}`);
     }
 
     // ToUnicode is a better encoding indicator, but it is not always present,
@@ -205,7 +206,7 @@ export class Font extends Model {
     }
     else {
       if (usingStandardEncoding) {
-        // logger.warning(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
+        logger.debug(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
       }
     }
 

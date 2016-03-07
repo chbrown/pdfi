@@ -206,14 +206,12 @@ export class PDF {
 
   printContext(start_position: number, error_position: number, margin: number = 256): void {
     logger.error(`context preface=${chalk.cyan(start_position.toString())} error=${chalk.yellow(error_position.toString())}...`)
-    // File#readBuffer(length: number, position: number): Buffer
     // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
     const preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
     const preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
     const error_buffer = this.source.readBuffer(margin, error_position);
     const error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    // logger.log(chalk.cyan(preface_string) + chalk.yellow(error_string));
-    logger.error('%s%s', chalk.cyan(preface_string), chalk.yellow(error_string));
+    logger.error(chalk.cyan(preface_string) + chalk.yellow(error_string));
   }
 
   parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): T {

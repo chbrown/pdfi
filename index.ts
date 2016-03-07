@@ -2,9 +2,8 @@
 // this module should following proper versioning practices.
 import * as academia from 'academia';
 import {Source} from 'lexing';
-import {Level} from 'loge';
 
-import {logger} from './logger';
+import {logger, Level} from './logger';
 import {PDF} from './PDF';
 import {IndirectReference, Model, ContentStream} from './models';
 

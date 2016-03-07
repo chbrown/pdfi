@@ -256,7 +256,8 @@ export class DrawingContext {
     const ExtGState = this.resources.getExtGState(dictName);
     Object.keys(ExtGState.object).filter(key => key !== 'Type').forEach(key => {
       const value = ExtGState.get(key);
-      logger.debug(`Ignoring setGraphicsStateParameters(${dictName}) operation: %s = %j`, key, value);
+      const valueJSON = JSON.stringify(value);
+      logger.debug(`Ignoring setGraphicsStateParameters(${dictName}) operation: ${key} = ${valueJSON}`);
     });
   }
   // ---------------------------------------------------------------------------
