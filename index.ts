@@ -2,10 +2,12 @@
 // this module should following proper versioning practices.
 import * as academia from 'academia';
 import {Source} from 'lexing';
+import {tuplesToObject} from 'tarry';
 
 import {logger, Level} from './logger';
 import {PDF} from './PDF';
 import {IndirectReference, Model, ContentStream} from './models';
+import {decodeBuffer} from './encoding/index';
 
 export function setLoggerLevel(level: Level) {
   logger.level = level;
@@ -52,4 +54,40 @@ export function readSourceSync(source: Source, {type = 'string'}: ReadOptions): 
   }
   // this maybe should be an error?
   return null;
+}
+
+/**
+simplify() will recursively simplify a PDF value into a non-circular, JSON-friendly object.
+*/
+export function simplify(value: any, seen: any[] = []): any {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  else if (value instanceof Model) {
+    const object = (<Model>value).object;
+    return simplify(object, seen);
+  }
+  else if (Buffer.isBuffer(value)) {
+    return decodeBuffer(value);
+  }
+  // else if (typeof value.toJSON === 'function') {
+  //   return simplify(value.toJSON(), seen);
+  // }
+  else if (Array.isArray(value)) {
+    if (seen.indexOf(value) > -1) {
+      return '[Circular Array]';
+    }
+    seen.push(value);
+    return value.map(item => simplify(item, seen));
+  }
+  else if (typeof value === 'object') {
+    if (seen.indexOf(value) > -1) {
+      return '[Circular Object]';
+    }
+    seen.push(value);
+    // maybe something less function, more loopy, with a hasOwnProperty check?
+    return tuplesToObject(<any>Object.keys(value).map(key => ([key, simplify(value[key], seen)])));
+  }
+  // catch-all
+  return value;
 }
