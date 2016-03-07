@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
