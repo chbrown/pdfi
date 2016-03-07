@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
-import {indexOf, lastIndexOf} from 'lexing/source';
+import {lastIndexOf} from 'lexing/source';
 
 import {logger} from './logger';
 import * as pdfdom from './pdfdom';
@@ -37,7 +37,7 @@ export class PDF {
   readTrailers(): void {
     // Find the offset of the first item in the xref-trailer chain
     const startxref_position = lastIndexOf(this.source, 'startxref');
-    if (startxref_position === null) {
+    if (startxref_position === undefined) {
       throw new Error('Could not find "startxref" marker in file');
     }
     let next_xref_position = this.parseStateAt(STARTXREF, startxref_position);
