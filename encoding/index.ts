@@ -9,17 +9,17 @@ import * as util from '../util';
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
-export const glyphlist: {[index: string]: string} = require('./glyphlist');
+import glyphlist from './glyphlist';
 
-interface CharacterSpecification {
-  char: string;
-  glyphname: string;
-  StandardEncoding: number;
-  MacRomanEncoding: number;
-  WinAnsiEncoding: number;
-  PDFDocEncoding: number;
-}
-const latin_charset: CharacterSpecification[] = require('./latin_charset');
+// interface CharacterSpecification {
+//   char: string;
+//   glyphname: string;
+//   StandardEncoding: number;
+//   MacRomanEncoding: number;
+//   WinAnsiEncoding: number;
+//   PDFDocEncoding: number;
+// }
+import latin_charset from './latin_charset';
 
 /**
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
@@ -38,7 +38,7 @@ export class Encoding {
   ];
 
   /**
-  This loads the character codes listed in ./latin_charset.json into
+  This loads the character codes listed in ./latin_charset into
   a (sparse-ish) Array of strings mapping indices (character codes) to unicode
   strings (not glyphnames).
 
@@ -51,7 +51,7 @@ export class Encoding {
   */
   mergeLatinCharset(name: string): void {
     if (name == 'MacExpertEncoding') {
-      logger.warning(`Coercing "MacExpertEncoding" to "MacRomanEncoding" when merging Latin character set `);
+      logger.warning(`Coercing "MacExpertEncoding" to "MacRomanEncoding" when merging Latin character set`);
       // TODO: handle MacExpertEncoding properly
       name = 'MacRomanEncoding';
     }

@@ -1,7 +1,8 @@
 import * as afm from 'afm';
 
 import {FontDescriptor} from './descriptor';
-import {glyphlist, Encoding, decodeGlyphname} from '../encoding/index';
+import {Encoding, decodeGlyphname} from '../encoding/index';
+import glyphlist from '../encoding/glyphlist';
 import {logger} from '../logger';
 import {PDF, Model, ContentStream, Resources} from '../models';
 import {PDFObject} from '../pdfdom';

@@ -1,4 +1,6 @@
 encoding/index.ts
+encoding/glyphlist.ts
+encoding/latin_charset.ts
 filters/decoders.ts
 font/descriptor.ts
 font/index.ts

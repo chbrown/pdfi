@@ -10,6 +10,8 @@
     "node_modules/declarations/pako/pako.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
     "encoding/index.ts",
+    "encoding/glyphlist.ts",
+    "encoding/latin_charset.ts",
     "filters/decoders.ts",
     "font/descriptor.ts",
     "font/index.ts",

@@ -1,4 +1,6 @@
 /encoding/index.js
+/encoding/glyphlist.js
+/encoding/latin_charset.js
 /filters/decoders.js
 /font/descriptor.js
 /font/index.js
@@ -18,6 +20,8 @@
 /pdfdom.js
 /util.js
 /encoding/index.d.ts
+/encoding/glyphlist.d.ts
+/encoding/latin_charset.d.ts
 /filters/decoders.d.ts
 /font/descriptor.d.ts
 /font/index.d.ts

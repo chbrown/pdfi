@@ -1,4 +1,4 @@
-[
+export default [
  {
   "char": "A",
   "glyphname": "A",
@@ -1831,4 +1831,4 @@
   "WinAnsiEncoding": 48,
   "PDFDocEncoding": 48
  }
-]
+];

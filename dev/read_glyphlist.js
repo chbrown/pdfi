@@ -1,5 +1,5 @@
 /**
-Usage: `node read_glyphlist <glyphlist.txt >glyphlist.json
+Usage: `node read_glyphlist <glyphlist.txt >glyphlist.ts
 
 Where `glyphlist.txt` comes from http://partners.adobe.com/public/developer/en/opentype/glyphlist.txt
 */
@@ -22,5 +22,7 @@ process.stdin.on('end', function() {
     var charCodes = alternatives[0].split(' ').map(function(s) { return parseInt(s, 16); });
     glyphs[glyphname] = String.fromCharCode.apply(null, charCodes);
   });
+  process.stdout.write('export default ');
   process.stdout.write(JSON.stringify(glyphs, null, ' '));
+  process.stdout.write(';\n');
 });

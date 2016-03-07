@@ -1,4 +1,4 @@
-{
+export default {
  "angbracketleftBig": "〈",
  "angbracketleftBigg": "〈",
  "angbracketleftbig": "〈",
@@ -4817,4 +4817,4 @@
  "zstroke": "ƶ",
  "zuhiragana": "ず",
  "zukatakana": "ズ"
-}
+};

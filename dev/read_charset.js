@@ -26,5 +26,7 @@ process.stdin.on('end', function() {
       PDFDocEncoding: parseOctal(cells[5]),
     });
   });
+  process.stdout.write('export default ');
   process.stdout.write(JSON.stringify(characters, null, ' '));
+  process.stdout.write(';\n');
 });
