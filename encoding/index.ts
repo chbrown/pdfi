@@ -11,14 +11,6 @@ glyphlist is a mapping from PDF glyph names to unicode strings
 */
 import glyphlist from './glyphlist';
 
-// interface CharacterSpecification {
-//   char: string;
-//   glyphname: string;
-//   StandardEncoding: number;
-//   MacRomanEncoding: number;
-//   WinAnsiEncoding: number;
-//   PDFDocEncoding: number;
-// }
 import latin_charset from './latin_charset';
 
 /**
@@ -101,6 +93,9 @@ export class Encoding {
     return this.mapping[charCode];
   }
 }
+
+const PDFDoc = new Encoding();
+PDFDoc.mergeLatinCharset('PDFDocEncoding');
 
 /**
 Modifiers modify the character after them. This is the PDF way.
@@ -219,4 +214,38 @@ export function decodeGlyphname(glyphname: string): string {
     const charCode = parseInt(charMatch[1], 16);
     return String.fromCharCode(charCode);
   }
+}
+
+/**
+Simpler special purpose version of something like https://github.com/substack/endian-toggle
+*/
+export function swapEndian(buffer: Buffer): Buffer {
+  let byte: number;
+  for (var i = 0, l = buffer.length - 1; i < l; i += 2) {
+    byte = buffer[i];
+    buffer[i] = buffer[i+1];
+    buffer[i+1] = byte;
+  }
+  return buffer;
+}
+
+/**
+Bytes that represent characters that shall be encoded using either
+PDFDocEncoding or UTF-16BE with a leading byte-order marker. (PDF32000_2008.pdf:7.9.1)
+
+You can also do some funny stuff with U+001B, which acts as an escape, for
+signaling language codes. (PDF32000_2008.pdf:7.9.2.2)
+*/
+export function decodeBuffer(buffer: Buffer) {
+  if (buffer[0] == 254 && buffer[1] == 255) {
+    // UTF-16 (BE)
+    return swapEndian(buffer).toString('utf16le');
+  }
+  else if (buffer[0] == 255 && buffer[1] == 254) {
+    // UTF-16 (LE)
+    // the docs say this is not valid in a PDF?
+    // apparently Node.js will swallow the BOM even if I don't slice it off
+    return buffer.slice(2).toString('utf16le');
+  }
+  return PDFDoc.decodeCharCodes(buffer).map(charCode => PDFDoc.decodeCharacter(charCode)).join('');
 }
