@@ -1,4 +1,3 @@
-import * as lexing from 'lexing';
 import {nfkc} from 'unorm';
 
 import {logger} from '../logger';
@@ -59,8 +58,7 @@ export class Encoding {
   This is called with a ToUnicode content stream for font types that specify one.
   */
   mergeCMapContentStream(contentStream: ContentStream): void {
-    const string_iterable = lexing.StringIterator.fromBuffer(contentStream.buffer, 'ascii');
-    const cMap = parseCMap(string_iterable);
+    const cMap = parseCMap(contentStream.buffer);
     this.characterByteLength = cMap.byteLength;
     cMap.mappings.forEach(mapping => {
       this.mapping[mapping.src] = mapping.dst;
@@ -246,5 +244,6 @@ export function decodeBuffer(buffer: Buffer) {
     // apparently Node.js will swallow the BOM even if I don't slice it off
     return buffer.slice(2).toString('utf16le');
   }
-  return PDFDoc.decodeCharCodes(buffer).map(charCode => PDFDoc.decodeCharacter(charCode)).join('');
+  const charCodes = PDFDoc.decodeCharCodes(buffer);
+  return charCodes.map(charCode => PDFDoc.decodeCharacter(charCode)).join('');
 }

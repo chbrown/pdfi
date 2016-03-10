@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import {Paper} from 'academia/types';
-import {MachineState, MachineStateConstructor, Source, SourceStringIterator} from 'lexing';
+import {Source} from 'lexing';
 import {lastIndexOf} from 'lexing/source';
 
 import {logger} from './logger';
@@ -8,14 +8,8 @@ import * as pdfdom from './pdfdom';
 import * as models from './models';
 import * as graphics from './graphics/index';
 
-import {parsePDFObject} from './parsers/index';
+import {parseStateAt} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
-
-class PDFStringIterator extends SourceStringIterator {
-  constructor(source: Source, _encoding: string, _position: number, public pdf: PDF) {
-    super(source, _encoding, _position);
-  }
-}
 
 export class PDF {
   private _trailer: models.Trailer;
@@ -40,11 +34,11 @@ export class PDF {
     if (startxref_position === undefined) {
       throw new Error('Could not find "startxref" marker in file');
     }
-    let next_xref_position = this.parseStateAt(STARTXREF, startxref_position);
+    let next_xref_position = parseStateAt(this.source, STARTXREF, startxref_position, this);
 
     this._trailer = new models.Trailer(this);
     while (next_xref_position) { // !== null
-      const xref_trailer = this.parseStateAt(XREF_WITH_TRAILER, next_xref_position);
+      const xref_trailer = parseStateAt(this.source, XREF_WITH_TRAILER, next_xref_position, this);
       // TODO (or to check): are there really chains of trailers and multiple `Prev` links?
       next_xref_position = xref_trailer.trailer['Prev'];
 
@@ -147,7 +141,7 @@ export class PDF {
     const cross_reference = this.findCrossReference(object_number, generation_number);
     let indirect_object: pdfdom.IndirectObject;
     if (cross_reference.offset) {
-      indirect_object = <pdfdom.IndirectObject>this.parseStateAt(OBJECT, cross_reference.offset);
+      indirect_object = parseStateAt(this.source, OBJECT, cross_reference.offset, this);
     }
     else {
       const object_stream = this.getModel(cross_reference.object_stream_object_number, 0, models.ObjectStream);
@@ -195,7 +189,7 @@ export class PDF {
 
   This is useful in the PDFObjectParser stream hack, but shouldn't be used elsewhere.
   */
-  private _resolveObject(object: pdfdom.PDFObject): pdfdom.PDFObject {
+  _resolveObject(object: pdfdom.PDFObject): pdfdom.PDFObject {
     // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
     if (models.IndirectReference.isIndirectReference(object)) {
       const reference = <pdfdom.IndirectReference>object;
@@ -204,26 +198,4 @@ export class PDF {
     return object;
   }
 
-  printContext(start_position: number, error_position: number, margin: number = 256): void {
-    logger.error(`context preface=${chalk.cyan(start_position.toString())} error=${chalk.yellow(error_position.toString())}...`)
-    // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
-    const preface_buffer = this.source.readBuffer(error_position - start_position, start_position);
-    const preface_string = preface_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    const error_buffer = this.source.readBuffer(margin, error_position);
-    const error_string = error_buffer.toString('ascii').replace(/\r\n?/g, '\r\n');
-    logger.error(chalk.cyan(preface_string) + chalk.yellow(error_string));
-  }
-
-  parseStateAt<T, I>(STATE: MachineStateConstructor<T, I>, position: number, peek_length = 1024): T {
-    const iterable = new PDFStringIterator(this.source, 'ascii', position, this);
-    try {
-      return new STATE(iterable, peek_length).read();
-    }
-    catch (exc) {
-      logger.error(`Error trying to parse ${STATE['name']}: ${chalk.red(exc.message)}`);
-      this.printContext(position, iterable.position);
-
-      throw exc;
-    }
-  }
 }

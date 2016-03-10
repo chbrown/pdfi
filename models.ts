@@ -1,7 +1,8 @@
-import {StringIterator} from 'lexing';
-import {flatMap, groups, assign} from 'tarry';
+import {BufferIterator} from 'lexing';
+import {asArray, flatMap, groups, assign} from 'tarry';
 
 import {logger} from './logger';
+import {PDFBufferIterator} from './parsers/index';
 import {OBJECT} from './parsers/states';
 import {IndirectObject, PDFObject, Rectangle, DictionaryObject} from './pdfdom';
 import {decodeBuffer} from './filters/decoders';
@@ -14,6 +15,7 @@ export interface PDF {
   getModel<T extends Model>(object_number: number,
                             generation_number: number,
                             ctor: { new(pdf: PDF, object: PDFObject): T }): T;
+  _resolveObject(object: PDFObject): PDFObject ;
 }
 
 /**
@@ -215,11 +217,16 @@ export class Page extends Model {
   TODO: don't combine the strings (more complex)
         see MultiStringIterator in scratch.txt
   */
-  joinContents(separator: string): string {
-    const strings = [].concat(this.Contents.object).map(stream => {
-      return new ContentStream(this._pdf, stream).buffer.toString('binary');
+  joinContents(separator: Buffer): Buffer {
+    const list: Buffer[] = [];
+    let totalLength = 0;
+    asArray(this.Contents.object).forEach((stream, i) => {
+      const buffer = new ContentStream(this._pdf, stream).buffer;
+      list.push(buffer, separator);
+      totalLength += buffer.length + separator.length;
     });
-    return strings.join(separator);
+    // there's a dangling separator at the end, but the explicit totalLength means it'll be ignored
+    return Buffer.concat(list, totalLength - separator.length);
   }
 
   toJSON() {
@@ -265,8 +272,8 @@ export class ContentStream extends Model {
   Return the object's buffer, decoding if necessary.
   */
   get buffer(): Buffer {
-    const filters = [].concat(this.object['dictionary']['Filter'] || []);
-    const decodeParmss = [].concat(this.object['dictionary']['DecodeParms'] || []);
+    const filters = asArray(this.object['dictionary']['Filter']);
+    const decodeParmss = asArray(this.object['dictionary']['DecodeParms']);
     return decodeBuffer(this.object['buffer'], filters, decodeParmss);
   }
 
@@ -294,8 +301,8 @@ export class ObjectStream extends ContentStream {
     // const content = buffer.slice(this.dictionary.First)
     const object_number_index_pairs = groups(prefix.toString('ascii').trim().split(/\s+/).map(x => parseInt(x, 10)), 2);
     return object_number_index_pairs.map(([object_number, offset]) => {
-      const iterable = StringIterator.fromBuffer(buffer, 'binary', this.dictionary.First + offset);
-      const value = new OBJECT(iterable, 1024).read();
+      const bufferIterable = new PDFBufferIterator(buffer, this.dictionary.First + offset, this._pdf);
+      const value = new OBJECT(bufferIterable, 'binary', 1024).read();
       return {object_number, generation_number: 0, value};
     });
   }

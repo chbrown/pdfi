@@ -1,16 +1,12 @@
-import {MachineRule as Rule, MachineState, MachineCallback} from 'lexing';
-import {groups, flatMap, range, assign} from 'tarry';
+import {asArray, groups, flatMap, range, assign} from 'tarry';
 
 import {logger} from '../logger';
+import {consumeString} from './consumers';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
 import {decodeBuffer} from '../filters/decoders';
 
-const escapeCharCodes = {
-  '\\n': 10,
-  '\\r': 13,
-  '\\\\': 92,
-};
+import {MachineRule as Rule, MachineState, MachineCallback} from './machine';
 
 /**
 Unescape all #-escaped sequences in a name.
@@ -41,59 +37,6 @@ export class HEXSTRING extends MachineState<Buffer, Buffer> {
   pushHalfByte(matchValue: RegExpMatchArray): Buffer {
     const match_buffer = new Buffer(matchValue[0] + '0', 'hex');
     this.value = Buffer.concat([this.value, match_buffer]);
-    return;
-  }
-}
-
-/**
-STRING is parens-delimited
-
-Normally they'll use the ASCII or maybe Latin character set, but:
-> With a composite font (PDF 1.2), multiple-byte codes may be used to select glyphs. In this instance, one or more consecutive bytes of the string shall be treated as a single character code. The code lengths and the mappings from codes to glyphs are defined in a data structure called a CMap, described in 9.7, "Composite Fonts".
-
-(A.K.A. "INPARENS")
-*/
-export class STRING extends MachineState<Buffer, Buffer> {
-  // initialize with empty Buffer
-  protected value = new Buffer(0);
-  rules = [
-    Rule(/^\)/, this.pop),
-    // nested STRING
-    Rule(/^\(/, this.captureNestedString),
-    // escaped start and end parens (yes, this happens, see PDF32000_2008.pdf:9.4.3)
-    // and escaped start and end braces (I guess to avoid array ambiguity?)
-    Rule(/^\\(\(|\)|\[|\])/, this.captureGroup),
-    // escaped control characters; these are kind of weird, not sure if they're legitimate
-    Rule(/^\\(n|r)/, this.captureEscape),
-      // TODO: escaped newline: skip over it.
-      // This is from a real-world example; I'm not sure it's in the spec.
-      // [/^\\(\r\n|\n|\r)/, match => null ],
-      // literal newline: is this in the spec? Or is there a real-world example?
-      // [/^(\r\n|\n|\r)/, match => ['CHAR', match[0]] ],
-    // escaped backslash
-    Rule(/^\\\\/, this.captureEscape),
-    // 3-digit octal character code
-    Rule(/^\\([0-8]{3})/, this.captureOct),
-    Rule(/^(.|\n|\r)/, this.captureGroup),
-  ]
-  captureNestedString(matchValue: RegExpMatchArray): Buffer {
-    const nested_buffer = this.attachState(STRING).read();
-    this.value = Buffer.concat([this.value, new Buffer('('), nested_buffer, new Buffer(')')]);
-    return;
-  }
-  captureGroup(matchValue: RegExpMatchArray): Buffer {
-    const str = matchValue[1];
-    this.value = Buffer.concat([this.value, new Buffer(str)]);
-    return;
-  }
-  captureEscape(matchValue: RegExpMatchArray): Buffer {
-    const byte = escapeCharCodes[matchValue[0]];
-    this.value = Buffer.concat([this.value, new Buffer([byte])]);
-    return;
-  }
-  captureOct(matchValue: RegExpMatchArray): Buffer {
-    const byte = parseInt(matchValue[1], 8);
-    this.value = Buffer.concat([this.value, new Buffer([byte])]);
     return;
   }
 }
@@ -278,7 +221,7 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     return;
   }
   captureBytestring(matchValue: RegExpMatchArray): ContentStreamOperation[] {
-    const buffer = this.attachState(STRING).read();
+    const buffer = consumeString(this.iterable);
     this.stack.push(buffer);
     return;
   }
@@ -347,7 +290,7 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
       stream_length = pdf._resolveObject(stream_length);
     }
 
-    const stream_state = new STREAM(this.iterable, this.peek_length);
+    const stream_state = new STREAM(this.iterable, this.encoding, this.peekLength);
     // STREAM gets special handling
     stream_state.consumeBytes(stream_length);
     const buffer = stream_state.read();
@@ -396,7 +339,7 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
     return this.attachState(ARRAY).read();
   }
   captureBytestring(matchValue: RegExpMatchArray) {
-    return this.attachState(STRING).read();
+    return consumeString(this.iterable);
   }
   captureReference(matchValue: RegExpMatchArray) {
     return {
@@ -461,6 +404,8 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     // followed by the number of cross references in that section, following by
     // a universal newline
     Rule(/^\s+/, this.ignore),
+    // e.g., %iText-5.2.0
+    Rule(/^%.*\n/, this.ignore),
     Rule(/^xref/, this.captureXref),
     Rule(/^trailer/, this.captureTrailer),
     Rule(/^startxref\s+(\d+)\s+%%EOF/, this.captureStartXref),
@@ -487,8 +432,8 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     // generation_number: parseInt(matchValue[2], 10),
     const value = this.attachState(INDIRECT_OBJECT_VALUE).read();
     // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
-    const filters = [].concat(value['dictionary'].Filter || []);
-    const decodeParmss = [].concat(value['dictionary'].DecodeParms || []);
+    const filters = asArray(value['dictionary'].Filter);
+    const decodeParmss = asArray(value['dictionary'].DecodeParms);
     const buffer = decodeBuffer(value['buffer'], filters, decodeParmss);
 
     const Size = value['dictionary'].Size;
@@ -623,17 +568,8 @@ export class STREAM extends MachineState<Buffer, Buffer> {
   From PDF32000_2008.pdf:7.3.8
   > The sequence of bytes that make up a stream lie between the end-of-line marker following the stream keyword and the endstream keyword; the stream dictionary specifies the exact number of bytes.
   */
-  consumeBytes(stream_length: number) {
-    if (this.iterable['nextBytes']) {
-      // this is what will usually be called, when this.iterable is a
-      // FileStringIterator.
-      this.value = this.iterable['nextBytes'](stream_length);
-    }
-    else {
-      // hack to accommodate the string-based tests, where the iterable is not a
-      // FileStringIterator, but a stubbed StringIterator.
-      this.value = new Buffer(this.iterable.next(stream_length), 'ascii');
-    }
+  consumeBytes(length: number) {
+    this.value = this.iterable.next(length);
   }
 }
 

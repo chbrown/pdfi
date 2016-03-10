@@ -29,9 +29,9 @@ export function renderPageLayout(page: Page, skipMissingCharacters = true, depth
   const canvas = new Canvas(pageOuterBounds);
 
   const context = new CanvasDrawingContext(canvas, page.Resources, skipMissingCharacters, depth);
-  const content_stream_string = page.joinContents('\n')
+  const content_stream_buffer = page.joinContents(new Buffer('\n'))
   // read the content stream and render it to the canvas, via the context
-  context.applyContentStream(content_stream_string);
+  context.applyContentStream(content_stream_buffer);
   return createLayout(canvas);
 }
 
@@ -41,7 +41,7 @@ export function renderContentStreamLayout(content_stream: ContentStream, skipMis
   const canvas = new Canvas(outerBounds);
 
   const context = new CanvasDrawingContext(canvas, content_stream.Resources, skipMissingCharacters, depth);
-  context.applyContentStream(content_stream.buffer.toString('binary'));
+  context.applyContentStream(content_stream.buffer);
   return createLayout(canvas);
 }
 
@@ -69,6 +69,6 @@ export function renderContentStreamText(content_stream: ContentStream): TextOper
   // prepare the list that we will "render" to
   const text_operations: TextOperation[] = [];
   const context = new TextDrawingContext(text_operations, content_stream.Resources, false);
-  context.applyContentStream(content_stream.buffer.toString('binary'));
+  context.applyContentStream(content_stream.buffer);
   return text_operations;
 }

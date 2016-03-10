@@ -700,9 +700,9 @@ export class RecursiveDrawingContext extends DrawingContext {
     }
   }
 
-  applyContentStream(content_stream_string: string) {
+  applyContentStream(content_stream_buffer: Buffer) {
     // read the operations and apply them
-    const operations = parseContentStream(content_stream_string);
+    const operations = parseContentStream(content_stream_buffer);
     operations.forEach(operation => this.applyOperation(operation.alias, operation.operands)) ;
   }
 
@@ -739,8 +739,8 @@ export class RecursiveDrawingContext extends DrawingContext {
     this.resourcesStack.push(XObjectStream.Resources);
     this.depth++;
 
-    const content_stream_string = XObjectStream.buffer.toString('binary');
-    this.applyContentStream(content_stream_string);
+    const content_stream_buffer = XObjectStream.buffer;
+    this.applyContentStream(content_stream_buffer);
 
     this.depth--;
     this.resourcesStack.pop();

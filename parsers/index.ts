@@ -1,19 +1,78 @@
-import {StringIterable, StringIterator} from 'lexing';
+import * as chalk from 'chalk';
+import {
+  BufferIterable, BufferIterator,
+  Source, SourceBufferIterator,
+} from 'lexing';
 
-import {OBJECT, STARTXREF, XREF_WITH_TRAILER, CONTENT_STREAM, CMAP, ContentStreamOperation, CMap} from './states';
+import {logger} from '../logger';
+import {
+  OBJECT,
+  STARTXREF,
+  XREF_WITH_TRAILER,
+  CONTENT_STREAM,
+  CMAP,
+  ContentStreamOperation,
+  CMap,
+} from './states';
+import {PDF} from '../models';
 import {PDFObject, IndirectObject} from '../pdfdom';
 
-export function parsePDFObject(string_iterable: StringIterable): PDFObject {
-  return new OBJECT(string_iterable, 1024).read();
-}
+import {MachineStateConstructor} from './machine';
 
 export type ContentStreamOperation = ContentStreamOperation;
 
-export function parseContentStream(content_stream_string: string): ContentStreamOperation[] {
-  const string_iterable = new StringIterator(content_stream_string);
-  return new CONTENT_STREAM(string_iterable, 1024).read();
+export interface PDFBufferIterable extends BufferIterable {
+  pdf: PDF;
+}
+export class PDFSourceBufferIterator extends SourceBufferIterator implements PDFBufferIterable {
+  constructor(source: Source, position: number, public pdf: PDF) {
+    super(source, position);
+  }
+}
+export class PDFBufferIterator extends BufferIterator implements PDFBufferIterable {
+  constructor(buffer: Buffer, position: number, public pdf: PDF) {
+    super(buffer, position);
+  }
 }
 
-export function parseCMap(string_iterable: StringIterable): CMap {
-  return new CMAP(string_iterable, 1024).read();
+export function parseContentStream(buffer: Buffer): ContentStreamOperation[] {
+  const bufferIterable = new PDFBufferIterator(buffer, 0, null);
+  return new CONTENT_STREAM(bufferIterable, 'binary', 1024).read();
+}
+
+export function parseCMap(buffer: Buffer): CMap {
+  const bufferIterable = new PDFBufferIterator(buffer, 0, null);
+  return new CMAP(bufferIterable, 'binary', 1024).read();
+}
+
+export function printContext(source: Source,
+                             start_position: number,
+                             error_position: number,
+                             margin = 256,
+                             encoding = 'binary'): void {
+  logger.error(`context preface=${chalk.cyan(start_position.toString())} error=${chalk.yellow(error_position.toString())}...`)
+  // logger.error(`source.readBuffer(${error_position - start_position}, ${start_position})...`);
+  const prefaceBuffer = source.readBuffer(error_position - start_position, start_position);
+  const prefaceString = prefaceBuffer.toString(encoding).replace(/\r\n?/g, '\r\n');
+  const errorBuffer = source.readBuffer(margin, error_position);
+  const errorString = errorBuffer.toString(encoding).replace(/\r\n?/g, '\r\n');
+  logger.error(chalk.cyan(prefaceString) + chalk.yellow(errorString));
+}
+
+export function parseStateAt<T, I>(source: Source,
+                                   STATE: MachineStateConstructor<T, I>,
+                                   position: number,
+                                   pdf: PDF,
+                                   encoding = 'binary',
+                                   peekLength = 1024): T {
+  const iterable = new PDFSourceBufferIterator(source, position, pdf);
+  try {
+    return new STATE(iterable, encoding, peekLength).read();
+  }
+  catch (exc) {
+    logger.error(`Error trying to parse ${STATE['name']}: ${chalk.red(exc.message)}`);
+    printContext(source, position, iterable.position);
+
+    throw exc;
+  }
 }
