@@ -4,7 +4,6 @@ import {nfkc} from 'unorm';
 import {logger} from '../logger';
 import {ContentStream} from '../models';
 import {parseCMap} from '../parsers/index';
-import * as util from '../util';
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings

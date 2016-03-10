@@ -1,4 +1,3 @@
-import * as lexing from 'lexing';
 import {Paper} from 'academia/types';
 import {flatMap, mean, median, quantile} from 'tarry';
 

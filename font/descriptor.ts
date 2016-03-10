@@ -1,5 +1,3 @@
-import * as lexing from 'lexing';
-
 import {logger} from '../logger';
 import {Encoding, decodeGlyphname} from '../encoding/index';
 import {Model, ContentStream} from '../models';

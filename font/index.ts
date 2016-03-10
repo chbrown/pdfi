@@ -1,4 +1,4 @@
-import * as afm from 'afm';
+import {fonts as afmFonts} from 'afm';
 
 import {FontDescriptor} from './descriptor';
 import {Encoding, decodeGlyphname} from '../encoding/index';
@@ -391,9 +391,9 @@ export class Type1Font extends Font {
       }
     }
     // if Widths cannot be found, try to load BaseFont as a vendor font from the afm repo
-    else if (BaseFont_name in afm.fonts) {
+    else if (BaseFont_name in afmFonts) {
       this._widthMapping = {};
-      afm.fonts[BaseFont_name].forEach(charMetrics => {
+      afmFonts[BaseFont_name].forEach(charMetrics => {
         const string = glyphlist[charMetrics.name];
         this._widthMapping[string] = charMetrics.width;
       });
