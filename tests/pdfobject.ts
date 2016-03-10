@@ -1,7 +1,6 @@
-import assert from 'assert';
-import {describe, it} from 'mocha';
+import {deepEqual} from 'assert';
 
-import {StringIterator} from 'lexing';
+import {PDFBufferIterator} from '../parsers/index';
 import {OBJECT} from '../parsers/states';
 
 /**
@@ -9,12 +8,12 @@ Given a raw input string and expected output, parse the input and check that it
 is equivalent to the expectation.
 */
 function check(input, expected) {
-  var iterable = new StringIterator(input);
-  var actual = new OBJECT(iterable, 1024).read();
+  const bufferIterable = new PDFBufferIterator(new Buffer(input), 0, null);
+  var actual = new OBJECT(bufferIterable, 'binary', 1024).read();
   var message = `parse result does not match expected output.
         parse("${input}") => ${JSON.stringify(actual)}
         but should == ${JSON.stringify(expected)}`;
-  assert.deepEqual(actual, expected, message);
+  deepEqual(actual, expected, message);
 }
 
 describe('pdfobject parser: general objects', () => {
@@ -77,7 +76,7 @@ describe('pdfobject parser: general objects', () => {
       Author: new Buffer('Kenneth Ward Church'),
       CreationDate: new Buffer("D:20020326140046-05'00'"),
       ModDate: new Buffer("D:20020403103951-05'00'"),
-      Title: new Buffer('Char align: A Program for Aligning Parallel Texts at the Character Level')
+      Title: new Buffer('Char align: A Program for Aligning Parallel Texts at the Character Level'),
     };
     check(input, output);
   });
@@ -140,7 +139,7 @@ describe('pdfobject parser: general objects', () => {
             object_number: 318,
             generation_number: 0,
           },
-        }
+        },
       },
       DA: new Buffer("/Helv 0 Tf 0 g "),
     };
@@ -184,7 +183,7 @@ endobj`;
 
   it('should parse a list of booleans', () => {
     var input = `[true false true true ]`;
-    var output = [ true, false, true, true, ];
+    var output = [true, false, true, true];
     check(input, output);
   });
 

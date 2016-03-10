@@ -1,17 +1,13 @@
-import assert from 'assert';
-import {describe, it} from 'mocha';
-
-import {StringIterator} from 'lexing';
+import {deepEqual} from 'assert';
 
 import {parseCMap} from '../parsers/index';
 
 function check(input: string, expected: any) {
-  var string_iterable = new StringIterator(input);
-  var output = parseCMap(string_iterable);
+  var output = parseCMap(new Buffer(input));
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected)}`;
-  assert.deepEqual(output, expected, message);
+  deepEqual(output, expected, message);
 }
 
 describe('CMap parsing:', () => {
@@ -40,9 +36,9 @@ end end`;
         {"src":1, "dst":"·", "byteLength":1},
         {"src":2, "dst":"×", "byteLength":1},
         {"src":20, "dst":"≤", "byteLength":1},
-        {"src":21, "dst":"≥", "byteLength":1}
+        {"src":21, "dst":"≥", "byteLength":1},
       ],
-      "byteLength": 1
+      "byteLength": 1,
     };
     check(input, expected);
   });
@@ -76,7 +72,7 @@ end`;
         {"src":1005, "dst":"1", "byteLength":2},
         {"src":1006, "dst":"2", "byteLength":2},
       ],
-      "byteLength": 2
+      "byteLength": 2,
     };
     check(input, expected);
   });
@@ -102,7 +98,7 @@ endcmap CMapName currentdict /CMap defineresource pop end end`;
       "mappings": [
         {"src":120, "dst":"•", "byteLength":2},
       ],
-      "byteLength": 2
+      "byteLength": 2,
     };
     check(input, expected);
   });
@@ -141,7 +137,7 @@ end
 end`;
     var expected = {
       "codeSpaceRanges": [
-        {"low": 0, "high": 255}
+        {"low": 0, "high": 255},
       ],
       "mappings": [
         {"src": 44, "dst": "\t\r  ", "byteLength": 1},
@@ -151,9 +147,9 @@ end`;
         {"src": 35, "dst": "I", "byteLength": 1},
         {"src": 36, "dst": "n", "byteLength": 1},
         {"src": 37, "dst": "t", "byteLength": 1},
-        {"src": 38, "dst": "r", "byteLength": 1}
+        {"src": 38, "dst": "r", "byteLength": 1},
       ],
-      "byteLength": 1
+      "byteLength": 1,
     };
     check(input, expected);
   });
@@ -206,10 +202,10 @@ end
         {"low": 0, "high": 128},
         {"low": 33088, "high": 40956},
         {"low": 160, "high": 223},
-        {"low": 57408, "high": 64764}
+        {"low": 57408, "high": 64764},
       ],
       "mappings": [],
-      "byteLength": 1
+      "byteLength": 1,
     };
     check(input, expected);
   });

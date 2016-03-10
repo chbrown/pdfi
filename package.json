@@ -25,7 +25,6 @@
     "unorm": "*"
   },
   "devDependencies": {
-    "babel-core": "^5.0.0",
     "coveralls": "*",
     "declarations": "*",
     "istanbul": "*",

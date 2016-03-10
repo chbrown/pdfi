@@ -23,7 +23,8 @@ compile:
 	$(BIN)/tsc -d
 
 test: $(TYPESCRIPT:%.ts=%.js) $(BIN)/istanbul $(BIN)/_mocha $(BIN)/coveralls
-	$(BIN)/istanbul cover $(BIN)/_mocha -- --compilers js:babel-core/register tests/ -R spec
+	$(MAKE) -C tests
+	$(BIN)/istanbul cover $(BIN)/_mocha -- tests/ -R spec
 	cat coverage/lcov.info | $(BIN)/coveralls || true
 
 encoding/glyphlist.txt:
@@ -46,4 +47,5 @@ encoding/latin_charset.ts: encoding/latin_charset.tsv
 	node dev/read_charset.js <$< >$@
 
 clean:
+	$(MAKE) -C tests
 	rm -f $(TYPESCRIPT:%.ts=%.d.ts) $(TYPESCRIPT:%.ts=%.js)

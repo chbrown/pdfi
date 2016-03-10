@@ -1,16 +1,15 @@
-import assert from 'assert';
-import {describe, it} from 'mocha';
-import {StringIterator} from 'lexing';
+import {deepEqual} from 'assert';
 
+import {PDFBufferIterator} from '../parsers/index';
 import {XREF} from '../parsers/states';
 
 function check(input, expected) {
-  var iterable = new StringIterator(input);
-  var output =  new XREF(iterable, 1024).read();
+  const bufferIterable = new PDFBufferIterator(new Buffer(input), 0, null);
+  var output =  new XREF(bufferIterable, 'binary', 1024).read();
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected)}`;
-  assert.deepEqual(output, expected, message);
+  deepEqual(output, expected, message);
 }
 
 describe('pdfobject parser: xref:', () => {

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "module": "commonjs",
+    "target": "ES5"
+  },
+  "files": [
+    "../node_modules/declarations/chalk/chalk.d.ts",
+    "../node_modules/declarations/mocha/mocha.d.ts",
+    "../node_modules/declarations/node/node.d.ts",
+    "../node_modules/declarations/pako/pako.d.ts",
+    "../node_modules/declarations/unorm/unorm.d.ts",
+    "cmap.ts",
+    "consumers.ts",
+    "encoding.ts",
+    "filters.ts",
+    "numbers.ts",
+    "pdfobject.ts",
+    "textparser.ts",
+    "xref.ts"
+  ]
+}

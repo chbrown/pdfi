@@ -1,34 +1,33 @@
-import assert from 'assert';
-import {describe, it} from 'mocha';
+import {deepEqual} from 'assert';
 
-import decoders from '../filters/decoders';
+import * as decoders from '../filters/decoders';
 
 describe('pdf filters/decoders: ASCII85Decode', () => {
 
   it('should decode an ascii string', () => {
     var output = decoders.ASCII85Decode(new Buffer('87cURD]j7BEbo80'));
-    assert.deepEqual(output, new Buffer('Hello world!'));
+    deepEqual(output, new Buffer('Hello world!'));
   });
 
   it('should decode an ascii string with an EOF marker', () => {
     var output = decoders.ASCII85Decode(new Buffer('87cURD]j7BEbo80~>'));
-    assert.deepEqual(output, new Buffer('Hello world!'));
+    deepEqual(output, new Buffer('Hello world!'));
   });
 
   it('should decode a buffer of 0xFF bytes', () => {
     var output = decoders.ASCII85Decode(new Buffer('s8W-!'));
-    assert.deepEqual(output, new Buffer([255, 255, 255, 255]));
+    deepEqual(output, new Buffer([255, 255, 255, 255]));
   });
 
   it('should decode a random buffer of length 12', () => {
     var output = decoders.ASCII85Decode(new Buffer("%V'A!!<ZDmrr"));
-    assert.deepEqual(output, new Buffer([14, 99, 109, 203, 1, 3, 87, 155, 255]));
+    deepEqual(output, new Buffer([14, 99, 109, 203, 1, 3, 87, 155, 255]));
   });
 
   it('should decode a random buffer of length 5', () => {
     // e.g., comparison point: python3.4 >>> import base64; base64.a85encode(bytes([200, 8, 104, 63]))
     var output = decoders.ASCII85Decode(new Buffer('a9ZHD'));
-    assert.deepEqual(output, new Buffer([200, 8, 104, 63]));
+    deepEqual(output, new Buffer([200, 8, 104, 63]));
   });
 
   it('should decode the leviathan example from wikipedia', () => {
@@ -40,7 +39,7 @@ describe('pdf filters/decoders: ASCII85Decode', () => {
       ">uD.RTpAKYo'+CT/5+Cei#DII?(E,9)oF*2M7/c",
     ].join('\n');
     var output = decoders.ASCII85Decode(new Buffer(input));
-    assert.deepEqual(output, new Buffer(`Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure.`));
+    deepEqual(output, new Buffer(`Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure.`));
   });
 
   it('should decode EXAMPLE 3 from PDF32000_2008.pdf:7.4.1', () => {
@@ -63,7 +62,7 @@ describe('pdf filters/decoders: LZWDecode', () => {
     var bits = new decoders.BitIterator(buffer);
     //
     var actual: number[] = [bits.next(9), bits.next(2), bits.next(5)];
-    assert.deepEqual(actual, [286, 3, 7]);
+    deepEqual(actual, [286, 3, 7]);
   });
 
   it('should iterate through another bit string correctly', () => {
@@ -76,13 +75,13 @@ describe('pdf filters/decoders: LZWDecode', () => {
       actual.push(code);
     }
     var expected = [256, 45, 258, 258, 65, 259, 66, 257];
-    assert.deepEqual(actual, expected);
+    deepEqual(actual, expected);
   });
 
   it('should LZW decode the example from the PDF spec (7.4.4.2, Example 2)', () => {
     var encoded = new Buffer([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
     var actual = decoders.LZWDecode(encoded);
     var expected = new Buffer([45, 45, 45, 45, 45, 65, 45, 45, 45, 66]);
-    assert.deepEqual(actual, expected);
+    deepEqual(actual, expected);
   });
 });
