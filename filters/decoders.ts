@@ -1,4 +1,4 @@
-import * as pako from 'pako';
+import {inflate} from 'pako';
 
 export interface List<T> {
   [index: number]: T;
@@ -214,7 +214,7 @@ export function ASCIIHexDecode(ascii: List<number>): Buffer {
 }
 
 export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
-  const inflated = new Buffer(pako.inflate(<any>buffer));
+  const inflated = new Buffer(inflate(<any>buffer));
   if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
     if (decodeParms.Predictor !== 12) {
       throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);
