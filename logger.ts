@@ -14,7 +14,7 @@ export class Logger {
 
   log(level: Level, message?: any, ...optionalParams: any[]) {
     if (level >= this.level) {
-      console.log(`[${Level[level]}] ${message}`, ...optionalParams);
+      console.error(`[${Level[level]}] ${message}`, ...optionalParams);
     }
   }
 
