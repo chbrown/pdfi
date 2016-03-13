@@ -119,3 +119,46 @@ export function consumeString(iterable: BufferIterable,
   const newState = Buffer.concat([state, iterable.next(matchLength)]);
   return consumeString(iterable, newState);
 }
+
+export function consumeHexString(iterable: BufferIterable,
+                                 hexStrings: string[] = [],
+                                 peekLength = 1024): Buffer {
+  const buffer = iterable.peek(peekLength);
+  const nextByte = buffer[0];
+  // end of string marker
+  if (nextByte === ascii.GREATER_THAN_SIGN) { // >
+    // pop
+    iterable.skip(1);
+    // handle implied final 0 (PDF32000_2008.pdf:16)
+    // by adding 0 character to end of odd-length strings
+    // TODO: optimize this
+    let hexString = hexStrings.join('');
+    if (hexString.length % 2 === 1) {
+      hexString += '0';
+    }
+    return new Buffer(hexString, 'hex');
+  }
+  // From PDF32000_2008.pdf:7.3.4.3
+  // White-space characters (such as SPACE (20h), HORIZONTAL TAB (09h),
+  // CARRIAGE RETURN (0Dh), LINE FEED (0Ah), and FORM FEED (0Ch)) shall be ignored.
+  else if (nextByte === 0x20 || nextByte === 0x9 || nextByte === 0xD || nextByte === 0xA || nextByte === 0xC) {
+    iterable.skip(1);
+    return consumeHexString(iterable, hexStrings, peekLength);
+  }
+  // otherwise, consume as far as possible
+  let matchLength: number;
+  for (matchLength = 0; matchLength < buffer.length; matchLength++) {
+    const byte = buffer[matchLength];
+    // if the current byte matches any of the special characters or delimiters,
+    // we break so that the verbatim match does not consume it
+    const isHex = (ascii.DIGIT_ZERO <= byte && byte <= ascii.DIGIT_NINE) ||
+                  (ascii.LATIN_CAPITAL_LETTER_A <= byte && byte <= ascii.LATIN_CAPITAL_LETTER_F) ||
+                  (ascii.LATIN_SMALL_LETTER_A <= byte && byte <= ascii.LATIN_SMALL_LETTER_F);
+    if (!isHex) {
+      break;
+    }
+  }
+  const hexBuffer = iterable.next(matchLength);
+  hexStrings.push(hexBuffer.toString('ascii'));
+  return consumeHexString(iterable, hexStrings, peekLength);
+}

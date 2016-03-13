@@ -1,11 +1,11 @@
 import {asArray, groups, flatMap, range, assign} from 'tarry';
 
 import {logger} from '../logger';
-import {consumeString} from './consumers';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
 import {decodeBuffer} from '../filters/decoders';
 
+import {consumeString, consumeHexString} from './consumers';
 import {MachineRule as Rule, MachineState, MachineCallback} from './machine';
 
 /**
@@ -13,32 +13,6 @@ Unescape all #-escaped sequences in a name.
 */
 function unescapeName(name: string) {
   return name.replace(/#([A-Fa-f0-9]{2})/g, (m, m1) => String.fromCharCode(parseInt(m1, 16)));
-}
-
-export class HEXSTRING extends MachineState<Buffer, Buffer> {
-  protected value = new Buffer(0);
-  rules = [
-    Rule(/^>/, this.pop),
-    // From PDF32000_2008.pdf:7.3.4.3
-    // > White-space characters (such as SPACE (20h), HORIZONTAL TAB (09h), CARRIAGE RETURN (0Dh), LINE FEED (0Ah), and FORM FEED (0Ch)) shall be ignored.
-    Rule(/^\s+/, this.ignore),
-    Rule(/^([A-Fa-f0-9]{2})+/, this.pushBytes),
-    Rule(/^[A-Fa-f0-9]$/, this.pushHalfByte),
-  ]
-  pushBytes(matchValue: RegExpMatchArray): Buffer {
-    const match_buffer = new Buffer(matchValue[0], 'hex');
-    this.value = Buffer.concat([this.value, match_buffer]);
-    return;
-  }
-  /**
-  handle implied final 0 (PDF32000_2008.pdf:16)
-  by adding 0 character to end of odd-length strings
-  */
-  pushHalfByte(matchValue: RegExpMatchArray): Buffer {
-    const match_buffer = new Buffer(matchValue[0] + '0', 'hex');
-    this.value = Buffer.concat([this.value, match_buffer]);
-    return;
-  }
 }
 
 export class IMAGEDATA extends MachineState<string, string[]> {
@@ -329,7 +303,7 @@ export class OBJECT extends MachineState<PDFObject, PDFObject> {
     // Rule(/^$/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray) {
-    return this.attachState(HEXSTRING).read();
+    return consumeHexString(this.iterable);
   }
   captureDictionary(matchValue: RegExpMatchArray) {
     // DICTIONARY might return a StreamObject
@@ -602,7 +576,7 @@ export class CODESPACERANGE extends MachineState<CharRange[], CharRange[]> {
     Rule(/^endcodespacerange/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharRange[] {
-    const buffer = this.attachState(HEXSTRING).read();
+    const buffer = consumeHexString(this.iterable);
     this.stack.push(buffer)
     return;
   }
@@ -668,7 +642,7 @@ export class BFCHAR extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^endbfchar/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
-    const buffer = this.attachState(HEXSTRING).read();
+    const buffer = consumeHexString(this.iterable);
     this.stack.push(buffer)
     return;
   }
@@ -706,7 +680,7 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     Rule(/^endbfrange/, this.pop),
   ]
   captureHexstring(matchValue: RegExpMatchArray): CharMapping[] {
-    const buffer = this.attachState(HEXSTRING).read();
+    const buffer = consumeHexString(this.iterable);
     this.stack.push(buffer)
     return;
   }
