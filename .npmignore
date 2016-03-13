@@ -1,3 +1,4 @@
+dev/index.ts
 encoding/ascii.ts
 encoding/index.ts
 encoding/glyphlist.ts

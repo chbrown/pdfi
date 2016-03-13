@@ -9,6 +9,7 @@
     "node_modules/declarations/node/node.d.ts",
     "node_modules/declarations/pako/pako.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
+    "dev/index.ts",
     "encoding/ascii.ts",
     "encoding/index.ts",
     "encoding/glyphlist.ts",

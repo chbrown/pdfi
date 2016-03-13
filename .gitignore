@@ -1,3 +1,4 @@
+/dev/index.js
 /encoding/ascii.js
 /encoding/index.js
 /encoding/glyphlist.js
@@ -22,6 +23,7 @@
 /PDF.js
 /pdfdom.js
 /util.js
+/dev/index.d.ts
 /encoding/ascii.d.ts
 /encoding/index.d.ts
 /encoding/glyphlist.d.ts
