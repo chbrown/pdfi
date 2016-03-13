@@ -37,8 +37,6 @@ function octalTest(buffer: List<number>): number {
   return 0;
 }
 
-const escapedLineFeedTest = createBufferEqualityTest(new Buffer([ascii.REVERSE_SOLIDUS, ascii.LATIN_SMALL_LETTER_N]));
-const escapedCarriageReturnTest = createBufferEqualityTest(new Buffer([ascii.REVERSE_SOLIDUS, ascii.LATIN_SMALL_LETTER_R]));
 const endStringTest = createStringEqualityTest(')');
 const beginStringTest = createStringEqualityTest('(');
 
@@ -72,34 +70,42 @@ export function consumeString(iterable: BufferIterable,
     return consumeString(iterable, newState);
   }
   // escaped control characters; these are kind of weird, not sure if they're legitimate
-  // '\\', 'n' => \n
-  else if ((matchLength = escapedLineFeedTest(buffer)) > 0) {
-    iterable.skip(matchLength);
+  // '\\'+'n' => \n
+  else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_N) {
+    iterable.skip(2);
     const newState = Buffer.concat([state, new Buffer([ascii.LINE_FEED])]);
     return consumeString(iterable, newState);
   }
-  // '\\', 'r' => \r
-  else if ((matchLength = escapedCarriageReturnTest(buffer)) > 0) {
-    iterable.skip(matchLength);
+  // '\\'+'r' => \r
+  else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_R) {
+    iterable.skip(2);
     const newState = Buffer.concat([state, new Buffer([ascii.CARRIAGE_RETURN])]);
     return consumeString(iterable, newState);
+  }
+  // '\\'+'\n' or '\\'+'\r' => nothing
+  else if (buffer[0] === ascii.REVERSE_SOLIDUS && (
+             buffer[1] === ascii.LINE_FEED ||
+             buffer[1] === ascii.CARRIAGE_RETURN)) {
+    iterable.skip(2);
+    return consumeString(iterable, state);
   }
   // escaped backslash => single backslash
   // escaped start and end parens (yes, this happens, see PDF33000_2008.pdf:9.4.3)
   // and escaped start and end braces (I guess to avoid array ambiguity?)
   // Rule(/^\\(\\|\(|\)|\[|\])/, ...),
   else if (buffer[0] === ascii.REVERSE_SOLIDUS && (
-           buffer[1] === ascii.REVERSE_SOLIDUS ||
-           buffer[1] === ascii.LEFT_PARENTHESIS ||
-           buffer[1] === ascii.RIGHT_PARENTHESIS ||
-           buffer[1] === ascii.LEFT_SQUARE_BRACKET ||
-           buffer[1] === ascii.RIGHT_SQUARE_BRACKET)) {
+             buffer[1] === ascii.REVERSE_SOLIDUS ||
+             buffer[1] === ascii.LEFT_PARENTHESIS ||
+             buffer[1] === ascii.RIGHT_PARENTHESIS ||
+             buffer[1] === ascii.LEFT_SQUARE_BRACKET ||
+             buffer[1] === ascii.RIGHT_SQUARE_BRACKET)) {
     const match = iterable.next(2);
     const newState = Buffer.concat([state, match.slice(1)]);
     return consumeString(iterable, newState);
   }
 
   // capture anything else verbatim
+  // TODO: start at 1 so that we mis-parse rather than stack overflow
   for (matchLength = 0; matchLength < buffer.length; matchLength++) {
     const byte = buffer[matchLength];
     // if the current byte matches any of the special characters or delimiters,
