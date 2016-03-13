@@ -25,6 +25,14 @@ describe('pdfobject parser: general objects', () => {
     check(input, output);
   });
 
+  it('should parse a string with escaped line break literals', () => {
+    var input = `(/G18/G19/G20\
+/G21/G22/G23\
+/G24)`;
+    var output = new Buffer('/G18/G19/G20/G21/G22/G23/G24');
+    check(input, output);
+  });
+
   it('should parse dictionary object with indirect references', () => {
     var input = `<<
 /Size 369
