@@ -1,6 +1,7 @@
 BIN := node_modules/.bin
 # TYPESCRIPT := $(shell find . -name '*.ts' -not -name '*.d.ts' -not -path '*/node_modules/*' | cut -c 3-)
 TYPESCRIPT := $(shell jq -r '.files[]' tsconfig.json | grep -Fv .d.ts)
+SHELL := bash
 
 all: $(TYPESCRIPT:%.ts=%.js) $(TYPESCRIPT:%.ts=%.d.ts) .npmignore .gitignore
 
@@ -37,9 +38,13 @@ encoding/additional_glyphlist.txt:
 encoding/texglyphlist.txt:
 	curl -s https://www.tug.org/texlive/Contents/live/texmf-dist/fonts/map/glyphlist/texglyphlist.txt > $@
 
+encoding/truetype_glyphlist.txt: encoding/truetype_post_format1-mapping.tsv
+	paste -d ';' <(<$< cut -f 1 | xargs -n 1 printf 'G%02X\n') <(<$< cut -f 2 | node dev/encode_glyphs.js) |\
+    grep -v ';$$' >$@
+
 # texglyphlist uses some unconventional characters, so we read the standard glyphlist last
 encoding/glyphlist.ts: encoding/cmr-glyphlist.txt encoding/additional_glyphlist.txt \
-                       encoding/texglyphlist.txt encoding/glyphlist.txt
+                       encoding/texglyphlist.txt encoding/truetype_glyphlist.txt encoding/glyphlist.txt
 	cat $^ | node dev/read_glyphlist.js >$@
 
 encoding/latin_charset.ts: encoding/latin_charset.tsv
