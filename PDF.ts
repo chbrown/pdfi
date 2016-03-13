@@ -88,7 +88,7 @@ export class PDF {
 
   Throws an Error if no match is found.
   */
-  private findCrossReference(object_number: number, generation_number: number): pdfdom.CrossReference {
+  findCrossReference(object_number: number, generation_number: number): pdfdom.CrossReference {
     for (let i = 0, cross_reference; (cross_reference = this.cross_references[i]); i++) {
       if (cross_reference.in_use &&
           cross_reference.object_number === object_number &&
