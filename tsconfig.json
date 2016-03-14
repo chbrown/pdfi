@@ -6,7 +6,7 @@
   },
   "files": [
     "node_modules/declarations/chalk/chalk.d.ts",
-    "node_modules/declarations/node/node.d.ts",
+    "node_modules/declarations/lib/buffer.d.ts",
     "node_modules/declarations/pako/pako.d.ts",
     "node_modules/declarations/unorm/unorm.d.ts",
     "dev/index.ts",
