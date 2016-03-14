@@ -2,7 +2,7 @@
 /encoding/ascii.js
 /encoding/index.js
 /encoding/glyphlist.js
-/encoding/latin_charset.js
+/encoding/glyphmaps.js
 /filters/decoders.js
 /font/descriptor.js
 /font/index.js
@@ -27,7 +27,7 @@
 /encoding/ascii.d.ts
 /encoding/index.d.ts
 /encoding/glyphlist.d.ts
-/encoding/latin_charset.d.ts
+/encoding/glyphmaps.d.ts
 /filters/decoders.d.ts
 /font/descriptor.d.ts
 /font/index.d.ts

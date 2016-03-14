@@ -1,12 +1,33 @@
 import {fonts as afmFonts} from 'afm';
 
 import {FontDescriptor} from './descriptor';
-import {Encoding, decodeGlyphname} from '../encoding/index';
+import {Encoding, expandDifferences, decodeGlyphname} from '../encoding/index';
 import glyphlist from '../encoding/glyphlist';
+import * as glyphmaps from '../encoding/glyphmaps';
 import {logger} from '../logger';
 import {PDF, Model, ContentStream, Resources} from '../models';
+import {parseCMap} from '../parsers/index';
 import {PDFObject} from '../pdfdom';
-import {memoize, checkArguments} from '../util';
+import {memoize, mergeArray, readCharCodes} from '../util';
+
+const StandardUnicode = glyphmaps.StandardEncoding.map(glyphname => glyphlist[glyphname]);
+
+function mergeFontDescriptor(glyphmap: string[],
+                             fontDescriptor: FontDescriptor,
+                             FirstChar: number,
+                             LastChar: number): string[] {
+  const CharSet = fontDescriptor.CharSet;
+  // check for the easy-out: 1-character fonts
+  if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length === 1) {
+    glyphmap[FirstChar] = CharSet[0];
+  }
+  else {
+    // otherwise, try reading the FontFile
+    const fontDescriptorGlyphmap = fontDescriptor.getGlyphmap();
+    mergeArray(glyphmap, fontDescriptorGlyphmap);
+  }
+  return glyphmap;
+}
 
 /**
 Font is a general, sometimes abstract (see Font#measureString), representation
@@ -29,7 +50,7 @@ export class Font extends Model {
   */
   get BaseEncoding(): string {
     const Encoding = this.get('Encoding');
-    // logger.info(`[Font=${this.Name}] Encoding=${Encoding}`);
+    // logger.info(`Font[${this.Name}] Encoding=${Encoding}`);
     if (Encoding && Encoding['BaseEncoding']) {
       return Encoding['BaseEncoding'];
     }
@@ -58,6 +79,14 @@ export class Font extends Model {
   get FontDescriptor(): FontDescriptor {
     const object = this.object['FontDescriptor'];
     return object ? new FontDescriptor(this._pdf, object) : undefined;
+  }
+
+  get FirstChar(): number {
+    return this.get('FirstChar');
+  }
+
+  get LastChar(): number {
+    return this.get('LastChar');
   }
 
   /**
@@ -123,95 +152,67 @@ export class Font extends Model {
   */
   @memoize
   get encoding(): Encoding {
-    const encoding = new Encoding()
+    const glyphmap: string[] = [];
+    let characterByteLength = 1;
 
     // First off, use the font's Encoding or Encoding.BaseEncoding value, if available.
-    const BaseEncoding = this.BaseEncoding;
-    // logger.info(`[Font=${this.Name}] BaseEncoding=${BaseEncoding}`);
-    if (Encoding.latinCharsetNames.indexOf(BaseEncoding) > -1) {
-      encoding.mergeLatinCharset(BaseEncoding);
+    // logger.info(`Font[${this.Name}] BaseEncoding=${BaseEncoding}`);
+    const baseEncoding = this.BaseEncoding;
+    if (baseEncoding in glyphmaps) {
+      mergeArray(glyphmap, glyphmaps[baseEncoding] || []);
     }
-    else if (BaseEncoding == 'Identity-H') {
-      logger.debug(`[Font=${this.Name}] Encoding/BaseEncoding = "Identity-H" (but not setting characterByteLength to 2)`);
+    else if (baseEncoding == 'Identity-H') {
+      logger.debug(`Font[${this.Name}] Encoding/BaseEncoding = "Identity-H" (but not setting characterByteLength to 2)`);
       // encoding.characterByteLength = 2;
     }
-    else if (BaseEncoding !== undefined) {
-      const BaseEncodingJSON = JSON.stringify(BaseEncoding);
-      logger.info(`[Font=${this.Name}] Unrecognized Encoding/BaseEncoding: ${BaseEncodingJSON}`);
+    else if (baseEncoding !== undefined) {
+      logger.info(`Font[${this.Name}] Unrecognized Encoding/BaseEncoding: ${JSON.stringify(baseEncoding)}`);
     }
+
+    // No luck? try the FontDescriptor
+    const fontDescriptor = this.FontDescriptor;
+    if (fontDescriptor) {
+      logger.debug(`Font[${this.Name}] Loading encoding from FontDescriptor`);
+      mergeFontDescriptor(glyphmap, fontDescriptor, this.FirstChar, this.LastChar);
+    }
+
+    // convert charCode->glyphname mapping to charCode->string mapping
+    const stringmap = glyphmap.map(decodeGlyphname);
+    // TODO: handle missing glyphnames
+    // if (str === undefined && glyphname !== '.notdef') {
+    //   logger.warning(`Font[${this.Name}] Encoding.Difference ${current_character_code} -> ${difference}, but that is not an existing glyphname`);
+    // }
 
     // ToUnicode is a better encoding indicator, but it is not always present,
-    // and even when it is, it may be only complementary to the
-    // Encoding/BaseEncoding value
-    const ToUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
-    if (ToUnicode.object) {
-      logger.debug(`[Font=${this.Name}] Merging CMapContentStream`);
-      encoding.mergeCMapContentStream(ToUnicode);
-    }
-
-    // still no luck? try the FontDescriptor
-    const FontDescriptor = this.FontDescriptor;
-    if (FontDescriptor) {
-      // logger.debug(`[Font=${this.Name}] Loading encoding from FontDescriptor`);
-      // check for the easy-out: 1-character fonts
-      const FirstChar = <number>this.get('FirstChar');
-      const LastChar = <number>this.get('LastChar');
-      const CharSet = FontDescriptor.CharSet;
-      if (FirstChar && LastChar && FirstChar === LastChar && CharSet.length == 1) {
-        encoding.mapping[FirstChar] = decodeGlyphname(CharSet[0]);
-      }
-      // otherwise, try reading the FontFile
-      else if (FontDescriptor.get('FontFile')) {
-        FontDescriptor.getEncoding().mapping.forEach((str, charCode) => {
-          if (str !== null && str !== undefined) {
-            encoding.mapping[charCode] = str;
-          }
-        });
-      }
-      // else {
-      //   logger.warning(`[Font=${this.Name}] Could not resolve FontDescriptor (no FontFile property)`);
-      // }
+    // and even when it is, it may be only complementary to the Encoding/BaseEncoding value
+    const toUnicode = new ContentStream(this._pdf, this.object['ToUnicode']);
+    if (toUnicode.object) {
+      logger.debug(`Font[${this.Name}] Merging CMapContentStream`);
+      const cMap = parseCMap(toUnicode.buffer);
+      characterByteLength = cMap.byteLength;
+      cMap.mappings.forEach(mapping => {
+        // nb. mapping.dst is a native string
+        stringmap[mapping.src] = mapping.dst;
+      });
     }
 
     // TODO: use BaseFont if possible, instead of assuming a default "std" mapping
-
-    const usingStandardEncoding = encoding.mapping.length === 0;
-    if (usingStandardEncoding) {
-      encoding.mergeLatinCharset('StandardEncoding');
+    if (stringmap.length === 0) {
+      mergeArray(stringmap, StandardUnicode);
+      // logger.debug(`Font[${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
     }
 
     // Finally, apply differences, if there are any.
     // even if ToUnicode is specified, there might still be Differences to incorporate.
-    const differences = this.Differences;
-    if (differences && differences.length > 0) {
-      let current_character_code = 0;
-      differences.forEach(difference => {
-        if (typeof difference === 'number') {
-          current_character_code = difference;
-        }
-        else {
-          // difference is a glyph name, but we want a mapping from character
-          // codes to native unicode strings, so we resolve the glyphname via the
-          // PDF standard glyphlist
-          const glyphname: string = difference;
-          const str = decodeGlyphname(glyphname);
-          encoding.mapping[current_character_code] = str;
+    const differences = this.Differences || [];
+    const differencesGlyphmap = expandDifferences(differences);
+    // difference is a glyph name, but we want a mapping from character
+    // codes to native unicode strings, so we resolve the glyphname via the
+    // PDF standard glyphlist
+    const differencesStringmap = differencesGlyphmap.map(decodeGlyphname);
 
-          // TODO: handle missing glyphnames
-          if (str === undefined && glyphname !== '.notdef') {
-            logger.warning(`[Font=${this.Name}] Encoding.Difference ${current_character_code} -> ${difference}, but that is not an existing glyphname`);
-          }
-          current_character_code++;
-        }
-      });
-    }
-    else {
-      if (usingStandardEncoding) {
-        logger.debug(`[Font=${this.Name}] Could not find any character code mapping; using "StandardEncoding" Latin charset, but confidence is low`);
-      }
-    }
-
-    return encoding;
+    mergeArray(stringmap, differencesStringmap);
+    return {mapping: stringmap, characterByteLength};
   }
 
   /**
@@ -227,21 +228,22 @@ export class Font extends Model {
   */
   // @checkArguments([{type: 'Buffer'}, {type: 'Boolean'}])
   decodeString(buffer: Buffer, skipMissing = false): string {
-    if (buffer.length % this.encoding.characterByteLength !== 0) {
-      logger.debug(`Font[${this.Name}] cannot decodeString with bad length (${buffer.length} !/ ${this.encoding.characterByteLength})`);
+    const encoding = this.encoding;
+    if (buffer.length % encoding.characterByteLength !== 0) {
+      logger.debug(`Font[${this.Name}] cannot decodeString with bad length (${buffer.length} !/ ${encoding.characterByteLength})`);
     }
-    return this.encoding.decodeCharCodes(buffer).map(charCode => {
-      const string = this.encoding.decodeCharacter(charCode);
-      if (string === undefined) {
+    return readCharCodes(buffer, encoding.characterByteLength).map(charCode => {
+      const str = encoding.mapping[charCode];
+      if (str === undefined) {
         if (skipMissing) {
-          logger.debug(`[Font=${this.Name}] Skipping missing character code: ${charCode}`)
+          logger.debug(`Font[${this.Name}] Skipping missing character code: ${charCode}`)
           return '';
         }
         const placeholder = '\\u{' + charCode.toString(16) + '}';
-        logger.debug(`[Font=${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
+        logger.debug(`Font[${this.Name}] Could not decode character code: ${charCode} = ${placeholder}`)
         return placeholder;
       }
-      return string;
+      return str;
     }).join('');
   }
 
@@ -250,7 +252,7 @@ export class Font extends Model {
   (usually somewhere in the range of 250-750 for each character/glyph).
   */
   measureString(buffer: Buffer): number {
-    throw new Error(`Cannot measureString() in base Font class (Subtype: ${this.get('Subtype')}, Name: ${this.Name})`);
+    throw new Error(`Font[${this.Name}] Cannot measureString() in base Font class (Subtype: ${this.get('Subtype')})`);
   }
 
   toJSON() {
@@ -351,11 +353,13 @@ export class Type1Font extends Font {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
-      const string = this.encoding.decodeCharacter(charCode);
-      const width = (string in this._widthMapping) ? this._widthMapping[string] : this._defaultWidth;
+    const charCodes = readCharCodes(buffer, this.encoding.characterByteLength);
+    const totalWidth = charCodes.reduce((sum, charCode) => {
+      const str = this.encoding.mapping[charCode];
+      const width = (str in this._widthMapping) ? this._widthMapping[str] : this._defaultWidth;
       return sum + width;
     }, 0);
+    return totalWidth;
   }
 
   /**
@@ -370,25 +374,24 @@ export class Type1Font extends Font {
     // TODO: avoid this BaseFont_name hack and resolve TrueType fonts properly
     const BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
     const Widths = <number[]>new Model(this._pdf, this.get('Widths')).object;
+    // FontMatrix and multiple should only technically be used for Type3 fonts
+    const FontMatrix = <number[]>this.get('FontMatrix');
+    const multiplier = FontMatrix ? (FontMatrix[0] / 0.001) : 1;
+    // logger.debug(`Font[${this.Name}] Using width multiplier ${multiplier}`);
     if (Widths) {
       const FirstChar = <number>this.get('FirstChar');
       // TODO: verify LastChar?
       this._widthMapping = {};
       Widths.forEach((width, width_index) => {
         const charCode = FirstChar + width_index;
-        const string = this.encoding.decodeCharacter(charCode);
-        this._widthMapping[string] = width;
+        const str = this.encoding.mapping[charCode];
+        this._widthMapping[str] = width * multiplier;
       });
       // TODO: throw an Error if this.FontDescriptor['MissingWidth'] is NaN?
       const FontDescriptor = this.FontDescriptor;
       const MissingWidth = FontDescriptor && FontDescriptor.get('MissingWidth');
-      if (MissingWidth) {
-        this._defaultWidth = MissingWidth;
-      }
-      else {
-        logger.debug(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
-        this._defaultWidth = null;
-      }
+      // logger.debug(`Font[${this.Name}] has no FontDescriptor with "MissingWidth" field`);
+      this._defaultWidth = MissingWidth || 0;
     }
     // if Widths cannot be found, try to load BaseFont as a vendor font from the afm repo
     else if (BaseFont_name in afmFonts) {
@@ -447,7 +450,7 @@ export class Type0Font extends Font {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
-    return this.encoding.decodeCharCodes(buffer).reduce((sum, charCode) => {
+    return readCharCodes(buffer, this.encoding.characterByteLength).reduce((sum, charCode) => {
       const width = (charCode in this._widthMapping) ? this._widthMapping[charCode] : this._defaultWidth;
       return sum + width;
     }, 0);

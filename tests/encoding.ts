@@ -1,6 +1,6 @@
 import {strictEqual} from 'assert';
 
-import {swapEndian} from '../encoding/index';
+import {swapEndian} from '../util';
 
 describe('util', () => {
   it('should swap every two bytes in a Buffer', () => {

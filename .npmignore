@@ -2,7 +2,7 @@ dev/index.ts
 encoding/ascii.ts
 encoding/index.ts
 encoding/glyphlist.ts
-encoding/latin_charset.ts
+encoding/glyphmaps.ts
 filters/decoders.ts
 font/descriptor.ts
 font/index.ts

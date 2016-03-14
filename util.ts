@@ -100,6 +100,19 @@ export function parseHexCodes(hexstring: string, byteLength: number): number[] {
 }
 
 /**
+Returns the character codes represented by the given buffer, read
+{characterByteLength} bytes at a time.
+*/
+export function readCharCodes(buffer: Buffer, characterByteLength: number = 1): number[] {
+  const charCodes: number[] = [];
+  for (let offset = 0, length = buffer.length; offset < length; offset += characterByteLength) {
+    const charCode = buffer.readUIntBE(offset, characterByteLength);
+    charCodes.push(charCode);
+  }
+  return charCodes;
+}
+
+/**
 Create a string from the given character code array using String.fromCharCode.
 Each character code should be at most 16 bits, i.e., less than 65536.
 */
@@ -121,4 +134,29 @@ export class Multiset {
   get(element: string): number {
     return this.elements[element] || 0;
   }
+}
+
+/**
+Overwrite target with all indices that have defined values in source.
+*/
+export function mergeArray<T>(target: T[], source: T[]): T[] {
+  source.forEach((item, i) => {
+    if (item !== undefined) {
+      target[i] = item;
+    }
+  });
+  return target;
+}
+
+/**
+Simpler special purpose version of something like https://github.com/substack/endian-toggle
+*/
+export function swapEndian(buffer: Buffer): Buffer {
+  let byte: number;
+  for (var i = 0, l = buffer.length - 1; i < l; i += 2) {
+    byte = buffer[i];
+    buffer[i] = buffer[i+1];
+    buffer[i+1] = byte;
+  }
+  return buffer;
 }

@@ -1,84 +1,45 @@
 import {nfkc} from 'unorm';
-
-import {logger} from '../logger';
-import {ContentStream} from '../models';
-import {parseCMap} from '../parsers/index';
+import {readCharCodes, swapEndian} from '../util';
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
 */
 import glyphlist from './glyphlist';
 
-import latin_charset from './latin_charset';
+import {PDFDocEncoding} from './glyphmaps';
+const PDFDocUnicode = PDFDocEncoding.map(glyphname => glyphlist[glyphname]);
+
+/**
+A Font's "Differences" field describes any differences from the encoding (i.e.,
+the mappping from character codes to glyph names) specified by BaseEncoding or,
+if BaseEncoding is absent, from the implicit base encoding.
+(See PDF32000_2008.pdf:9.6.6.1, Table 114)
+
+This function takes that heterogenous array and returns a glyphmap, i.e., an array
+mapping character codes to the glyphnames that differ from the base / inferred encoding.
+*/
+export function expandDifferences(differences: Array<number | string>): string[] {
+  const mapping: string[] = [];
+  // TypeScript should be able to infer that current_index is a number without the type hint
+  differences.reduce<number>((current_index, difference) => {
+    if (typeof difference === 'number') {
+      // if it's a number, reset the character code (current_index) to that number
+      return difference;
+    }
+    else {
+      // otherwise, difference is a glyphname corresponding to the current character code
+      mapping[current_index] = difference;
+      return current_index + 1;
+    }
+  }, 0);
+  return mapping;
+}
 
 /**
 encoding.Mapping primarily resolves arrays of bytes (often, character codes)
 to native Javascript (unicode) strings.
 */
-export class Encoding {
-  constructor(public mapping: string[] = [],
-              public characterByteLength = 1) { }
-
-  static latinCharsetNames = [
-    'StandardEncoding',
-    'MacRomanEncoding',
-    'WinAnsiEncoding',
-    'PDFDocEncoding',
-    'MacExpertEncoding',
-  ];
-
-  /**
-  This loads the character codes listed in ./latin_charset into
-  a (sparse-ish) Array of strings mapping indices (character codes) to unicode
-  strings (not glyphnames).
-
-  `name` should be one of the following:
-  * 'StandardEncoding'
-  * 'MacRomanEncoding'
-  * 'WinAnsiEncoding'
-  * 'PDFDocEncoding'
-  * 'MacExpertEncoding'
-  */
-  mergeLatinCharset(name: string): void {
-    if (name == 'MacExpertEncoding') {
-      logger.warning(`Coercing "MacExpertEncoding" to "MacRomanEncoding" when merging Latin character set`);
-      // TODO: handle MacExpertEncoding properly
-      name = 'MacRomanEncoding';
-    }
-    // proceed, assuming that name is one of the base Latin character set names
-    latin_charset.forEach(charspec => {
-      const charCode: number = charspec[name];
-      if (charCode !== null) {
-        this.mapping[charCode] = glyphlist[charspec.glyphname];
-      }
-    });
-  }
-
-  /**
-  This is called with a ToUnicode content stream for font types that specify one.
-  */
-  mergeCMapContentStream(contentStream: ContentStream): void {
-    const cMap = parseCMap(contentStream.buffer);
-    this.characterByteLength = cMap.byteLength;
-    cMap.mappings.forEach(mapping => {
-      this.mapping[mapping.src] = mapping.dst;
-    });
-  }
-
-  /**
-  Returns the character codes represented by the given bytes.
-
-  `bytes` should all be in the range: 0 ≤ byte < 256
-  */
-  decodeCharCodes(buffer: Buffer): number[] {
-    const charCodes: number[] = [];
-    for (let offset = 0, length = buffer.length; offset < length; offset += this.characterByteLength) {
-      const charCode = buffer.readUIntBE(offset, this.characterByteLength);
-      charCodes.push(charCode);
-    }
-    return charCodes;
-  }
-
+export interface Encoding {
   /**
   Returns a native (unicode) Javascript string representing the given character
   codes. These character codes may have nothing to do with Latin-1, directly,
@@ -86,13 +47,9 @@ export class Encoding {
   fields, and can be assigned widths via the Font dictionary's Widths or
   BaseFont fields.
   */
-  decodeCharacter(charCode: number): string {
-    return this.mapping[charCode];
-  }
+  mapping: string[];
+  characterByteLength: number;
 }
-
-const PDFDoc = new Encoding();
-PDFDoc.mergeLatinCharset('PDFDocEncoding');
 
 /**
 Modifiers modify the character after them. This is the PDF way.
@@ -118,6 +75,7 @@ const modifier_to_combiner = {
   '\u02DC': '\u0303', // SMALL TILDE
   '\u02DD': '\u030B', // DOUBLE ACUTE ACCENT -> COMBINING DOUBLE ACUTE ACCENT
 };
+const modificationRegExp = /([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g;
 /**
 Normalization:
 1. Combining diacritics combine with the character that precedes them.
@@ -151,7 +109,7 @@ export function normalize(raw: string): string {
   // replace modifier characters that are currently combining with a space
   // (sort of) with the lone combiner, so that they'll combine with the
   // following character instead, as intended.
-  const modifiers_recombined = visible.replace(/([\u005E\u0060\u00A8\u00AF\u00B4\u00B8\u02B0-\u02FF])(.)/g, (_, modifier, modified) => {
+  const modifiers_recombined = visible.replace(modificationRegExp, (_, modifier, modified) => {
     const combiner = modifier_to_combiner[modifier];
     if (combiner) {
       // if the next span was far enough away to be merit a space, this was
@@ -214,26 +172,13 @@ export function decodeGlyphname(glyphname: string): string {
 }
 
 /**
-Simpler special purpose version of something like https://github.com/substack/endian-toggle
-*/
-export function swapEndian(buffer: Buffer): Buffer {
-  let byte: number;
-  for (var i = 0, l = buffer.length - 1; i < l; i += 2) {
-    byte = buffer[i];
-    buffer[i] = buffer[i+1];
-    buffer[i+1] = byte;
-  }
-  return buffer;
-}
-
-/**
 Bytes that represent characters that shall be encoded using either
 PDFDocEncoding or UTF-16BE with a leading byte-order marker. (PDF32000_2008.pdf:7.9.1)
 
 You can also do some funny stuff with U+001B, which acts as an escape, for
 signaling language codes. (PDF32000_2008.pdf:7.9.2.2)
 */
-export function decodeBuffer(buffer: Buffer) {
+export function decodeBuffer(buffer: Buffer): string {
   if (buffer[0] == 254 && buffer[1] == 255) {
     // UTF-16 (BE)
     return swapEndian(buffer).toString('utf16le');
@@ -244,6 +189,9 @@ export function decodeBuffer(buffer: Buffer) {
     // apparently Node.js will swallow the BOM even if I don't slice it off
     return buffer.slice(2).toString('utf16le');
   }
-  const charCodes = PDFDoc.decodeCharCodes(buffer);
-  return charCodes.map(charCode => PDFDoc.decodeCharacter(charCode)).join('');
+  const chunks: string[] = [];
+  for (var i = 0, l = buffer.length; i < l; i++) {
+    chunks.push(PDFDocUnicode[buffer[i]]);
+  }
+  return chunks.join('');
 }

@@ -47,7 +47,7 @@ encoding/glyphlist.ts: encoding/cmr-glyphlist.txt encoding/additional_glyphlist.
                        encoding/texglyphlist.txt encoding/truetype_glyphlist.txt encoding/glyphlist.txt
 	cat $^ | node dev/read_glyphlist.js >$@
 
-encoding/latin_charset.ts: encoding/latin_charset.tsv
+encoding/glyphmaps.ts: encoding/latin_charset.tsv
 	# encoding/latin_charset.tsv comes from PDF32000_2008.pdf: Appendix D.2
 	node dev/read_charset.js <$< >$@
 
