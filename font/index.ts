@@ -172,7 +172,7 @@ export class Font extends Model {
     // No luck? try the FontDescriptor
     const fontDescriptor = this.FontDescriptor;
     if (fontDescriptor) {
-      logger.debug(`Font[${this.Name}] Loading encoding from FontDescriptor`);
+      // logger.debug(`Font[${this.Name}] Loading encoding from FontDescriptor`);
       mergeFontDescriptor(glyphmap, fontDescriptor, this.FirstChar, this.LastChar);
     }
 
