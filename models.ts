@@ -362,16 +362,16 @@ export class Resources extends Model {
       if (font_object === undefined) {
         throw new Error(`Cannot find font object for name=${name}`);
       }
-      const ctor = Font.getConstructor(font_object['Subtype']);
+      const FontCtor = Font.getConstructor(font_object['Subtype']);
       // this `object` will usually be an indirect reference.
       if (IndirectReference.isIndirectReference(dictionary_value)) {
-        cached_font = this._cached_fonts[name] = this._pdf.getModel(dictionary_value['object_number'], dictionary_value['generation_number'], ctor);
+        cached_font = this._cached_fonts[name] = this._pdf.getModel(dictionary_value['object_number'], dictionary_value['generation_number'], FontCtor);
         cached_font.Name = name;
       }
       else if (font_object) {
         // if `object` is not an indirect reference, the only caching we can do
         // is on this Resources object.
-        cached_font = this._cached_fonts[name] = new ctor(this._pdf, font_object);
+        cached_font = this._cached_fonts[name] = new FontCtor(this._pdf, font_object);
       }
       else {
         throw new Error(`Cannot find font "${name}" in Resources: ${JSON.stringify(this)}`);

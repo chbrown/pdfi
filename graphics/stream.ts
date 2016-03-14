@@ -833,7 +833,8 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     const height = Math.ceil(fontSize) | 0;
     const size = new Size(width, height);
 
-    this.canvas.drawText(string, origin, size, fontSize, font.bold, font.italic, this.graphicsState.textState.fontName);
+    this.canvas.drawText(string, origin, size, fontSize, font.bold, font.italic,
+      this.graphicsState.textState.fontName);
   }
 
   /** TJ
