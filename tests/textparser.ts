@@ -1,12 +1,11 @@
 import {deepEqual} from 'assert';
 
 import {Resources} from '../models';
-import {Rectangle} from '../graphics/geometry';
-import {Canvas} from '../graphics/models';
-import {CanvasDrawingContext} from '../graphics/stream';
+import {renderLayout} from '../graphics/index';
+import {makeRectangle} from '../graphics/geometry';
 
 function createMockResources(): Resources {
-  var font_object = {
+  const font_object = {
     Type: "Font",
     Subtype: "Type1",
     Encoding: {
@@ -18,7 +17,7 @@ function createMockResources(): Resources {
       MissingWidth: 1000,
     },
   };
-  var resource_object = {
+  const resource_object = {
     Font: {
       F10: font_object,
     },
@@ -28,29 +27,27 @@ function createMockResources(): Resources {
 
 function renderString(content_stream_string: string): string[] {
   // prepare canvas
-  var outerBounds = new Rectangle(0, 0, 800, 600);
-  var canvas = new Canvas(outerBounds);
+  const outerBounds = makeRectangle(0, 0, 800, 600);
 
   // prepare context
-  var resources = createMockResources();
-  var context = new CanvasDrawingContext(canvas, resources);
-  context.applyContentStream(new Buffer(content_stream_string));
+  const resources = createMockResources();
+  const layout = renderLayout(outerBounds, new Buffer(content_stream_string), resources);
 
   // extract text spans strings
-  return canvas.getElements().map(textSpan => textSpan.string);
+  return layout.elements.map(textSpan => textSpan.text);
 }
 
 describe('Graphics text parsing:', () => {
 
   it('should parse a simple text show operation', () => {
-    var actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
-    var expected = ['Adjustments must'];
+    const actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
+    const expected = ['Adjustments must'];
     deepEqual(actual, expected);
   });
 
   it('should parse a nested string', () => {
-    var actual = renderString('/F10 11 Tf BT (In case of \\(dire\\) emergency) Tj ET');
-    var expected = ['In case of (dire) emergency'];
+    const actual = renderString('/F10 11 Tf BT (In case of \\(dire\\) emergency) Tj ET');
+    const expected = ['In case of (dire) emergency'];
     deepEqual(actual, expected);
   });
 

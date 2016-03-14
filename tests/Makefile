@@ -9,5 +9,8 @@ all: $(TYPESCRIPT:%.ts=%.js) .gitignore
 %.js: %.ts $(BIN)/tsc
 	$(BIN)/tsc
 
+compile:
+	$(BIN)/tsc
+
 clean:
 	rm -f $(TYPESCRIPT:%.ts=%.js)
