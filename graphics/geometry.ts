@@ -1,3 +1,5 @@
+import {assign} from 'tarry';
+
 export interface Point {
   x: number;
   y: number;
@@ -18,101 +20,112 @@ export function transformPoint(point: Point,
   };
 }
 
-export class Size {
-  constructor(public width: number, public height: number) { }
+export interface Size {
+  width: number;
+  height: number;
+}
+
+export interface Rectangle {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export function makeRectangle(minX: number, minY: number, maxX: number, maxY: number): Rectangle {
+  return {minX, minY, maxX, maxY};
 }
 
 /**
-This is much like the standard PDF rectangle, using two diagonally opposite
-corners of a rectangle as its internal representation, but we are always assured
-that they represent the corner nearest the origin first (as minX/minY), and the
-opposite corner last (as maxX/maxY).
+Measure the distance from this Rectangle to a different Rectangle, using the
+nearest two corners. If there is any overlap in either the x-axis or y-axis
+(including if two sides are exactly adjacent), it will return 0 for that
+component. However, there is only true overlap if both components are 0.
+
+Returns a tuple: [x_axis_distance, y_axis_distance]
 */
-export class Rectangle {
-  constructor(public minX: number, public minY: number,
-              public maxX: number, public maxY: number) { }
-
-  get midX(): number {
-    return (this.maxX - this.minX) / 2 + this.minX;
+export function distanceToRectangle(from: Rectangle, to: Rectangle): [number, number] {
+  // 1) measure x-axis displacement
+  let dx = 0; // default to the overlap case
+  if (to.maxX < from.minX) {
+    // target Rectangle is completely disjoint to the left
+    dx = from.minX - to.maxX;
   }
-  get midY(): number {
-    return (this.maxY - this.minY) / 2 + this.minY;
+  else if (to.minX > from.maxX) {
+    // target Rectangle is completely disjoint to the right
+    dx = to.minX - from.maxX;
   }
-
-  /**
-  I.e., width
-  */
-  get dX(): number {
-    return this.maxX - this.minX;
+  // 2) measure y-axis displacement
+  let dy = 0;
+  if (to.maxY < from.minY) {
+    // target Rectangle is completely disjoint above
+    dy = from.minY - to.maxY;
   }
-  /**
-  I.e., height
-  */
-  get dY(): number {
-    return this.maxY - this.minY;
+  else if (to.minY > from.maxY) {
+    // target Rectangle is completely disjoint below
+    dy = to.minY - from.maxY;
   }
+  // 3) return a tuple
+  return [dx, dy];
+}
 
-  toString(digits = 0): string {
-    // const size_string = `(${this.dX.toFixed(digits)}x${this.dY.toFixed(digits)})`;
-    // return `${point_string} ${size_string}`;
-    // [span.minX, span.minY, span.maxX, span.maxY].map(x => x.toFixed(3)).join(',');
-    return `[${this.minX.toFixed(digits)}, ${this.minY.toFixed(digits)}, ${this.maxX.toFixed(digits)}, ${this.maxY.toFixed(digits)}]`;
-  }
+/**
+Find the Rectangle that contains both {source} and {target}.
+*/
+export function boundingRectangle(...rectangles: Rectangle[]): Rectangle {
+  // super(Infinity, Infinity, -Infinity, -Infinity);
+  return {
+    minX: Math.min(...rectangles.map(({minX}) => minX)),
+    minY: Math.min(...rectangles.map(({minY}) => minY)),
+    maxX: Math.max(...rectangles.map(({maxX}) => maxX)),
+    maxY: Math.max(...rectangles.map(({maxY}) => maxY)),
+  };
+}
 
-  /**
-  Measure the distance from this Rectangle to a different Rectangle, using the
-  nearest two corners. If there is any overlap in either the x-axis or y-axis
-  (including if two sides are exactly adjacent), it will return 0 for that
-  component. However, there is only true overlap if both components are 0.
+export const emptyRectangle: Rectangle = {minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity};
 
-  Returns a tuple: [x_axis_distance, y_axis_distance]
-  */
-  distance(other: Rectangle): [number, number] {
-    // 1) measure x-axis displacement
-    let dx = 0; // default to the overlap case
-    if (other.maxX < this.minX) {
-      // other Rectangle is completely disjoint to the left
-      dx = this.minX - other.maxX;
-    }
-    else if (other.minX > this.maxX) {
-      // other Rectangle is completely disjoint to the right
-      dx = other.minX - this.maxX;
-    }
-    // 2) measure y-axis displacement
-    let dy = 0;
-    if (other.maxY < this.minY) {
-      // other Rectangle is completely disjoint above
-      dy = this.minY - other.maxY;
-    }
-    else if (other.minY > this.maxY) {
-      // other Rectangle is completely disjoint below
-      dy = other.minY - this.maxY;
-    }
-    // 3) return a tuple
-    return [dx, dy];
-  }
+export function formatRectangle({minX, minY, maxX, maxY}: Rectangle, digits = 0): string {
+  return `[${minX.toFixed(digits)}, ${minY.toFixed(digits)}, ${maxX.toFixed(digits)}, ${maxY.toFixed(digits)}]`;
+}
 
-  /**
-  Returns true if this fully contains the other rectangle.
+/**
+Returns true if {source} fully contains {target}.
 
-  The calculation is inclusive; i.e., this.containsRectangle(this) === true
-  */
-  containsRectangle(other: Rectangle): boolean {
-    return (this.minX <= other.minX) && (this.minY <= other.minY) &&
-           (this.maxX >= other.maxX) && (this.maxY >= other.maxY);
-  }
+The calculation is inclusive; i.e., source.containsRectangle(source) === true
+*/
+export function containsRectangle(source: Rectangle, target: Rectangle): boolean {
+  return (source.minX <= target.minX) && (source.minY <= target.minY) &&
+         (source.maxX >= target.maxX) && (source.maxY >= target.maxY);
+}
 
-  /**
-  Adjust the bounds to contain `other`.
+export interface Container<T extends Rectangle> extends Rectangle {
+  elements: T[];
+}
 
-  This is a mutating method.
-  */
-  protected expandToContain(other: Rectangle): void {
-    this.minX = Math.min(this.minX, other.minX);
-    this.minY = Math.min(this.minY, other.minY);
-    this.maxX = Math.max(this.maxX, other.maxX);
-    this.maxY = Math.max(this.maxY, other.maxY);
-  }
+/**
+Add the given {elements} to the container's elements, creating a new container
+with its bounds extended to contain the new elements if needed.
+
+TODO: optimize this by using PointArray (plain `push()` incurs a lot of function calls).
+*/
+export function addElements<T extends Rectangle>(container: Container<T>, ...newElements: T[]): Container<T> {
+  const elements = container.elements.concat(newElements);
+  return assign(boundingRectangle(container, ...newElements), {elements});
+}
+
+/**
+Combine the elements of {target} and {source} (target ++ source) and expand the
+bounds to contain both. It's more efficient than addElements(target, source.elements),
+since source already knows its bounding box.
+*/
+export function mergeContainer<T extends Rectangle>(target: Container<T>, source: Container<T>): Container<T> {
+  const elements = target.elements.concat(source.elements);
+  return assign(boundingRectangle(target, source), {elements});
+}
+
+export function makeContainer<T extends Rectangle>(): Container<T> {
+  const {minX, minY, maxX, maxY} = emptyRectangle;
+  return {elements: [], minX, minY, maxX, maxY};
 }
 
 /**

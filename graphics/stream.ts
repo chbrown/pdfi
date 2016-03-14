@@ -6,8 +6,7 @@ import {Resources} from '../models';
 import {clone, countSpaces, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
-import {Canvas} from './models';
-import {Point, transformPoint, Size, Rectangle, mat3mul, mat3ident} from './geometry';
+import {Point, transformPoint, Size, Rectangle, formatRectangle, mat3mul, mat3ident} from './geometry';
 import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 
 
@@ -109,6 +108,52 @@ export abstract class DrawingContext {
 
   get resources(): Resources {
     return this.resourcesStack[this.resourcesStack.length - 1];
+  }
+
+  /**
+  This is called from the various text drawing operations, like showString and showStrings.
+
+  It modifies {this.textMatrix}, and returns the amount of x translation.
+  */
+  protected advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
+    const {textState: {fontSize, charSpacing, wordSpacing, horizontalScaling}} = this.graphicsState;
+    // width_units is positive, but we want to move forward, so tx should be positive too
+    const tx = (((width_units / 1000) * fontSize) + (charSpacing * chars) + (wordSpacing * spaces)) *
+               (horizontalScaling / 100.0);
+    this.textMatrix = mat3mul([  1, 0, 0,
+                                 0, 1, 0,
+                                tx, 0, 1], this.textMatrix);
+    return tx;
+  }
+  /**
+  Compute the current drawing space text insertion point by combining
+  {this.graphicsState} and {this.textMatrix}.
+
+  In the specifications formulas, 'fs' is replaced by `fontSize` and 'fsh' is
+  replaced by `fontSize * (horizontalScaling / 100.0)`.
+  */
+  protected getTextPosition(): Point {
+    const {textState: {fontSize, horizontalScaling, rise}, ctMatrix} = this.graphicsState;
+    const base = [fontSize * (horizontalScaling / 100.0),          0, 0,
+                                                       0,   fontSize, 0,
+                                                       0,       rise, 1];
+    // TODO: optimize this final matrix multiplication; we only need two of the
+    // entries, and we discard the rest, so we don't need to calculate them in
+    // the first place.
+    const composedTransformation = mat3mul(this.textMatrix, ctMatrix);
+    const textRenderingMatrix = mat3mul(base, composedTransformation);
+    return {x: textRenderingMatrix[6], y: textRenderingMatrix[7]};
+  }
+  /**
+  Compute the current font size by combining a limited number of properties from
+  the {this.graphicsState} and {this.textMatrix} values.
+
+  This only scales / skews the size of the font; it ignore the positions of the textMatrix / ctMatrix.
+  */
+  protected getTextSize(): number {
+    const {textState: {fontSize}, ctMatrix} = this.graphicsState;
+    const mat = mat3mul(this.textMatrix, ctMatrix);
+    return transformPoint({x: 0, y: fontSize}, mat[0], mat[3], mat[1], mat[4]).y;
   }
 
   // ###########################################################################
@@ -744,54 +789,20 @@ export abstract class RecursiveDrawingContext extends DrawingContext {
   }
 }
 
-
-export class CanvasDrawingContext extends RecursiveDrawingContext {
-  constructor(public canvas: Canvas,
+export interface Span extends Point, Size {
+  fontName: string;
+  fontSize: number;
+  fontBold: boolean;
+  fontItalic: boolean;
+  buffer: Buffer;
+  text: string;
+}
+export class SpanDrawingContext extends RecursiveDrawingContext {
+  constructor(public spans: Span[],
               resources: Resources,
               public skipMissingCharacters = false,
               depth = 0) {
     super(resources, depth);
-  }
-
-  /**
-  advanceTextMatrix is only called from the various text drawing operations,
-  like showString and showStrings.
-  */
-  private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
-    const {textState} = this.graphicsState;
-    // width_units is positive, but we want to move forward, so tx should be positive too
-    const tx = (((width_units / 1000) * textState.fontSize) +
-        (textState.charSpacing * chars) +
-        (textState.wordSpacing * spaces)) *
-      (textState.horizontalScaling / 100.0);
-    this.textMatrix = mat3mul([  1, 0, 0,
-                                 0, 1, 0,
-                                tx, 0, 1], this.textMatrix);
-    return tx;
-  }
-
-  private getTextPosition(): Point {
-    const {textState} = this.graphicsState;
-    const fs = textState.fontSize;
-    const fsh = fs * (textState.horizontalScaling / 100.0);
-    const rise = textState.rise;
-    const base = [fsh,    0, 0,
-                    0,   fs, 0,
-                    0, rise, 1];
-
-    // TODO: optimize this final matrix multiplication; we only need two of the
-    // entries, and we discard the rest, so we don't need to calculate them in
-    // the first place.
-    const composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    const textRenderingMatrix = mat3mul(base, composedTransformation);
-    return {x: textRenderingMatrix[6], y: textRenderingMatrix[7]};
-  }
-
-  private getTextSize(): number {
-    // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
-    const mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    const font_point = {x: 0, y: this.graphicsState.textState.fontSize};
-    return transformPoint(font_point, mat[0], mat[3], mat[1], mat[4]).y;
   }
 
   /** Tj
@@ -801,35 +812,33 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
 
   In the case of composite Fonts, each byte in `buffer` may not correspond to a
   single glyph, but for "simple" fonts, that is the case.
-
   */
   // @checkArguments([{type: 'Buffer'}])
   showString(buffer: Buffer) {
+    const {fontName} = this.graphicsState.textState;
     // the Font instance handles most of the character code resolution
-    const font = this.resources.getFont(this.graphicsState.textState.fontName);
-    if (font === null) {
+    const font = this.resources.getFont(fontName);
+    if (!font) {
       // missing font -- will induce an error down the line pretty quickly
-      throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
+      throw new Error(`Cannot find font "${fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
 
-    const origin = this.getTextPosition();
+    const {x, y} = this.getTextPosition();
     const fontSize = this.getTextSize();
 
-    const string = font.decodeString(buffer, this.skipMissingCharacters);
+    const text = font.decodeString(buffer, this.skipMissingCharacters);
     const width_units = font.measureString(buffer);
-    const nchars = string.length;
-    const nspaces = countSpaces(string);
+    const nchars = text.length;
+    const nspaces = countSpaces(text);
+    const {bold: fontBold, italic: fontItalic} = font;
 
     // adjust the text matrix accordingly (but not the text line matrix)
     // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
     this.advanceTextMatrix(width_units, nchars, nspaces);
     // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
-    const width = this.getTextPosition().x - origin.x;
-    const height = Math.ceil(fontSize) | 0;
-    const size = new Size(width, height);
-
-    this.canvas.drawText(string, origin, size, fontSize, font.bold, font.italic,
-      this.graphicsState.textState.fontName);
+    const width = this.getTextPosition().x - x;
+    const height = fontSize;
+    this.spans.push({x, y, width, height, fontName, fontSize, fontBold, fontItalic, buffer, text});
   }
 
   /** TJ
@@ -845,31 +854,27 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
       // each item is either a string (character code array) or a number
       if (Buffer.isBuffer(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        this.showString(<Buffer>item);
+        this.showString(item);
       }
-      else if (typeof item === 'number') {
+      else { // if (typeof item === 'number')
         // negative numbers indicate forward (rightward) movement. if it's a
         // very negative number, it's like inserting a space. otherwise, it
         // only signifies a small manual spacing hack.
         this.advanceTextMatrix(-item, 0, 0);
-      }
-      else {
-        throw new Error(`Unknown TJ argument type: "${item}" (array: ${JSON.stringify(array)})`);
       }
     })
   }
 }
 
 export interface TextOperation {
-  action: string;
+  action: 'showString' | 'advanceTextMatrix';
   argument: string;
   // optional:
   fontName?: string;
   characterByteLength?: number;
   buffer?: Buffer;
 }
-
-export class TextDrawingContext extends RecursiveDrawingContext {
+export class TextOperationDrawingContext extends RecursiveDrawingContext {
   constructor(public operations: TextOperation[],
               resources: Resources,
               public skipMissingCharacters = false) {
@@ -877,18 +882,20 @@ export class TextDrawingContext extends RecursiveDrawingContext {
   }
 
   showString(buffer: Buffer) {
-    const font = this.resources.getFont(this.graphicsState.textState.fontName);
+    const {fontName} = this.graphicsState.textState;
+    const font = this.resources.getFont(fontName);
     if (font === null) {
-      throw new Error(`Cannot find font "${this.graphicsState.textState.fontName}" in Resources: ${JSON.stringify(this.resources)}`);
+      throw new Error(`Cannot find font "${fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
+    const {characterByteLength} = font.encoding;
     const str = font.decodeString(buffer, this.skipMissingCharacters);
     this.operations.push({
       action: 'showString',
       argument: `(${str})`,
       // details:
-      fontName: this.graphicsState.textState.fontName,
-      characterByteLength: font.encoding.characterByteLength,
-      buffer: buffer,
+      fontName,
+      characterByteLength,
+      buffer,
     });
   }
 
@@ -897,16 +904,12 @@ export class TextDrawingContext extends RecursiveDrawingContext {
       // each item is either a string (character code array) or a number
       if (Buffer.isBuffer(item)) {
         // if it's a character array, convert it to a unicode string and render it
-        this.showString(<Buffer>item);
+        this.showString(item);
       }
       else {
-        // negative numbers indicate forward (rightward) movement. if it's a
-        // very negative number, it's like inserting a space. otherwise, it
-        // only signifies a small manual spacing hack.
-        const adjustment = <number>item;
         this.operations.push({
           action: 'advanceTextMatrix',
-          argument: adjustment.toString(),
+          argument: item.toString(),
         });
       }
     });

@@ -3,8 +3,36 @@ import {flatMap, mean, median, quantile} from 'tarry';
 
 import {normalize} from '../encoding/index';
 import {Multiset} from '../util';
-import {Container, TextSpan, Canvas} from './models';
-import {Rectangle} from './geometry';
+
+import {
+  Rectangle, distanceToRectangle, formatRectangle, boundingRectangle,
+  Container, makeContainer, addElements, mergeContainer,
+} from './geometry';
+
+export interface TextSpan extends Rectangle {
+  text: string;
+  fontSize: number;
+  fontBold: boolean;
+  fontItalic: boolean;
+  details?: any;
+}
+export interface PositionedRectangle extends Rectangle {
+  layoutContainer: Rectangle;
+}
+export type PositionedTextSpan = TextSpan & PositionedRectangle;
+
+/**
+A Layout usually represents a single PDF page.
+*/
+export interface Layout<T extends Rectangle> {
+  /** The rectangle bounding the entire page, will usually have an origin at 0,0 */
+  outerBounds: Rectangle;
+  /** The elements on the page as originally ordered. There is no structure. */
+  elements: T[];
+  /** The elements on the page in their autodetected layout containers. The
+  containers may overlap but should not subsume any others. */
+  containers: Container<T>[];
+}
 
 /**
 Group horizontally contiguous elements into containers. Usually this is called
@@ -22,9 +50,9 @@ function groupHorizontallyContiguousElements<T extends Rectangle>(elements: T[])
       if (currentContainer) {
         containers.push(currentContainer);
       }
-      currentContainer = new Container<T>();
+      currentContainer = makeContainer<T>();
     }
-    currentContainer.push(element);
+    currentContainer = addElements(currentContainer, element);
   });
   // flush final container if it exists --- if `elements` is empty,
   // currentContainer will still be undefined
@@ -42,19 +70,19 @@ function mergeVerticallyContiguousContainers<T extends Rectangle>(containers: Co
                                                                   threshold_dy: number): Container<T>[] {
   const mergedContainers: Container<T>[] = [];
   let currentContainer: Container<T>;
-  let previousBounds: Rectangle;
+  let previousContainer: Rectangle;
   containers.forEach(container => {
-    const [dx, dy] = previousBounds ? previousBounds.distance(container) : [Infinity, Infinity];
+    const [dx, dy] = previousContainer ? distanceToRectangle(previousContainer, container) : [Infinity, Infinity];
     const new_container = dx > threshold_dx || dy > threshold_dy;
     if (new_container) {
       // flush current container
       if (currentContainer) {
         mergedContainers.push(currentContainer);
       }
-      currentContainer = new Container<T>();
+      currentContainer = makeContainer<T>();
     }
-    currentContainer.merge(container);
-    previousBounds = container;
+    currentContainer = mergeContainer(currentContainer, container);
+    previousContainer = container;
   });
   // flush final container if it exists --- if `containers` is empty,
   // currentContainer will still be undefined
@@ -96,13 +124,13 @@ for each container in containers:
       #             end ONLY if there have been any merges?
 
 */
-export function autodetectLayout(textSpans: TextSpan[]): Container<TextSpan>[] {
+export function autodetectLayout<T extends Rectangle>(elements: T[]): Container<T>[] {
   // threshold_dx: number = 20, threshold_dy: number = 5
   // 1. first pass -- linear aggregation
-  const containers = groupHorizontallyContiguousElements(textSpans);
+  const containers = groupHorizontallyContiguousElements(elements);
   // 2. second pass -- exhaustive aggregation
-  const merged_containers = mergeVerticallyContiguousContainers(containers, 0, 5);
-  return merged_containers;
+  const mergedContainers = mergeVerticallyContiguousContainers(containers, 0, 5);
+  return mergedContainers;
 }
 
 /**
@@ -136,7 +164,7 @@ function flattenLine(textSpans: TextSpan[], spaceWidth = 1): string {
     if (previousTextSpan) {
       // if it's far enough away (horizontally) from the last box, we add a space
       if ((currentTextSpan.minX - previousTextSpan.maxX) > spaceWidth) {
-        return ' ' + currentTextSpan.string;
+        return ' ' + currentTextSpan.text;
       }
       // if it's completely overlapped by the text to the left, it's probably a
       // diacritic / accent hack
@@ -145,7 +173,7 @@ function flattenLine(textSpans: TextSpan[], spaceWidth = 1): string {
       //   return '???' + currentTextSpan.string;
       // }
     }
-    return currentTextSpan.string;
+    return currentTextSpan.text;
   }).join('');
   return normalize(line).trim();
 }
@@ -161,10 +189,10 @@ a semantic section.
 The optional parameter, `line_gap`, is the the maximum distance between lines
 before we consider the next line a new paragraph.
 */
-function groupIntoLines(textSpans: TextSpan[], line_gap = -5): TextSpan[][] {
-  const lines: TextSpan[][] = [];
-  let currentLine: TextSpan[];
-  let previousTextSpan: TextSpan;
+function groupIntoLines<T extends PositionedRectangle>(textSpans: T[], line_gap = -5): T[][] {
+  const lines: T[][] = [];
+  let currentLine: T[];
+  let previousTextSpan: T;
   textSpans.forEach(textSpan => {
     // dY is the distance from bottom of the current (active) line to the
     // top of the next span (this should come out negative if the span is
@@ -193,18 +221,6 @@ function groupIntoLines(textSpans: TextSpan[], line_gap = -5): TextSpan[][] {
 }
 
 /**
-Line is a helper when doing paragraph detection; it's pretty much just a data
-struct. It's not very interesting in itself.
-*/
-class Line extends Rectangle {
-  constructor(public textSpans: TextSpan[],
-              public layoutContainer: Rectangle = textSpans[0].layoutContainer) {
-    // TODO: maybe determine the bounds of the all the textSpans, not just the first one?
-    super(textSpans[0].minX, textSpans[0].minY, textSpans[0].maxX, textSpans[0].maxY);
-  }
-}
-
-/**
 Paragraphs are distinguished by an unusual first line. This initial line is
 unusual compared to preceding lines, as well as subsequent lines.
 
@@ -219,8 +235,14 @@ The given lines will come from a variety of different layout components, but in
 determining the oddity of the left offset of any given line, we only want to
 compare its left offset to the left offsets of other lines in the same layout component.
 */
-function detectParagaphs(linesOfTextSpans: TextSpan[][], min_indent = 5): string[][] {
-  const lines = linesOfTextSpans.map(textSpans => new Line(textSpans));
+function detectParagaphs<T extends PositionedTextSpan>(linesOfTextSpans: T[][], min_indent = 5): string[][] {
+  // each line is just a helper when doing paragraph detection
+  const lines = linesOfTextSpans.map(textSpans => {
+    // TODO: maybe determine the bounds of the all the textSpans, not just the first one?
+    const [textSpan] = textSpans;
+    const {minX, minY, maxX, maxY} = textSpan;
+    return {minX, minY, maxX, maxY, textSpans, layoutContainer: textSpans[0].layoutContainer};
+  });
 
   const paragraphs: string[][] = [];
   let currentParagraph: string[] = [];
@@ -258,20 +280,23 @@ Despite being an array, `headerElements` will most often be 1-long.
 `headerElements` is eventually flattened into `title`,
 and `contentElements` into `paragraphs`.
 */
-export class Section {
-  public paragraphs: string[][];
-  constructor(public headerElements: TextSpan[] = [],
-              public contentElements: TextSpan[] = []) { }
+export interface Section {
+  headerElements: PositionedTextSpan[];
+  contentElements: PositionedTextSpan[];
+  paragraphs?: string[][];
+}
+function makeSection(): Section {
+  return {headerElements: [], contentElements: []};
 }
 
 /**
 Recombine an array of arbitrary TextSpan Containers into an array of Sections
 */
-export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
+export function paperFromContainers(containers: Container<PositionedTextSpan>[]): Paper {
   // containers is an array of basic Containers for the whole PDF / document
   // the TextSpans in each container are self-aware of the Container they belong to (layoutContainer)
   // 1. the easiest first step is to get the mean and median font size
-  const textSpans = flatMap(containers, container => container.getElements());
+  const textSpans = flatMap(containers, container => container.elements);
   const fontSizes = textSpans.map(textSpan => textSpan.fontSize);
   // const mean_fontSize = mean(fontSizes);
   // use the 75% quartile (quantile() returns the endpoints, too) as the normal font size
@@ -280,16 +305,16 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   const header_fontSize = content_fontSize + 0.5;
   // 2. the second step is to iterate through the sections and re-group them
   const sections: Section[] = [];
-  let currentSection = new Section();
+  let currentSection = makeSection();
   containers.forEach(container => {
-    container.getElements().forEach(textSpan => {
+    container.elements.forEach(textSpan => {
       // new sections can be distinguished by larger sizes
       const isHeaderSized = textSpan.fontSize > header_fontSize;
       // or by leading boldface (boldface within other normal content does not
       // trigger a new section
       const isLeadingBold = textSpan.fontBold && currentSection.contentElements.length == 0;
       // logger.info(`textSpan isHeaderSized=${isHeaderSized}; isLeadingBold=${isLeadingBold}; isWhiteSpace=${isWhiteSpace}; content length=${currentSection.contentElements.length}: "${textSpan.string}"`);
-      const isWhiteSpace = !textSpan.string.match(/\S/);
+      const isWhiteSpace = !textSpan.text.match(/\S/);
       if (isWhiteSpace) {
         // whitespace never triggers a new section or a transition to content section
         // we just have to determine which it goes in: header or content
@@ -306,7 +331,7 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
           // flush the current section
           sections.push(currentSection);
           // initialize the new section
-          currentSection = new Section();
+          currentSection = makeSection();
         }
         currentSection.headerElements.push(textSpan);
       }
@@ -324,7 +349,7 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   sections.forEach(section => {
     // 1. First step: basic line detection. There are no such things as
     //    paragraphs if we have no concept of lines.
-    const lines: TextSpan[][] = groupIntoLines(section.contentElements);
+    const lines = groupIntoLines(section.contentElements);
     // 2. iterate through the lines, regrouping into paragraphs
     section.paragraphs = detectParagaphs(lines);
   });
@@ -345,7 +370,7 @@ export function paperFromContainers(containers: Container<TextSpan>[]): Paper {
   return {
     sections: sections.map(section => {
       // TODO: handle multi-line section headers better
-      const title_lines: TextSpan[][] = groupIntoLines(section.headerElements);
+      const title_lines = groupIntoLines(section.headerElements);
       const title_paragraphs = detectParagaphs(title_lines);
       const title = title_paragraphs.map(lines => joinLines(lines, bag_of_words)).join(' ');
       // finish up: convert each paragraph (list of strings) to a single string
