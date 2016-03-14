@@ -147,8 +147,8 @@ export class DrawingContext {
   */
   setCTM(a: number, b: number, c: number, d: number, e: number, f: number) {
     const newCTMatrix = mat3mul([a, b, 0,
-                               c, d, 0,
-                               e, f, 1], this.graphicsState.ctMatrix);
+                                 c, d, 0,
+                                 e, f, 1], this.graphicsState.ctMatrix);
     this.graphicsState.ctMatrix = newCTMatrix;
   }
   // ---------------------------------------------------------------------------
@@ -565,8 +565,8 @@ export class DrawingContext {
   adjustCurrentPosition(x: number, y: number) {
     // y is usually 0, and never positive in normal text.
     const newTextMatrix = mat3mul([1, 0, 0,
-                                 0, 1, 0,
-                                 x, y, 1], this.textLineMatrix);
+                                   0, 1, 0,
+                                   x, y, 1], this.textLineMatrix);
     this.textMatrix = this.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
@@ -592,8 +592,8 @@ export class DrawingContext {
     // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
     // e and f mark the x and y coordinates of the current position
     const newTextMatrix = [a, b, 0,
-                         c, d, 0,
-                         e, f, 1];
+                           c, d, 0,
+                           e, f, 1];
     this.textMatrix = this.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)
@@ -781,8 +781,8 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     const fsh = fs * (this.graphicsState.textState.horizontalScaling / 100.0);
     const rise = this.graphicsState.textState.rise;
     const base = [fsh,    0, 0,
-                  0,   fs, 0,
-                  0, rise, 1];
+                    0,   fs, 0,
+                    0, rise, 1];
 
     // TODO: optimize this final matrix multiplication; we only need two of the
     // entries, and we discard the rest, so we don't need to calculate them in
