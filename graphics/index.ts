@@ -7,7 +7,7 @@ import {Page, ContentStream, Resources} from '../models';
 import {Rectangle} from './geometry';
 import {Canvas, Layout} from './models';
 import {autodetectLayout, paperFromContainers} from './document';
-import {RecursiveDrawingContext, CanvasDrawingContext, TextDrawingContext, TextOperation} from './stream';
+import {CanvasDrawingContext, TextDrawingContext, TextOperation} from './stream';
 
 function createLayout(canvas: Canvas): Layout {
   return {

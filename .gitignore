@@ -10,7 +10,6 @@
 /graphics/document.js
 /graphics/geometry.js
 /graphics/index.js
-/graphics/math.js
 /graphics/models.js
 /graphics/stream.js
 /parsers/consumers.js
@@ -35,7 +34,6 @@
 /graphics/document.d.ts
 /graphics/geometry.d.ts
 /graphics/index.d.ts
-/graphics/math.d.ts
 /graphics/models.d.ts
 /graphics/stream.d.ts
 /parsers/consumers.d.ts

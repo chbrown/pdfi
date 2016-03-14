@@ -1,4 +1,4 @@
-import {Point, Size, Rectangle} from './geometry';
+import {Point, transformPoint, Size, Rectangle} from './geometry';
 
 export class Container<T extends Rectangle> extends Rectangle {
   protected elements: T[] = [];
@@ -85,7 +85,7 @@ export class Canvas extends Container<TextSpan> {
   drawText(string: string, origin: Point, size: Size,
            fontSize: number, fontBold: boolean, fontItalic: boolean, fontName: string) {
     // transform into origin at top left
-    const canvas_origin = origin.transform(1, 0, 0, -1, 0, this.outerBounds.dY)
+    const canvas_origin = transformPoint(origin, 1, 0, 0, -1, 0, this.outerBounds.dY);
     const span = new TextSpan(string,
                               canvas_origin.x,
                               canvas_origin.y,

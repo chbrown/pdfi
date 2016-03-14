@@ -21,7 +21,6 @@
     "graphics/document.ts",
     "graphics/geometry.ts",
     "graphics/index.ts",
-    "graphics/math.ts",
     "graphics/models.ts",
     "graphics/stream.ts",
     "parsers/consumers.ts",

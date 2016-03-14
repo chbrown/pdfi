@@ -7,9 +7,8 @@ import {clone, countSpaces, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
 import {Canvas} from './models';
-import {Point, Size, Rectangle} from './geometry';
+import {Point, transformPoint, Size, Rectangle, mat3mul, mat3ident} from './geometry';
 import {Color, GrayColor, RGBColor, CMYKColor} from './color';
-import {mat3mul, mat3ident} from './math';
 
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
@@ -93,7 +92,7 @@ the textMatrix and textLineMatrix do not persist between distinct BT ... ET bloc
 I don't think textState transfers to (or out of) "Do"-drawn XObjects.
 E.g., P13-4028.pdf breaks if textState carries out of the drawn object.
 */
-export class DrawingContext {
+export abstract class DrawingContext {
   resourcesStack: Resources[];
   graphicsStateStack: GraphicsState[];
   textMatrix: number[];
@@ -168,9 +167,7 @@ export class DrawingContext {
   e) Restores the saved graphics state, as if by invoking the Q operator
   Except as described above, the initial graphics state for the form shall be inherited from the graphics state that is in effect at the time Do is invoked.
   */
-  drawObject(name: string) {
-    logger.error('Unimplemented "drawObject" operation');
-  }
+  abstract drawObject(name: string);
   // ---------------------------------------------------------------------------
   // General graphics state (w, J, j, M, d, ri, i, gs)
   /**
@@ -616,9 +613,7 @@ export class DrawingContext {
   resolve the bytes into character codes until rendered in the context of a
   textState.
   */
-  showString(buffer: Buffer) {
-    logger.error('Unimplemented "showString" operation');
-  }
+  abstract showString(buffer: Buffer);
   /**
   > `array TJ`: Show one or more text strings, allowing individual glyph
   > positioning. Each element of array shall be either a string or a number.
@@ -635,9 +630,7 @@ export class DrawingContext {
   - large negative numbers equate to spaces
   - small positive amounts equate to kerning hacks
   */
-  showStrings(array: Array<Buffer | number>) {
-    logger.error('Unimplemented "showStrings" operation');
-  }
+  abstract showStrings(array: Array<Buffer | number>);
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
   > the same effect as the code `T* string Tj`
@@ -684,7 +677,7 @@ export class DrawingContext {
 /**
 Add Resources tracking and drawObject support.
 */
-export class RecursiveDrawingContext extends DrawingContext {
+export abstract class RecursiveDrawingContext extends DrawingContext {
   constructor(resources: Resources, public depth = 0) {
     super(resources, new GraphicsState());
   }
@@ -765,11 +758,12 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
   like showString and showStrings.
   */
   private advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
+    const {textState} = this.graphicsState;
     // width_units is positive, but we want to move forward, so tx should be positive too
-    const tx = (((width_units / 1000) * this.graphicsState.textState.fontSize) +
-        (this.graphicsState.textState.charSpacing * chars) +
-        (this.graphicsState.textState.wordSpacing * spaces)) *
-      (this.graphicsState.textState.horizontalScaling / 100.0);
+    const tx = (((width_units / 1000) * textState.fontSize) +
+        (textState.charSpacing * chars) +
+        (textState.wordSpacing * spaces)) *
+      (textState.horizontalScaling / 100.0);
     this.textMatrix = mat3mul([  1, 0, 0,
                                  0, 1, 0,
                                 tx, 0, 1], this.textMatrix);
@@ -777,9 +771,10 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
   }
 
   private getTextPosition(): Point {
-    const fs = this.graphicsState.textState.fontSize;
-    const fsh = fs * (this.graphicsState.textState.horizontalScaling / 100.0);
-    const rise = this.graphicsState.textState.rise;
+    const {textState} = this.graphicsState;
+    const fs = textState.fontSize;
+    const fsh = fs * (textState.horizontalScaling / 100.0);
+    const rise = textState.rise;
     const base = [fsh,    0, 0,
                     0,   fs, 0,
                     0, rise, 1];
@@ -789,14 +784,14 @@ export class CanvasDrawingContext extends RecursiveDrawingContext {
     // the first place.
     const composedTransformation = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
     const textRenderingMatrix = mat3mul(base, composedTransformation);
-    return new Point(textRenderingMatrix[6], textRenderingMatrix[7]);
+    return {x: textRenderingMatrix[6], y: textRenderingMatrix[7]};
   }
 
   private getTextSize(): number {
     // only scale / skew the size of the font; ignore the position of the textMatrix / ctMatrix
     const mat = mat3mul(this.textMatrix, this.graphicsState.ctMatrix);
-    const font_point = new Point(0, this.graphicsState.textState.fontSize);
-    return font_point.transform(mat[0], mat[3], mat[1], mat[4]).y;
+    const font_point = {x: 0, y: this.graphicsState.textState.fontSize};
+    return transformPoint(font_point, mat[0], mat[3], mat[1], mat[4]).y;
   }
 
   /** Tj

@@ -1,18 +1,21 @@
-export class Point {
-  constructor(public x: number, public y: number) { }
-  clone(): Point {
-    return new Point(this.x, this.y);
-  }
-  /**
-  This works a lot like the CSS `transform: matrix(a, c, b, d, tx, ty)` syntax.
+export interface Point {
+  x: number;
+  y: number;
+}
 
-  Returns a new Point.
-  */
-  transform(a: number, c: number,
-            b: number, d: number,
-            tx: number = 0, ty: number = 0): Point {
-    return new Point((a * this.x) + (b * this.y) + tx, (c * this.x) + (d * this.y) + ty);
-  }
+/**
+This works a lot like the CSS `transform: matrix(a, c, b, d, tx, ty)` syntax.
+
+Returns a new Point object.
+*/
+export function transformPoint(point: Point,
+                               a: number, c: number,
+                               b: number, d: number,
+                               tx: number = 0, ty: number = 0): Point {
+  return {
+    x: (a * point.x) + (b * point.y) + tx,
+    y: (c * point.x) + (d * point.y) + ty,
+  };
 }
 
 export class Size {
@@ -111,3 +114,46 @@ export class Rectangle {
     this.maxY = Math.max(this.maxY, other.maxY);
   }
 }
+
+/**
+> Because a transformation matrix has only six elements that can be changed, in most cases in PDF it shall be specified as the six-element array [a b c d e f].
+
+                 ⎡ a b 0 ⎤
+[a b c d e f] => ⎢ c d 0 ⎥
+                 ⎣ e f 1 ⎦
+
+*/
+
+/**
+Multiply two 3x3 matrices, returning a new 3x3 matrix representation.
+
+See 8.3.4 for a shortcut for avoiding full matrix multiplications.
+*/
+export function mat3mul(A: number[], B: number[]): number[] {
+  return [
+    (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]),
+    (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]),
+    (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]),
+    (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]),
+    (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]),
+    (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]),
+    (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]),
+    (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]),
+    (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
+  ];
+}
+
+/**
+Add two 3x3 matrices, returning a new 3x3 matrix representation.
+*/
+export function mat3add(A: number[], B: number[]): number[] {
+  return [
+    A[0] + B[0], A[1] + B[1], A[2] + B[2],
+    A[3] + B[3], A[4] + B[4], A[5] + B[5],
+    A[6] + B[6], A[7] + B[7], A[8] + B[8]
+  ];
+}
+
+export const mat3ident = [1, 0, 0,
+                          0, 1, 0,
+                          0, 0, 1];
