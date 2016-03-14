@@ -30,8 +30,7 @@ export function renderLayout(outerBounds: Rectangle,
     const maxX = minX + span.width;
     const maxY = minY + span.height;
     const {fontName, fontSize, fontBold, fontItalic, text} = span;
-    const details = `${formatRectangle({minX, minY, maxX, maxY})} fontName=${fontName}`;
-    return {minX, minY, maxX, maxY, text, fontSize, fontBold, fontItalic, details};
+    return {minX, minY, maxX, maxY, text, fontName, fontSize, fontBold, fontItalic};
   });
   // not sure why this doesn't work without my hints
   const positionedContainers: Container<PositionedTextSpan>[] = autodetectLayout(textSpans).map(layoutContainer => {

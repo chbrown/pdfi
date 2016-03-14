@@ -11,10 +11,10 @@ import {
 
 export interface TextSpan extends Rectangle {
   text: string;
+  fontName: string;
   fontSize: number;
   fontBold: boolean;
   fontItalic: boolean;
-  details?: any;
 }
 export interface PositionedRectangle extends Rectangle {
   layoutContainer: Rectangle;
