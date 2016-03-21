@@ -14,7 +14,6 @@ export interface DecodeParms {
 }
 
 /**
-
 FILTER name     [Has Parameters] Description
 ASCIIHexDecode  [no]    Decodes data encoded in an ASCII hexadecimal representation, reproducing the original binary data.
 ASCII85Decode   [no]    Decodes data encoded in an ASCII base-85 representation, reproducing the original binary data.
@@ -26,8 +25,6 @@ JBIG2Decode     [yes]   (PDF1.4) Decompresses data encoded using the JBIG2 stand
 DCTDecode       [yes]   Decompresses data encoded using a DCT (discrete cosine transform) technique based on the JPEG standard, reproducing image sample data that approximates the original data.
 JPXDecode       [no]    (PDF 1.5) Decompresses data encoded using the wavelet- based JPEG2000 standard, reproducing the original image data.
 Crypt           [yes]   (PDF 1.5) Decrypts data encrypted by a security handler, reproducing the data as it was before encryption.
-
-callback: Function(Error, String)
 */
 
 /**
@@ -37,7 +34,6 @@ When that function is called, it will return one of the following types:
 - An array of 1 to 5 ASCII characters
 - The string 'ZERO'
 - null, when the EOF has been reached.
-
 */
 function ASCII85Lexer(input: List<number>) {
   let i = 0;
@@ -283,11 +279,17 @@ export class BitIterator {
 }
 
 /**
+Data encoded using the LZW compression method shall consist of a sequence of codes that are 9 to 12 bits long.
+
 Each code shall represent:
 * a single character of input data (0–255)
 * a clear-table marker (256)
 * an EOD marker (257)
 * a table entry representing a multiple-character sequence that has been encountered previously in the input (258 or greater).
+
+Initially, the code length shall be 9 bits and the LZW table shall contain only entries for the 258 fixed codes. As encoding proceeds, entries shall be appended to the table, associating new codes with longer and longer sequences of input characters. The encoder and the decoder shall maintain identical copies of this table.
+
+Whenever both the encoder and the decoder independently (but synchronously) realize that the current code length is no longer sufficient to represent the number of entries in the table, they shall increase the number of bits per code by 1. The first output code that is 10 bits long shall be the one following the creation of table entry 511, and similarly for 11 (1023) and 12 (2047) bits. Codes shall never be longer than 12 bits; therefore, entry 4095 is the last entry of the LZW table.
 
 The encoder shall execute the following sequence of steps to generate each output code:
 a) Accumulate a sequence of one or more input characters matching a sequence already present in the table. For maximum compression, the encoder looks for the longest such sequence.
@@ -298,26 +300,36 @@ From Wikipedia's http://en.wikipedia.org/wiki/Lempel-Ziv-Welch:
 > In order to rebuild the dictionary in the same way as it was built during encoding, it also obtains the next value from the input and adds to the dictionary the concatenation of the current string and the first character of the string obtained by decoding the next input value, or THE FIRST CHARACTER OF THE STRING JUST OUTPUT IF THE NEXT VALUE CAN NOT BE DECODED (If the next value is unknown to the decoder, then it must be the value that will be added to the dictionary this iteration, and so its first character must be the same as the first character of the current string being sent to decoded output). The decoder then proceeds to the next input value (which was already read in as the "next value" in the previous pass) and repeats the process until there is no more input, at which point the final input value is decoded without any more additions to the dictionary.
 */
 export function LZWDecode(buffer: Buffer): Buffer {
-  // logger.error(`Using LZWDecode on buffer of length ${buffer.length}`);
   const bits = new BitIterator(buffer);
-
-  let tableMax: number;
-  let table: {[index: number]: Buffer};
-
   const chunks: Buffer[] = [];
 
+  let table: {[index: number]: Buffer};
+  let tableMax: number = 257
   let codeLength = 9;
 
   while (bits.length > bits.offset) {
     const code = bits.next(codeLength);
-    if (code == 256) { // clear table marker
+    if (code == 256) { // clear table marker (this will be the first code in the LZWDecode stream)
       table = {};
       tableMax = 257;
+      codeLength = 9;
     }
     else if (code == 257) { // EOD marker
       break;
     }
     else {
+      const tableIndex = tableMax + 1;
+      // The first output code that is 10 bits long shall be the one following the creation of table entry 511, and similarly for 11 (1023) and 12 (2047) bits. Codes shall never be longer than 12 bits; therefore, entry 4095 is the last entry of the LZW table.
+      if (tableIndex == 511) {
+        codeLength++; // set codeLength to 10
+      }
+      else if (tableIndex == 1023) {
+        codeLength++; // set codeLength to 11
+      }
+      else if (tableIndex == 2047) {
+        codeLength++; // set codeLength to 12
+      }
+
       // emit the table buffer, or a single character if there is no table entry
       const outputChunk = (code < 255) ? new Buffer([code]) : table[code];
       chunks.push(outputChunk);
@@ -328,6 +340,8 @@ export function LZWDecode(buffer: Buffer): Buffer {
       // but it may be outside that range
       if (nextCode === 256 || nextCode === 257) {
         // it's a control code; so it doesn't really matter
+        // i.e., if it's 256, whatever changes we make to table and tableMax
+        // will just get wiped out; if it's 257, they'll never get read again
         nextPrefix = 0;
       }
       else if (nextCode > tableMax) {
@@ -341,19 +355,7 @@ export function LZWDecode(buffer: Buffer): Buffer {
         nextPrefix = table[nextCode][0];
       }
       const tableChunk = Buffer.concat([outputChunk, new Buffer([nextPrefix])]);
-      const tableIndex = tableMax + 1;
       table[tableIndex] = tableChunk;
-
-      // The first output code that is 10 bits long shall be the one following the creation of table entry 511, and similarly for 11 (1023) and 12 (2047) bits. Codes shall never be longer than 12 bits; therefore, entry 4095 is the last entry of the LZW table.
-      if (tableIndex == 511) {
-        codeLength++;
-      }
-      else if (tableIndex == 1023) {
-        codeLength++;
-      }
-      else if (tableIndex == 2047) {
-        codeLength++;
-      }
 
       // finally, increment our table entry cursor
       tableMax++;
