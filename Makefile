@@ -1,5 +1,4 @@
 BIN := node_modules/.bin
-# TYPESCRIPT := $(shell find . -name '*.ts' -not -name '*.d.ts' -not -path '*/node_modules/*' | cut -c 3-)
 TYPESCRIPT := $(shell jq -r '.files[]' tsconfig.json | grep -Fv .d.ts)
 SHELL := bash
 
@@ -22,6 +21,10 @@ $(BIN)/tsc $(BIN)/_mocha $(BIN)/istanbul $(BIN)/coveralls:
 
 compile:
 	$(BIN)/tsc -d
+
+.PHONY: dev
+dev:
+	$(BIN)/tsc -d -w
 
 test: $(TYPESCRIPT:%.ts=%.js) $(BIN)/istanbul $(BIN)/_mocha $(BIN)/coveralls
 	$(MAKE) -C tests
