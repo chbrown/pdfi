@@ -1,8 +1,3 @@
-export function countSpaces(haystack: string): number {
-  const matches = haystack.match(/ /g);
-  return matches ? matches.length : 0;
-}
-
 export function clone(source: any, target: any = {}): any {
   for (let key in source) {
     if (source.hasOwnProperty(key)) {
@@ -159,4 +154,60 @@ export function swapEndian(buffer: Buffer): Buffer {
     buffer[i+1] = byte;
   }
   return buffer;
+}
+
+/**
+If a line ends with a hyphen, we remove the hyphen and join it to
+the next line directly; otherwise, join them with a space.
+
+Render each Paragraph into a single string with any pre-existing EOL
+markers converted to spaces, and any control characters stripped out.
+
+bag_of_words is used to look at the whole document for indicators of
+intentionally hyphenated words. It should be all lowercase, and is usually an
+instance of Multiset.
+*/
+export function unwrapLines(lines: string[], bag_of_words: {get(token: string): number}): string {
+  // each line in lines is guaranteed not to contain whitespace other than
+  // SPACE, since they've all been run through flattenLine, so when we join
+  // with newline characters here, we know that only newlines in the string
+  // are the ones we've just added
+  const joined = lines.join('\n');
+  // now look for all occurrences of "-\n", capturing the words before and after
+  const rejoined = joined.replace(/(\w+)-\n(\w+)/g, (_, left: string, right: string) => {
+    // if line is hyphenated, and the word that is broken turns up in the corpus
+    // more times WITH the hyphen than WITHOUT, return it WITH the hyphen
+    const left_lower = left.toLowerCase();
+    const right_lower = right.toLowerCase();
+    const hyphenated = `${left}-${right}`;
+    const nhyphenated = bag_of_words.get(`${left_lower}-${right_lower}`);
+    const dehyphenated = `${left}${right}`;
+    const ndehyphenated = bag_of_words.get(`${left_lower}${right_lower}`);
+    if (nhyphenated > ndehyphenated) {
+      return hyphenated
+    }
+    else if (ndehyphenated > nhyphenated) {
+      return dehyphenated;
+    }
+    // otherwise, they're equal (both 0, usually), which is tougher
+    // 1. if the second of the two parts is capitalized (Uppercase-Lowercase),
+    //    it's probably a hyphenated name, so keep it hyphenated
+    const capitalized = right[0] === right[0].toUpperCase();
+    if (capitalized) {
+      return hyphenated;
+    }
+    // TODO: what about Uppercase-lowercase? Can we assume anything?
+    // 2. if the two parts are reasonable words in themselves, keep them
+    //    hyphenated (it's probably something like "one-vs-all", or "bag-of-words")
+    const common_parts = (bag_of_words.get(left_lower) + bag_of_words.get(right_lower)) > 2;
+    if (common_parts) {
+      return hyphenated;
+    }
+    // finally, default to dehyphenation, which is by far more common than
+    // hyphenation (though it's more destructive of an assumption when wrong)
+    return dehyphenated;
+  });
+  // the remaining line breaks are legimate breaks between words, so we simply
+  // replace them with a plain SPACE
+  return rejoined.replace(/\n/g, ' ');
 }

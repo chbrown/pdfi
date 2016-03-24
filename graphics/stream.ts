@@ -3,12 +3,41 @@ import * as chalk from 'chalk';
 import {logger} from '../logger';
 import {Font} from '../font/index';
 import {Resources} from '../models';
-import {clone, countSpaces, checkArguments} from '../util';
+import {clone, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
 import {Point, transformPoint, Size, Rectangle, formatRectangle, mat3mul, mat3ident} from './geometry';
-import {Color, GrayColor, RGBColor, CMYKColor} from './color';
 
+export class Color {
+  clone(): Color { return new Color(); }
+  toString(): string {
+    return 'none';
+  }
+}
+
+export class RGBColor extends Color {
+  constructor(public r: number, public g: number, public b: number) { super() }
+  clone(): RGBColor { return new RGBColor(this.r, this.g, this.b); }
+  toString(): string {
+    return `rgb(${this.r}, ${this.g}, ${this.b})`;
+  }
+}
+
+export class GrayColor extends Color {
+  constructor(public alpha: number) { super() }
+  clone(): GrayColor { return new GrayColor(this.alpha); }
+  toString(): string {
+    return `rgb(${this.alpha}, ${this.alpha}, ${this.alpha})`;
+  }
+}
+
+export class CMYKColor extends Color {
+  constructor(public c: number, public m: number, public y: number, public k: number) { super() }
+  clone(): CMYKColor { return new CMYKColor(this.c, this.m, this.y, this.k); }
+  toString(): string {
+    return `cmyk(${this.c}, ${this.m}, ${this.y}, ${this.k})`;
+  }
+}
 
 // Rendering mode: see PDF32000_2008.pdf:9.3.6, Table 106
 export enum RenderingMode {
@@ -113,7 +142,11 @@ export abstract class DrawingContext {
   /**
   This is called from the various text drawing operations, like showString and showStrings.
 
+  This function only works / is only correct for horizontal writing mode.
+
   It modifies {this.textMatrix}, and returns the amount of x translation.
+
+  Reference: PDF32000_2008.pdf:9.4.4
   */
   protected advanceTextMatrix(width_units: number, chars: number, spaces: number): number {
     const {textState: {fontSize, charSpacing, wordSpacing, horizontalScaling}} = this.graphicsState;
@@ -674,8 +707,26 @@ export abstract class DrawingContext {
   In other words:
   - large negative numbers equate to spaces
   - small positive amounts equate to kerning hacks
+
+  For each item in `array`:
+    If item is a Buffer, that indicates a string of character codes
+    If item is a plain number, that indicates a spacing shift
   */
-  abstract showStrings(array: Array<Buffer | number>);
+  showStrings(array: Array<Buffer | number>) {
+    array.forEach(item => {
+      // each item is either a string (character code array) or a number
+      if (Buffer.isBuffer(item)) {
+        // if it's a character array, convert it to a unicode string and render it
+        this.showString(item);
+      }
+      else { // if (typeof item === 'number')
+        // negative numbers indicate forward (rightward) movement. if it's a
+        // very negative number, it's like inserting a space. otherwise, it
+        // only signifies a small manual spacing hack.
+        this.advanceTextMatrix(-item, 0, 0);
+      }
+    })
+  }
   /** COMPLETE (ALIAS)
   > `string '` Move to the next line and show a text string. This operator shall have
   > the same effect as the code `T* string Tj`
@@ -774,11 +825,13 @@ export abstract class RecursiveDrawingContext extends DrawingContext {
     // c) clip according to the dictionary.BBox value
     // ...meh, don't worry about that
     // d) paint the XObject's content stream
-    this.resourcesStack.push(XObjectStream.Resources);
+    // if the XObject itself has no resources, simply supply it with the current
+    // resources (so that we can still pop it off in a bit either way)
+    const nextResources = XObjectStream.Resources || this.resources;
+    this.resourcesStack.push(nextResources);
     this.depth++;
 
-    const content_stream_buffer = XObjectStream.buffer;
-    this.applyContentStream(content_stream_buffer);
+    this.applyContentStream(XObjectStream.buffer);
 
     this.depth--;
     this.resourcesStack.pop();
@@ -789,31 +842,28 @@ export abstract class RecursiveDrawingContext extends DrawingContext {
   }
 }
 
-export interface Span extends Point, Size {
+/**
+fontSize is equivalent to height.
+*/
+export interface TextAtom extends Point, Size {
   fontName: string;
-  fontSize: number;
-  fontBold: boolean;
-  fontItalic: boolean;
+  font: Font;
   buffer: Buffer;
+  // if text weren't a necessary side effect of measurement, it wouldn't be included here
   text: string;
 }
-export class SpanDrawingContext extends RecursiveDrawingContext {
-  constructor(public spans: Span[],
-              resources: Resources,
-              public skipMissingCharacters = false,
-              depth = 0) {
+export class TextAtomDrawingContext extends RecursiveDrawingContext {
+  constructor(public textAtoms: TextAtom[], resources: Resources, depth = 0) {
     super(resources, depth);
   }
-
   /** Tj
 
-  drawGlyphs is called when processing a Tj ("showString") operation, and from
-  drawTextArray, in turn.
+  showString is called when processing a Tj ("showString") operation, and from
+  showStrings, in turn.
 
   In the case of composite Fonts, each byte in `buffer` may not correspond to a
   single glyph, but for "simple" fonts, that is the case.
   */
-  // @checkArguments([{type: 'Buffer'}])
   showString(buffer: Buffer) {
     const {fontName} = this.graphicsState.textState;
     // the Font instance handles most of the character code resolution
@@ -822,96 +872,19 @@ export class SpanDrawingContext extends RecursiveDrawingContext {
       // missing font -- will induce an error down the line pretty quickly
       throw new Error(`Cannot find font "${fontName}" in Resources: ${JSON.stringify(this.resources)}`);
     }
-
     const {x, y} = this.getTextPosition();
-    const fontSize = this.getTextSize();
-
-    const text = font.decodeString(buffer, this.skipMissingCharacters);
-    const width_units = font.measureString(buffer);
+    const height = this.getTextSize();
+    const width_units = font.measure(buffer);
+    const text = font.decodeString(buffer, true);
     const nchars = text.length;
-    const nspaces = countSpaces(text);
-    const {bold: fontBold, italic: fontItalic} = font;
-
+    // it's not actually clear from 9.3.3 Word Spacing whether we count SPACE (0x20 = 32)
+    // codes that show up in the byte space or the glyph space
+    const nspaces = (text.match(/ /g) || []).length;
     // adjust the text matrix accordingly (but not the text line matrix)
     // see the `... TJ` documentation, as well as PDF32000_2008.pdf:9.4.4
     this.advanceTextMatrix(width_units, nchars, nspaces);
     // TODO: avoid the full getTextPosition() calculation, when all we need is the current x
     const width = this.getTextPosition().x - x;
-    const height = fontSize;
-    this.spans.push({x, y, width, height, fontName, fontSize, fontBold, fontItalic, buffer, text});
-  }
-
-  /** TJ
-
-  drawTextArray is called when processing a TJ ("showStrings") operation.
-
-  For each item in `array`:
-    If item is a number[], that indicates a string of character codes
-    If item is a plain number, that indicates a spacing shift
-  */
-  showStrings(array: Array<Buffer | number>) {
-    array.forEach(item => {
-      // each item is either a string (character code array) or a number
-      if (Buffer.isBuffer(item)) {
-        // if it's a character array, convert it to a unicode string and render it
-        this.showString(item);
-      }
-      else { // if (typeof item === 'number')
-        // negative numbers indicate forward (rightward) movement. if it's a
-        // very negative number, it's like inserting a space. otherwise, it
-        // only signifies a small manual spacing hack.
-        this.advanceTextMatrix(-item, 0, 0);
-      }
-    })
-  }
-}
-
-export interface TextOperation {
-  action: 'showString' | 'advanceTextMatrix';
-  argument: string;
-  // optional:
-  fontName?: string;
-  characterByteLength?: number;
-  buffer?: Buffer;
-}
-export class TextOperationDrawingContext extends RecursiveDrawingContext {
-  constructor(public operations: TextOperation[],
-              resources: Resources,
-              public skipMissingCharacters = false) {
-    super(resources);
-  }
-
-  showString(buffer: Buffer) {
-    const {fontName} = this.graphicsState.textState;
-    const font = this.resources.getFont(fontName);
-    if (font === null) {
-      throw new Error(`Cannot find font "${fontName}" in Resources: ${JSON.stringify(this.resources)}`);
-    }
-    const {characterByteLength} = font.encoding;
-    const str = font.decodeString(buffer, this.skipMissingCharacters);
-    this.operations.push({
-      action: 'showString',
-      argument: `(${str})`,
-      // details:
-      fontName,
-      characterByteLength,
-      buffer,
-    });
-  }
-
-  showStrings(array: Array<Buffer | number>) {
-    array.forEach(item => {
-      // each item is either a string (character code array) or a number
-      if (Buffer.isBuffer(item)) {
-        // if it's a character array, convert it to a unicode string and render it
-        this.showString(item);
-      }
-      else {
-        this.operations.push({
-          action: 'advanceTextMatrix',
-          argument: item.toString(),
-        });
-      }
-    });
+    this.textAtoms.push({x, y, width, height, fontName, font, buffer, text});
   }
 }

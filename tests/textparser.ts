@@ -1,4 +1,5 @@
 import {deepEqual} from 'assert';
+import {flatMap} from 'tarry';
 
 import {Resources} from '../models';
 import {renderLayout} from '../graphics/index';
@@ -31,14 +32,18 @@ function renderString(content_stream_string: string): string[] {
 
   // prepare context
   const resources = createMockResources();
-  const layout = renderLayout(outerBounds, new Buffer(content_stream_string), resources);
+  const paragraphs = renderLayout(outerBounds, new Buffer(content_stream_string), resources);
 
   // extract text spans strings
-  return layout.elements.map(textSpan => textSpan.text);
+  const textSpans = flatMap(paragraphs, paragraph =>
+    flatMap(paragraph.elements, line =>
+      flatMap(line.elements, wordGroup => wordGroup.elements)
+    )
+  );
+  return textSpans.map(({text}) => text);
 }
 
 describe('Graphics text parsing:', () => {
-
   it('should parse a simple text show operation', () => {
     const actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
     const expected = ['Adjustments must'];
@@ -50,5 +55,4 @@ describe('Graphics text parsing:', () => {
     const expected = ['In case of (dire) emergency'];
     deepEqual(actual, expected);
   });
-
 });

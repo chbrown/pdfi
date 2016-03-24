@@ -6,9 +6,8 @@
 /filters/decoders.js
 /font/descriptor.js
 /font/index.js
-/graphics/color.js
-/graphics/document.js
 /graphics/geometry.js
+/graphics/layout.js
 /graphics/index.js
 /graphics/stream.js
 /parsers/consumers.js
@@ -29,9 +28,8 @@
 /filters/decoders.d.ts
 /font/descriptor.d.ts
 /font/index.d.ts
-/graphics/color.d.ts
-/graphics/document.d.ts
 /graphics/geometry.d.ts
+/graphics/layout.d.ts
 /graphics/index.d.ts
 /graphics/stream.d.ts
 /parsers/consumers.d.ts

@@ -6,9 +6,8 @@ encoding/glyphmaps.ts
 filters/decoders.ts
 font/descriptor.ts
 font/index.ts
-graphics/color.ts
-graphics/document.ts
 graphics/geometry.ts
+graphics/layout.ts
 graphics/index.ts
 graphics/stream.ts
 parsers/consumers.ts

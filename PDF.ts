@@ -2,11 +2,12 @@ import * as chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {Source} from 'lexing';
 import {lastIndexOf} from 'lexing/source';
+import {flatMap} from 'tarry';
 
 import {logger} from './logger';
 import * as pdfdom from './pdfdom';
 import * as models from './models';
-import * as graphics from './graphics/index';
+import {renderLayoutFromPage, paperFromParagraphs} from './graphics/index';
 
 import {parseStateAt} from './parsers/index';
 import {OBJECT, STARTXREF, XREF_WITH_TRAILER} from './parsers/states';
@@ -168,16 +169,16 @@ export class PDF {
   }
 
   /**
-  Returns one string (one line) for each paragraph.
-
-  Reduces all the PDF's pages to a single array of Lines. Each Line keeps
-  track of the container it belongs to, so that we can measure offsets
-  later.
-
-  If `section_names` is empty, return all sections.
+  Render all of the PDF's pages into a single textual data structure, where each
+  section is represented by a title string and a list of paragraphs (each
+  paragraph is represented by a single string, without newlines).
   */
-  renderPaper(): Paper {
-    return graphics.renderPaper(this.pages);
+  renderPaper(skipMissingCharacters = true): Paper {
+    const paragraphs = flatMap(this.pages, (page, i, pages) => {
+      logger.debug(`renderPaper: rendering page ${i + 1}/${pages.length}`);
+      return renderLayoutFromPage(page, skipMissingCharacters);
+    });
+    return paperFromParagraphs(paragraphs);
   }
 
   /**
@@ -197,5 +198,4 @@ export class PDF {
     }
     return object;
   }
-
 }
