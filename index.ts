@@ -90,3 +90,5 @@ export function simplify(value: any, seen: any[] = []): any {
   // catch-all
   return value;
 }
+
+export type PDF = PDF;
