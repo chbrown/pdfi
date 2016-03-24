@@ -30,8 +30,8 @@ function mergeFontDescriptor(glyphmap: string[],
 }
 
 /**
-Font is a general, sometimes abstract (see Font#measureString), representation
-of a PDF Font of any Subtype.
+Font is a general, partly abstract (see Font#measure) representation of a PDF
+Font of any Subtype.
 
 Some uses, which vary in their implementation based on the Type of the font,
 require creating a specific Font subclass, e.g., Type1Font().
@@ -41,7 +41,7 @@ Beyond the `object` property, common to all Model instances, Font also has a
 Resources#getFont(), for easier debugging. It should not be used for any
 material purposes (and is not necessary for any).
 */
-export class Font extends Model {
+export abstract class Font extends Model {
   public Name: string;
 
   /**
@@ -251,9 +251,7 @@ export class Font extends Model {
   This should be overridden by subclasses to return a total width, in text units
   (usually somewhere in the range of 250-750 for each character/glyph).
   */
-  measureString(buffer: Buffer): number {
-    throw new Error(`Font[${this.Name}] Cannot measureString() in base Font class (Subtype: ${this.get('Subtype')})`);
-  }
+  abstract measure(buffer: Buffer): number;
 
   toJSON() {
     return {
@@ -290,7 +288,7 @@ export class Font extends Model {
       return Type1Font;
     }
     // TODO: add the other types of fonts
-    return Font;
+    return Type1Font;
   }
 }
 
@@ -349,17 +347,16 @@ export class Type1Font extends Font {
   private _widthMapping: {[index: string]: number};
   private _defaultWidth: number;
 
-  measureString(buffer: Buffer): number {
+  measure(buffer: Buffer): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
     const charCodes = readCharCodes(buffer, this.encoding.characterByteLength);
-    const totalWidth = charCodes.reduce((sum, charCode) => {
+    return charCodes.reduce((sum, charCode) => {
       const str = this.encoding.mapping[charCode];
       const width = (str in this._widthMapping) ? this._widthMapping[str] : this._defaultWidth;
       return sum + width;
     }, 0);
-    return totalWidth;
   }
 
   /**
@@ -446,7 +443,7 @@ export class Type0Font extends Font {
     this._defaultWidth = this.DescendantFont.getDefaultWidth();
   }
 
-  measureString(buffer: Buffer): number {
+  measure(buffer: Buffer): number {
     if (this._widthMapping === undefined || this._defaultWidth === undefined) {
       this._initializeWidthMapping();
     }
@@ -465,6 +462,8 @@ export class Type0Font extends Font {
 /**
 CIDFonts (PDF32000_2008.pdf:9.7.4)
 
+This doesn't need to inherit the full Font class.
+
 Goes well with Type 0 fonts.
 
 > Type: 'Font'
@@ -478,7 +477,7 @@ Goes well with Type 0 fonts.
     value: none (the DW value shall be used for all glyphs).
 
 */
-export class CIDFont extends Font {
+export class CIDFont extends Model {
   get CIDSystemInfo(): string {
     return this.get('CIDSystemInfo');
   }
