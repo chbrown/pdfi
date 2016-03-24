@@ -5,7 +5,7 @@ import {logger} from './logger';
 import {PDFBufferIterator} from './parsers/index';
 import {OBJECT} from './parsers/states';
 import {IndirectObject, PDFObject, Rectangle, DictionaryObject} from './pdfdom';
-import {decodeBuffer} from './filters/decoders';
+import {applyFilters} from './filters/decoders';
 
 /**
 Importing PDF from './PDF' induces a breaking circular dependency.
@@ -274,7 +274,7 @@ export class ContentStream extends Model {
   get buffer(): Buffer {
     const filters = asArray(this.object['dictionary']['Filter']);
     const decodeParmss = asArray(this.object['dictionary']['DecodeParms']);
-    return decodeBuffer(this.object['buffer'], filters, decodeParmss);
+    return applyFilters(this.object['buffer'], filters, decodeParmss);
   }
 
   toJSON(): any {

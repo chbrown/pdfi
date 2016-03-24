@@ -3,7 +3,7 @@ import {asArray, groups, flatMap, range, assign} from 'tarry';
 import {logger} from '../logger';
 import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
-import {decodeBuffer} from '../filters/decoders';
+import {applyFilters} from '../filters/decoders';
 
 import {consumeString, consumeHexString} from './consumers';
 import {MachineRule as Rule, MachineState, MachineCallback} from './machine';
@@ -146,7 +146,9 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     Rule(/^\/([!-'*-.0-;=?-Z\\^-z|~]+)/, this.captureName),
     Rule(/^-?[0-9]*\.[0-9]+/, this.captureFloat),
     Rule(/^-?[0-9]+/, this.captureInt),
-    Rule(/^%%EOF/, this.ignore), // WTF?
+    // allow comments in content streams, because apparently some people don't read the spec
+    // Rule(/^%%EOF/, this.ignore), // WTF?
+    Rule(/^%.+?(\r\n|\n|\r)/, this.ignore), // WTFx2?
     // maybe create a regex based on the valid operators?
     Rule(/^[A-Za-z'"]+[01*]?/, this.captureOperator),
   ]
@@ -408,7 +410,7 @@ export class XREF_WITH_TRAILER extends MachineState<XrefWithTrailer, XrefWithTra
     // value will be a StreamObject, i.e., {dictionary: {...}, buffer: Buffer}
     const filters = asArray(value['dictionary'].Filter);
     const decodeParmss = asArray(value['dictionary'].DecodeParms);
-    const buffer = decodeBuffer(value['buffer'], filters, decodeParmss);
+    const buffer = applyFilters(value['buffer'], filters, decodeParmss);
 
     const Size = value['dictionary'].Size;
     // object_number_pairs: Array<[number, number]>

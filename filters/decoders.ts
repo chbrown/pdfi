@@ -372,11 +372,11 @@ const decoders = {
   LZWDecode,
 };
 
-export function decodeBuffer(buffer: Buffer, filters: string[], decodeParmss: any[]) {
+export function applyFilters(buffer: Buffer, filters: string[], decodeParmss: any[] = []) {
   filters.forEach((filter, i) => {
     const decoder = decoders[filter];
     if (decoder !== undefined) {
-      buffer = decoder(buffer, decodeParmss ? decodeParmss[i] : undefined);
+      buffer = decoder(buffer, decodeParmss[i]);
     }
     else {
       throw new Error(`Could not find decoder named "${filter}" to fully decode stream`);
