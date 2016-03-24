@@ -183,12 +183,6 @@ export function decodeBuffer(buffer: Buffer): string {
     // UTF-16 (BE)
     return swapEndian(buffer).toString('utf16le');
   }
-  else if (buffer[0] == 255 && buffer[1] == 254) {
-    // UTF-16 (LE)
-    // the docs say this is not valid in a PDF?
-    // apparently Node.js will swallow the BOM even if I don't slice it off
-    return buffer.slice(2).toString('utf16le');
-  }
   const chunks: string[] = [];
   for (var i = 0, l = buffer.length; i < l; i++) {
     chunks.push(PDFDocUnicode[buffer[i]]);
