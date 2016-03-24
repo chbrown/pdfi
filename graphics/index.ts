@@ -130,7 +130,7 @@ function joinParagraph(paragraph: Paragraph, bag_of_words: Multiset): string {
   const lines = paragraph.elements.map(line => {
     return line.elements.map(wordGroup => wordGroup.elements.map(({text}) => text).join('')).join(' ');
   });
-  return unwrapLines(lines, bag_of_words);
+  return normalize(unwrapLines(lines, bag_of_words));
 }
 
 /**
