@@ -15,7 +15,7 @@ export interface PDF {
   getModel<T extends Model>(object_number: number,
                             generation_number: number,
                             ctor: { new(pdf: PDF, object: PDFObject): T }): T;
-  _resolveObject(object: PDFObject): PDFObject ;
+  _resolveObject(object: PDFObject): PDFObject;
 }
 
 /**
