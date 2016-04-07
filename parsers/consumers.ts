@@ -82,6 +82,12 @@ export function consumeString(iterable: BufferIterable,
     const newState = Buffer.concat([state, new Buffer([ascii.CARRIAGE_RETURN])]);
     return consumeString(iterable, newState);
   }
+  // '\\'+'f' => \f
+  else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_F) {
+    iterable.skip(2);
+    const newState = Buffer.concat([state, new Buffer([ascii.FORM_FEED])]);
+    return consumeString(iterable, newState);
+  }
   // '\\'+'\n' or '\\'+'\r' => nothing
   else if (buffer[0] === ascii.REVERSE_SOLIDUS && (
              buffer[1] === ascii.LINE_FEED ||
