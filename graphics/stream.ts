@@ -6,7 +6,7 @@ import {Resources} from '../models';
 import {clone, checkArguments} from '../util';
 import {parseContentStream, ContentStreamOperation} from '../parsers/index';
 
-import {Point, transformPoint, Size, Rectangle, formatRectangle, mat3mul, mat3ident} from './geometry';
+import {Point, transformPoint, Size, Rectangle, formatRectangle, Mat3, mat3mul, mat3ident} from './geometry';
 
 export class Color {
   clone(): Color { return new Color(); }
@@ -86,7 +86,7 @@ We need to be able to clone it since we need a copy when we process a
 were in the constructor, but there are a lot of variables!
 */
 export class GraphicsState {
-  ctMatrix: number[] = mat3ident; // defaults to the identity matrix
+  ctMatrix: Mat3 = mat3ident; // defaults to the identity matrix
   strokeColor: Color = new Color();
   fillColor: Color = new Color();
   lineWidth: number;
@@ -123,8 +123,15 @@ E.g., P13-4028.pdf breaks if textState carries out of the drawn object.
 export abstract class DrawingContext {
   resourcesStack: Resources[];
   graphicsStateStack: GraphicsState[];
-  textMatrix: number[];
-  textLineMatrix: number[];
+  /**
+  textMatrix is a full 3x3 transformation matrix, even though the values at
+  [2], [5], and [8] cannot be changed.
+  */
+  textMatrix: Mat3;
+  /**
+  textLineMatrix operates much like textMatrix; see the docs for textMatrix
+  */
+  textLineMatrix: Mat3;
 
   constructor(resources: Resources, graphicsState: GraphicsState) {
     this.resourcesStack = [resources];
@@ -153,9 +160,8 @@ export abstract class DrawingContext {
     // width_units is positive, but we want to move forward, so tx should be positive too
     const tx = (((width_units / 1000) * fontSize) + (charSpacing * chars) + (wordSpacing * spaces)) *
                (horizontalScaling / 100.0);
-    this.textMatrix = mat3mul([  1, 0, 0,
-                                 0, 1, 0,
-                                tx, 0, 1], this.textMatrix);
+    const [a, b,, c, d,, e, f] = this.textMatrix;
+    this.textMatrix = [a, b, 0, c, d, 0, tx * a + e, tx * b + f, 1];
     return tx;
   }
   /**
@@ -167,15 +173,14 @@ export abstract class DrawingContext {
   */
   protected getTextPosition(): Point {
     const {textState: {fontSize, horizontalScaling, rise}, ctMatrix} = this.graphicsState;
-    const base = [fontSize * (horizontalScaling / 100.0),          0, 0,
-                                                       0,   fontSize, 0,
-                                                       0,       rise, 1];
     // TODO: optimize this final matrix multiplication; we only need two of the
     // entries, and we discard the rest, so we don't need to calculate them in
     // the first place.
     const composedTransformation = mat3mul(this.textMatrix, ctMatrix);
-    const textRenderingMatrix = mat3mul(base, composedTransformation);
-    return {x: textRenderingMatrix[6], y: textRenderingMatrix[7]};
+    return {
+      x: (rise * composedTransformation[3]) + (composedTransformation[6]),
+      y: (rise * composedTransformation[4]) + (composedTransformation[7]),
+    };
   }
   /**
   Compute the current font size by combining a limited number of properties from
@@ -185,8 +190,8 @@ export abstract class DrawingContext {
   */
   protected getTextSize(): number {
     const {textState: {fontSize}, ctMatrix} = this.graphicsState;
-    const mat = mat3mul(this.textMatrix, ctMatrix);
-    return transformPoint({x: 0, y: fontSize}, mat[0], mat[3], mat[1], mat[4]).y;
+    const d = (this.textMatrix[3] * ctMatrix[1]) + (this.textMatrix[4] * ctMatrix[4]) + (this.textMatrix[5] * ctMatrix[7]);
+    return (d * fontSize);
   }
 
   // ###########################################################################
@@ -639,10 +644,10 @@ export abstract class DrawingContext {
   */
   adjustCurrentPosition(x: number, y: number) {
     // y is usually 0, and never positive in normal text.
-    const newTextMatrix = mat3mul([1, 0, 0,
-                                   0, 1, 0,
-                                   x, y, 1], this.textLineMatrix);
-    this.textMatrix = this.textLineMatrix = newTextMatrix;
+    const [a, b,, c, d,, e, f] = this.textLineMatrix;
+    this.textMatrix = this.textLineMatrix = [a, b, 0,
+                                             c, d, 0,
+                                             (x * a) + (y * c) + e, (x * b) + (y * d) + f, 1];
   }
   /** COMPLETE (ALIAS)
   > `x y TD`: Move to the start of the next line, offset from the start of the
@@ -666,9 +671,9 @@ export abstract class DrawingContext {
   setTextMatrix(a: number, b: number, c: number, d: number, e: number, f: number) {
     // calling setTextMatrix(1, 0, 0, 1, 0, 0) sets it to the identity matrix
     // e and f mark the x and y coordinates of the current position
-    const newTextMatrix = [a, b, 0,
-                           c, d, 0,
-                           e, f, 1];
+    const newTextMatrix: Mat3 = [a, b, 0,
+                                 c, d, 0,
+                                 e, f, 1];
     this.textMatrix = this.textLineMatrix = newTextMatrix;
   }
   /** COMPLETE (ALIAS)

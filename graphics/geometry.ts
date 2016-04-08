@@ -137,29 +137,31 @@ export function makeContainer<T extends Rectangle>(): Container<T> {
 
 */
 
+export type Mat3 = [number, number, number, number, number, number, number, number, number];
+
 /**
 Multiply two 3x3 matrices, returning a new 3x3 matrix representation.
 
 See 8.3.4 for a shortcut for avoiding full matrix multiplications.
 */
-export function mat3mul(A: number[], B: number[]): number[] {
+export function mat3mul(A: Mat3, B: Mat3): Mat3 {
   return [
-    (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]),
-    (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]),
-    (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]),
-    (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]),
-    (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]),
-    (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]),
-    (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]),
-    (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]),
-    (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8])
+    (A[0] * B[0]) + (A[1] * B[3]) + (A[2] * B[6]), // [0] a
+    (A[0] * B[1]) + (A[1] * B[4]) + (A[2] * B[7]), // [1] b
+    (A[0] * B[2]) + (A[1] * B[5]) + (A[2] * B[8]), // [2] 0
+    (A[3] * B[0]) + (A[4] * B[3]) + (A[5] * B[6]), // [3] c
+    (A[3] * B[1]) + (A[4] * B[4]) + (A[5] * B[7]), // [4] d
+    (A[3] * B[2]) + (A[4] * B[5]) + (A[5] * B[8]), // [5] 0
+    (A[6] * B[0]) + (A[7] * B[3]) + (A[8] * B[6]), // [6] e
+    (A[6] * B[1]) + (A[7] * B[4]) + (A[8] * B[7]), // [7] f
+    (A[6] * B[2]) + (A[7] * B[5]) + (A[8] * B[8]), // [8] 1
   ];
 }
 
 /**
 Add two 3x3 matrices, returning a new 3x3 matrix representation.
 */
-export function mat3add(A: number[], B: number[]): number[] {
+export function mat3add(A: Mat3, B: Mat3): Mat3 {
   return [
     A[0] + B[0], A[1] + B[1], A[2] + B[2],
     A[3] + B[3], A[4] + B[4], A[5] + B[5],
@@ -167,6 +169,6 @@ export function mat3add(A: number[], B: number[]): number[] {
   ];
 }
 
-export const mat3ident = [1, 0, 0,
-                          0, 1, 0,
-                          0, 0, 1];
+export const mat3ident: Mat3 = [1, 0, 0,
+                                0, 1, 0,
+                                0, 0, 1];
