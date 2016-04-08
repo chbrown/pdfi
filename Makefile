@@ -22,7 +22,6 @@ $(BIN)/tsc $(BIN)/_mocha $(BIN)/istanbul $(BIN)/coveralls:
 compile:
 	$(BIN)/tsc -d
 
-.PHONY: dev
 dev:
 	$(BIN)/tsc -d -w
 
@@ -31,28 +30,14 @@ test: $(TYPESCRIPT:%.ts=%.js) $(BIN)/istanbul $(BIN)/_mocha $(BIN)/coveralls
 	$(BIN)/istanbul cover $(BIN)/_mocha -- tests/ -R spec
 	cat coverage/lcov.info | $(BIN)/coveralls || true
 
-encoding/glyphlist.txt:
-	# glyphlist.txt is pure ASCII
-	curl -s http://partners.adobe.com/public/developer/en/opentype/glyphlist.txt >$@
+node_modules/pdfi-dev/build/glyphlist.ts node_modules/pdfi-dev/build/glyphmaps.ts:
+	npm install
 
-encoding/additional_glyphlist.txt:
-	curl -s https://raw.githubusercontent.com/apache/pdfbox/trunk/pdfbox/src/main/resources/org/apache/pdfbox/resources/glyphlist/additional.txt > $@
+encoding/glyphlist.ts: node_modules/pdfi-dev/build/glyphlist.ts
+	cp $< $@
 
-encoding/texglyphlist.txt:
-	curl -s https://www.tug.org/texlive/Contents/live/texmf-dist/fonts/map/glyphlist/texglyphlist.txt > $@
-
-encoding/truetype_glyphlist.txt: encoding/truetype_post_format1-mapping.tsv
-	paste -d ';' <(<$< cut -f 1 | xargs -n 1 printf 'G%02X\n') <(<$< cut -f 2 | node dev/encode_glyphs.js) |\
-    grep -v ';$$' >$@
-
-# texglyphlist uses some unconventional characters, so we read the standard glyphlist last
-encoding/glyphlist.ts: encoding/cmr-glyphlist.txt encoding/additional_glyphlist.txt \
-                       encoding/texglyphlist.txt encoding/truetype_glyphlist.txt encoding/glyphlist.txt
-	cat $^ | node dev/read_glyphlist.js >$@
-
-encoding/glyphmaps.ts: encoding/latin_charset.tsv
-	# encoding/latin_charset.tsv comes from PDF32000_2008.pdf: Appendix D.2
-	node dev/read_charset.js <$< >$@
+encoding/glyphmaps.ts: node_modules/pdfi-dev/build/glyphmaps.ts
+	cp $< $@
 
 clean:
 	$(MAKE) -C tests

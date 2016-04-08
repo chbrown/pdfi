@@ -30,6 +30,7 @@
     "istanbul": "*",
     "mocha": "*",
     "mocha-lcov-reporter": "*",
+    "pdfi-dev": "*",
     "typescript": "*"
   },
   "scripts": {
