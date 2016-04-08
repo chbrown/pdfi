@@ -33,7 +33,6 @@
     "typescript": "*"
   },
   "scripts": {
-    "prepublish": "make",
     "test": "make test"
   }
 }
