@@ -61,7 +61,11 @@ export abstract class Font extends Model {
 
   get Differences(): Array<number | string> {
     const Encoding = this.get('Encoding');
-    return Encoding ? Encoding['Differences'] : null;
+    if (Encoding) {
+      const Differences: any = new Model(this._pdf, Encoding['Differences']).object;
+      return Differences || null;
+    }
+    return null;
   }
 
   /**
