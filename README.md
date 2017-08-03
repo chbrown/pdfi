@@ -14,7 +14,7 @@
 
 ## Test
 
-Uses [mocha](http://visionmedia.github.io/mocha/).
+Uses [mocha](http://mochajs.org/).
 
 Run by calling `npm test` in the package's root directory.
 
