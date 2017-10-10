@@ -16,22 +16,22 @@
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
-    "academia": "*",
-    "afm": "*",
-    "chalk": "*",
-    "lexing": "*",
-    "pako": "*",
-    "tarry": "*",
-    "unorm": "*"
+    "academia": "0.4.3",
+    "afm": "0.3.0",
+    "chalk": "1.1.1",
+    "lexing": "0.8.1",
+    "pako": "1.0.4",
+    "tarry": "0.3.1",
+    "unorm": "1.4.1"
   },
   "devDependencies": {
-    "coveralls": "*",
-    "declarations": "*",
-    "istanbul": "*",
-    "mocha": "*",
-    "mocha-lcov-reporter": "*",
-    "pdfi-dev": "*",
-    "typescript": "*"
+    "coveralls": "2.11.8",
+    "declarations": "0.1.16",
+    "istanbul": "0.4.2",
+    "mocha": "2.4.5",
+    "mocha-lcov-reporter": "1.2.0",
+    "pdfi-dev": "0.0.3",
+    "typescript": "1.8.10"
   },
   "scripts": {
     "test": "make test"
