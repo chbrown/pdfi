@@ -49,6 +49,8 @@ coverage/
 /tests/encoding.d.ts
 /tests/filters.js
 /tests/filters.d.ts
+/tests/graphics.js
+/tests/graphics.d.ts
 /tests/numbers.js
 /tests/numbers.d.ts
 /tests/pdfobject.js

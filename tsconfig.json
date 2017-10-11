@@ -30,6 +30,7 @@
     "tests/consumers.ts",
     "tests/encoding.ts",
     "tests/filters.ts",
+    "tests/graphics.ts",
     "tests/numbers.ts",
     "tests/pdfobject.ts",
     "tests/textparser.ts",
