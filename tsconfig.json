@@ -5,7 +5,6 @@
     "target": "ES5"
   },
   "files": [
-    "buffer.d.ts",
     "encoding/ascii.ts",
     "encoding/index.ts",
     "encoding/glyphlist.ts",
