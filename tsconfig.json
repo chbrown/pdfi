@@ -5,10 +5,7 @@
     "target": "ES5"
   },
   "files": [
-    "node_modules/declarations/chalk/chalk.d.ts",
-    "node_modules/declarations/lib/buffer.d.ts",
-    "node_modules/declarations/pako/pako.d.ts",
-    "node_modules/declarations/unorm/unorm.d.ts",
+    "buffer.d.ts",
     "encoding/ascii.ts",
     "encoding/index.ts",
     "encoding/glyphlist.ts",
