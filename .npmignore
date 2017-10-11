@@ -19,6 +19,6 @@ models.ts
 PDF.ts
 pdfdom.ts
 util.ts
-Makefile
 tsconfig.json
 coverage/
+tests/

@@ -41,3 +41,11 @@
 /pdfdom.d.ts
 /util.d.ts
 coverage/
+/tests/cmap.js
+/tests/consumers.js
+/tests/encoding.js
+/tests/filters.js
+/tests/numbers.js
+/tests/pdfobject.js
+/tests/textparser.js
+/tests/xref.js

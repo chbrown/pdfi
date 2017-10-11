@@ -25,6 +25,14 @@
     "models.ts",
     "PDF.ts",
     "pdfdom.ts",
-    "util.ts"
+    "util.ts",
+    "tests/cmap.ts",
+    "tests/consumers.ts",
+    "tests/encoding.ts",
+    "tests/filters.ts",
+    "tests/numbers.ts",
+    "tests/pdfobject.ts",
+    "tests/textparser.ts",
+    "tests/xref.ts"
   ]
 }
