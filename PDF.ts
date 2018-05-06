@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {Source} from 'lexing';
 import {lastIndexOf} from 'lexing/source';

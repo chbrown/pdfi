@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 
 import {logger} from '../logger';
 import {Font} from '../font/index';
