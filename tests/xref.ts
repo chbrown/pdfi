@@ -4,7 +4,7 @@ import {PDFBufferIterator} from '../parsers/index';
 import {XREF} from '../parsers/states';
 
 function check(input, expected) {
-  const bufferIterable = new PDFBufferIterator(new Buffer(input), 0, null);
+  const bufferIterable = new PDFBufferIterator(Buffer.from(input), 0, null);
   var output =  new XREF(bufferIterable, 'binary', 1024).read();
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}

@@ -150,7 +150,7 @@ export function ASCII85Decode(ascii: Buffer): Buffer {
     }
   }
 
-  return new Buffer(bytes);
+  return Buffer.from(bytes);
 }
 
 /**
@@ -201,16 +201,16 @@ export function ASCIIHexDecode(ascii: List<number>): Buffer {
       break;
     }
     else {
-      const pair = new Buffer(token).toString('ascii');
+      const pair = Buffer.from(token).toString('ascii');
       const byte = parseInt(pair, 16);
       bytes.push(byte);
     }
   }
-  return new Buffer(bytes);
+  return Buffer.from(bytes);
 }
 
 export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
-  const inflated = new Buffer(inflate(<any>buffer));
+  const inflated = Buffer.from(inflate(<any>buffer));
   if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
     if (decodeParms.Predictor !== 12) {
       throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);
@@ -221,7 +221,7 @@ export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
     // https://forums.adobe.com/thread/664902
     const columns = decodeParms.Columns;
     const rows = inflated.length / (columns + 1);
-    const decoded = new Buffer(rows * columns); // decoded.fill(0);
+    const decoded = Buffer.alloc(rows * columns); // decoded.fill(0);
     inflated.copy(decoded, 0, 1, columns + 1);
     // assuming PNG predictor == 2
     for (let row = 1; row < rows; row++) {
@@ -331,7 +331,7 @@ export function LZWDecode(buffer: Buffer): Buffer {
       }
 
       // emit the table buffer, or a single character if there is no table entry
-      const outputChunk = (code < 255) ? new Buffer([code]) : table[code];
+      const outputChunk = (code < 255) ? Buffer.from([code]) : table[code];
       chunks.push(outputChunk);
       // add the corresponding new table entry
       const nextCode = bits.peek(codeLength);
@@ -354,7 +354,7 @@ export function LZWDecode(buffer: Buffer): Buffer {
         // otherwise we can look it up from the table entry
         nextPrefix = table[nextCode][0];
       }
-      const tableChunk = Buffer.concat([outputChunk, new Buffer([nextPrefix])]);
+      const tableChunk = Buffer.concat([outputChunk, Buffer.from([nextPrefix])]);
       table[tableIndex] = tableChunk;
 
       // finally, increment our table entry cursor

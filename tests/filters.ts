@@ -5,29 +5,29 @@ import * as decoders from '../filters/decoders';
 describe('pdf filters/decoders: ASCII85Decode', () => {
 
   it('should decode an ascii string', () => {
-    var output = decoders.ASCII85Decode(new Buffer('87cURD]j7BEbo80'));
-    deepEqual(output, new Buffer('Hello world!'));
+    var output = decoders.ASCII85Decode(Buffer.from('87cURD]j7BEbo80'));
+    deepEqual(output, Buffer.from('Hello world!'));
   });
 
   it('should decode an ascii string with an EOF marker', () => {
-    var output = decoders.ASCII85Decode(new Buffer('87cURD]j7BEbo80~>'));
-    deepEqual(output, new Buffer('Hello world!'));
+    var output = decoders.ASCII85Decode(Buffer.from('87cURD]j7BEbo80~>'));
+    deepEqual(output, Buffer.from('Hello world!'));
   });
 
   it('should decode a buffer of 0xFF bytes', () => {
-    var output = decoders.ASCII85Decode(new Buffer('s8W-!'));
-    deepEqual(output, new Buffer([255, 255, 255, 255]));
+    var output = decoders.ASCII85Decode(Buffer.from('s8W-!'));
+    deepEqual(output, Buffer.from([255, 255, 255, 255]));
   });
 
   it('should decode a random buffer of length 12', () => {
-    var output = decoders.ASCII85Decode(new Buffer("%V'A!!<ZDmrr"));
-    deepEqual(output, new Buffer([14, 99, 109, 203, 1, 3, 87, 155, 255]));
+    var output = decoders.ASCII85Decode(Buffer.from("%V'A!!<ZDmrr"));
+    deepEqual(output, Buffer.from([14, 99, 109, 203, 1, 3, 87, 155, 255]));
   });
 
   it('should decode a random buffer of length 5', () => {
     // e.g., comparison point: python3.4 >>> import base64; base64.a85encode(bytes([200, 8, 104, 63]))
-    var output = decoders.ASCII85Decode(new Buffer('a9ZHD'));
-    deepEqual(output, new Buffer([200, 8, 104, 63]));
+    var output = decoders.ASCII85Decode(Buffer.from('a9ZHD'));
+    deepEqual(output, Buffer.from([200, 8, 104, 63]));
   });
 
   it('should decode the leviathan example from wikipedia', () => {
@@ -38,8 +38,8 @@ describe('pdf filters/decoders: ASCII85Decode', () => {
       "l(DId<j@<?3r@:F%a+D58'ATD4$Bl@l3De:,-DJs`8ARoFb/0JMK@qB4^F!,R<AKZ&-DfTqBG%G",
       ">uD.RTpAKYo'+CT/5+Cei#DII?(E,9)oF*2M7/c",
     ].join('\n');
-    var output = decoders.ASCII85Decode(new Buffer(input));
-    deepEqual(output, new Buffer(`Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure.`));
+    var output = decoders.ASCII85Decode(Buffer.from(input));
+    deepEqual(output, Buffer.from(`Man is distinguished, not only by his reason, but by this singular passion from other animals, which is a lust of the mind, that by a perseverance of delight in the continued and indefatigable generation of knowledge, exceeds the short vehemence of any carnal pleasure.`));
   });
 
   it('should decode EXAMPLE 3 from PDF32000_2008.pdf:7.4.1', () => {
@@ -58,7 +58,7 @@ describe('pdf filters/decoders: LZWDecode', () => {
   |                                   | 0x4   |                   |
   */
   it('should iterate through a bit string correctly', () => {
-    var buffer = new Buffer([0x8F, 0x67]);
+    var buffer = Buffer.from([0x8F, 0x67]);
     var bits = new decoders.BitIterator(buffer);
     //
     var actual: number[] = [bits.next(9), bits.next(2), bits.next(5)];
@@ -66,7 +66,7 @@ describe('pdf filters/decoders: LZWDecode', () => {
   });
 
   it('should iterate through another bit string correctly', () => {
-    var buffer = new Buffer([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
+    var buffer = Buffer.from([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
     var bit_iterator = new decoders.BitIterator(buffer);
     //
     var actual: number[] = [];
@@ -79,9 +79,9 @@ describe('pdf filters/decoders: LZWDecode', () => {
   });
 
   it('should LZW decode the example from the PDF spec (7.4.4.2, Example 2)', () => {
-    var encoded = new Buffer([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
+    var encoded = Buffer.from([0x80, 0x0B, 0x60, 0x50, 0x22, 0x0C, 0x0C, 0x85, 0x01]);
     var actual = decoders.LZWDecode(encoded);
-    var expected = new Buffer([45, 45, 45, 45, 45, 65, 45, 45, 45, 66]);
+    var expected = Buffer.from([45, 45, 45, 45, 45, 65, 45, 45, 45, 66]);
     deepEqual(actual, expected);
   });
 });

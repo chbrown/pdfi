@@ -182,7 +182,7 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
   captureHex(matchValue: RegExpMatchArray): ContentStreamOperation[] {
     const hexstring = matchValue[1].replace(/\s+/g, '');
     // range(hexstring.length, 2).map(i => parseInt(hexstring.slice(i, i + 2), 16));
-    const buffer = new Buffer(hexstring, 'hex');
+    const buffer = Buffer.from(hexstring, 'hex');
     this.stack.push(buffer);
     return;
   }

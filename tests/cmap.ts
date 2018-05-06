@@ -3,7 +3,7 @@ import {deepEqual} from 'assert';
 import {parseCMap} from '../parsers/index';
 
 function check(input: string, expected: any) {
-  var output = parseCMap(new Buffer(input));
+  var output = parseCMap(Buffer.from(input));
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected)}`;

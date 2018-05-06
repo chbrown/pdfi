@@ -66,7 +66,7 @@ export function renderLayoutFromPage(page: Page, skipMissingCharacters = true) {
   // outerBounds is usually set by the Page's MediaBox rectangle. It does not depend
   // on the elements contained by the page.
   const outerBounds = makeRectangle(page.MediaBox[0], page.MediaBox[1], page.MediaBox[2], page.MediaBox[3]);
-  return renderLayout(outerBounds, page.joinContents(new Buffer('\n')), page.Resources, skipMissingCharacters);
+  return renderLayout(outerBounds, page.joinContents(Buffer.from('\n', 'ascii')), page.Resources, skipMissingCharacters);
 }
 
 export function renderLayoutFromContentStream(contentStream: ContentStream, skipMissingCharacters = true) {

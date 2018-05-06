@@ -8,7 +8,7 @@ Given a raw input string and expected output, parse the input and check that it
 is equivalent to the expectation.
 */
 function check(input, expected) {
-  const bufferIterable = new PDFBufferIterator(new Buffer(input), 0, null);
+  const bufferIterable = new PDFBufferIterator(Buffer.from(input), 0, null);
   var actual = new OBJECT(bufferIterable, 'binary', 1024).read();
   var message = `parse result does not match expected output.
         parse("${input}") => ${JSON.stringify(actual)}
@@ -21,7 +21,7 @@ describe('pdfobject parser: general objects', () => {
   it('should parse short binary string', () => {
     var input = `<ea68d4>`;
     // var output = ['ea', '68', 'd4'].map(pair => { return parseInt(pair, 16) }
-    var output = new Buffer([234, 104, 212]);
+    var output = Buffer.from([234, 104, 212]);
     check(input, output);
   });
 
@@ -29,7 +29,7 @@ describe('pdfobject parser: general objects', () => {
     var input = `(/G18/G19/G20\
 /G21/G22/G23\
 /G24)`;
-    var output = new Buffer('/G18/G19/G20/G21/G22/G23/G24');
+    var output = Buffer.from('/G18/G19/G20/G21/G22/G23/G24');
     check(input, output);
   });
 
@@ -53,8 +53,8 @@ describe('pdfobject parser: general objects', () => {
       },
       Prev: 632196,
       ID: [
-        new Buffer([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
-        new Buffer([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
+        Buffer.from([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
+        Buffer.from([126,25,234,104,212,124,213,132,24,187,144,1,119,110,128,139]),
       ]
     };
     check(input, output);
@@ -73,7 +73,7 @@ describe('pdfobject parser: general objects', () => {
       Info: 339,
       Root: 342,
       Prev: 632196,
-      ID: new Buffer("7e19 808b"),
+      ID: Buffer.from("7e19 808b"),
     };
     check(input, output);
   });
@@ -81,10 +81,10 @@ describe('pdfobject parser: general objects', () => {
   it('should parse real dictionary object', () => {
     var input = `<< /Author (Kenneth Ward Church) /CreationDate (D:20020326140046-05'00') /ModDate (D:20020403103951-05'00') /Title (Char align: A Program for Aligning Parallel Texts at the Character Level) >>`;
     var output = {
-      Author: new Buffer('Kenneth Ward Church'),
-      CreationDate: new Buffer("D:20020326140046-05'00'"),
-      ModDate: new Buffer("D:20020403103951-05'00'"),
-      Title: new Buffer('Char align: A Program for Aligning Parallel Texts at the Character Level'),
+      Author: Buffer.from('Kenneth Ward Church'),
+      CreationDate: Buffer.from("D:20020326140046-05'00'"),
+      ModDate: Buffer.from("D:20020403103951-05'00'"),
+      Title: Buffer.from('Char align: A Program for Aligning Parallel Texts at the Character Level'),
     };
     check(input, output);
   });
@@ -149,7 +149,7 @@ describe('pdfobject parser: general objects', () => {
           },
         },
       },
-      DA: new Buffer("/Helv 0 Tf 0 g "),
+      DA: Buffer.from("/Helv 0 Tf 0 g "),
     };
     check(input, output);
   });
@@ -205,7 +205,7 @@ endstream`;
       dictionary: {
         Length: 25,
       },
-      buffer: new Buffer(`hello there
+      buffer: Buffer.from(`hello there
 i am a stream`),
     };
     check(input, output);
@@ -221,7 +221,7 @@ endstream`;
         BBox: [0, 0, 10, 10],
         Length: 0,
       },
-      buffer: new Buffer(0),
+      buffer: Buffer.alloc(0),
     };
     check(input, output);
   });

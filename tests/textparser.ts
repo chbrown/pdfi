@@ -32,7 +32,7 @@ function renderString(content_stream_string: string): string[] {
 
   // prepare context
   const resources = createMockResources();
-  const paragraphs = renderLayout(outerBounds, new Buffer(content_stream_string), resources);
+  const paragraphs = renderLayout(outerBounds, Buffer.from(content_stream_string), resources);
 
   // extract text spans strings
   const textSpans = flatMap(paragraphs, paragraph =>

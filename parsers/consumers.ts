@@ -17,7 +17,7 @@ function createBufferEqualityTest(expected: List<number>): BufferTest {
 }
 
 function createStringEqualityTest(expected: string, encoding = 'utf8'): BufferTest {
-  return createBufferEqualityTest(new Buffer(expected, encoding));
+  return createBufferEqualityTest(Buffer.from(expected, encoding));
 }
 
 /**
@@ -45,7 +45,7 @@ The string consumer just reads a (nestable) string until the end, without any
 processing, so it returns a standard Buffer.
 */
 export function consumeString(iterable: BufferIterable,
-                              state: Buffer = new Buffer(0),
+                              state: Buffer = Buffer.alloc(0),
                               peekLength = 1024): Buffer {
   const buffer = iterable.peek(peekLength);
   let matchLength: number;
@@ -59,33 +59,33 @@ export function consumeString(iterable: BufferIterable,
   else if ((matchLength = beginStringTest(buffer)) > 0) {
     iterable.skip(matchLength);
     const nestedState = consumeString(iterable);
-    const newState = Buffer.concat([state, new Buffer('('), nestedState, new Buffer(')')]);
+    const newState = Buffer.concat([state, Buffer.from('(', 'ascii'), nestedState, Buffer.from(')', 'ascii')]);
     return consumeString(iterable, newState);
   }
   // capture 3-digit octal character codes / escapes like \053 (= 43 = "+")
   else if ((matchLength = octalTest(buffer)) > 0) {
     const match = iterable.next(matchLength);
     const byte = parseInt(match.toString('ascii', 1, 4), 8);
-    const newState = Buffer.concat([state, new Buffer([byte])]);
+    const newState = Buffer.concat([state, Buffer.from([byte])]);
     return consumeString(iterable, newState);
   }
   // escaped control characters; these are kind of weird, not sure if they're legitimate
   // '\\'+'n' => \n
   else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_N) {
     iterable.skip(2);
-    const newState = Buffer.concat([state, new Buffer([ascii.LINE_FEED])]);
+    const newState = Buffer.concat([state, Buffer.from([ascii.LINE_FEED])]);
     return consumeString(iterable, newState);
   }
   // '\\'+'r' => \r
   else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_R) {
     iterable.skip(2);
-    const newState = Buffer.concat([state, new Buffer([ascii.CARRIAGE_RETURN])]);
+    const newState = Buffer.concat([state, Buffer.from([ascii.CARRIAGE_RETURN])]);
     return consumeString(iterable, newState);
   }
   // '\\'+'f' => \f
   else if (buffer[0] === ascii.REVERSE_SOLIDUS && buffer[1] === ascii.LATIN_SMALL_LETTER_F) {
     iterable.skip(2);
-    const newState = Buffer.concat([state, new Buffer([ascii.FORM_FEED])]);
+    const newState = Buffer.concat([state, Buffer.from([ascii.FORM_FEED])]);
     return consumeString(iterable, newState);
   }
   // '\\'+'\n' or '\\'+'\r' => nothing
@@ -142,7 +142,7 @@ export function consumeHexString(iterable: BufferIterable,
     if (hexString.length % 2 === 1) {
       hexString += '0';
     }
-    return new Buffer(hexString, 'hex');
+    return Buffer.from(hexString, 'hex');
   }
   // From PDF32000_2008.pdf:7.3.4.3
   // White-space characters (such as SPACE (20h), HORIZONTAL TAB (09h),
