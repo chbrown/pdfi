@@ -13,7 +13,6 @@
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com>",
   "dependencies": {
-    "@types/chalk": "^2.2.0",
     "@types/pako": "^1.0.0",
     "@types/unorm": "^1.3.27",
     "academia": "0.4.3",
