@@ -3,4 +3,4 @@
 tsconfig.json
 
 .travis.yml
-tests/
+test/
