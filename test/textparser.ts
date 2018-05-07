@@ -1,4 +1,5 @@
-import {deepEqual} from 'assert';
+import test from 'ava';
+
 import {flatMap} from 'tarry';
 
 import {Resources} from '../models';
@@ -43,16 +44,14 @@ function renderString(content_stream_string: string): string[] {
   return textSpans.map(({text}) => text);
 }
 
-describe('Graphics text parsing:', () => {
-  it('should parse a simple text show operation', () => {
-    const actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
-    const expected = ['Adjustments must'];
-    deepEqual(actual, expected);
-  });
+test('Graphics text: should parse a simple text show operation', t => {
+  const actual = renderString('/F10 11 Tf BT (Adjustments must) Tj ET');
+  const expected = ['Adjustments must'];
+  t.deepEqual(actual, expected);
+});
 
-  it('should parse a nested string', () => {
-    const actual = renderString('/F10 11 Tf BT (In case of \\(dire\\) emergency) Tj ET');
-    const expected = ['In case of (dire) emergency'];
-    deepEqual(actual, expected);
-  });
+test('Graphics text: should parse a nested string', t => {
+  const actual = renderString('/F10 11 Tf BT (In case of \\(dire\\) emergency) Tj ET');
+  const expected = ['In case of (dire) emergency'];
+  t.deepEqual(actual, expected);
 });

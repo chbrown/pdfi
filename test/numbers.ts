@@ -1,25 +1,23 @@
-import {ok as assert} from 'assert';
+import test from 'ava';
 
-describe('Numbers', () => {
-  it('that should look numeric', () => {
-    assert(!isNaN(<any>'3'));
-    assert(!isNaN(<any>'34'));
-    assert(!isNaN(<any>'-1'));
-    assert(!isNaN(<any>'100.0'));
-    assert(!isNaN(3));
-    assert(!isNaN(34));
-    assert(!isNaN(-1));
-    assert(!isNaN(100.0));
-  });
-  it('that should not look numeric', () => {
-    assert(isNaN(<any>'3g'));
-    assert(isNaN(<any>'10K'));
-    assert(isNaN(<any>'four'));
-    assert(isNaN(undefined));
-    assert(isNaN(<any>'-5-6-8'));
-  });
-  it('that should not look numeric but do', () => {
-    assert(!isNaN(null));
-    assert(!isNaN(<any>false));
-  });
+test('Numbers that should look numeric', t => {
+  t.true(!isNaN(<any>'3'));
+  t.true(!isNaN(<any>'34'));
+  t.true(!isNaN(<any>'-1'));
+  t.true(!isNaN(<any>'100.0'));
+  t.true(!isNaN(3));
+  t.true(!isNaN(34));
+  t.true(!isNaN(-1));
+  t.true(!isNaN(100.0));
+});
+test('Numbers that should not look numeric', t => {
+  t.true(isNaN(<any>'3g'));
+  t.true(isNaN(<any>'10K'));
+  t.true(isNaN(<any>'four'));
+  t.true(isNaN(undefined));
+  t.true(isNaN(<any>'-5-6-8'));
+});
+test('Numbers that should not look numeric but do', t => {
+  t.true(!isNaN(null));
+  t.true(!isNaN(<any>false));
 });

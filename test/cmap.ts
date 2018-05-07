@@ -1,18 +1,17 @@
-import {deepEqual} from 'assert';
+import test, {ExecutionContext} from 'ava';
 
 import {parseCMap} from '../parsers/index';
 
-function check(input: string, expected: any) {
+function check(input: string, expected: any, t: ExecutionContext) {
   var output = parseCMap(Buffer.from(input));
   var message = `parse result does not match expected output.
       parse("${input}") => ${JSON.stringify(output)}
       but should == ${JSON.stringify(expected)}`;
-  deepEqual(output, expected, message);
+  t.deepEqual(output, expected, message);
 }
 
-describe('CMap parsing:', () => {
-  it('should parse simple byteLength=1 bfrange', () => {
-    var input = `/CIDInit /ProcSet findresource begin
+test('CMap parser should parse simple byteLength=1 bfrange', t => {
+  var input = `/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
 /CMapType 2 def
@@ -29,22 +28,22 @@ endbfrange
 endcmap
 CMapName currentdict /CMap defineresource pop
 end end`;
-    var expected = {
-      "codeSpaceRanges": [{"low":0, "high":255}],
-      "mappings": [
-        {"src":0, "dst":"−", "byteLength":1},
-        {"src":1, "dst":"·", "byteLength":1},
-        {"src":2, "dst":"×", "byteLength":1},
-        {"src":20, "dst":"≤", "byteLength":1},
-        {"src":21, "dst":"≥", "byteLength":1},
-      ],
-      "byteLength": 1,
-    };
-    check(input, expected);
-  });
+  var expected = {
+    "codeSpaceRanges": [{"low":0, "high":255}],
+    "mappings": [
+      {"src":0, "dst":"−", "byteLength":1},
+      {"src":1, "dst":"·", "byteLength":1},
+      {"src":2, "dst":"×", "byteLength":1},
+      {"src":20, "dst":"≤", "byteLength":1},
+      {"src":21, "dst":"≥", "byteLength":1},
+    ],
+    "byteLength": 1,
+  };
+  check(input, expected, t);
+});
 
-  it('should parse simple byteLength=2 bfchar', () => {
-    var input = `/CIDInit /ProcSet findresource begin
+test('CMap parser should parse simple byteLength=2 bfchar', t => {
+  var input = `/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
 /CIDSystemInfo
@@ -64,21 +63,21 @@ endcmap
 CMapName currentdict /CMap defineresource pop
 end
 end`;
-    var expected = {
-      "codeSpaceRanges": [{"low":0, "high":65535}],
-      "mappings": [
-        {"src":271, "dst":"b", "byteLength":2},
-        {"src":1004, "dst":"0", "byteLength":2},
-        {"src":1005, "dst":"1", "byteLength":2},
-        {"src":1006, "dst":"2", "byteLength":2},
-      ],
-      "byteLength": 2,
-    };
-    check(input, expected);
-  });
+  var expected = {
+    "codeSpaceRanges": [{"low":0, "high":65535}],
+    "mappings": [
+      {"src":271, "dst":"b", "byteLength":2},
+      {"src":1004, "dst":"0", "byteLength":2},
+      {"src":1005, "dst":"1", "byteLength":2},
+      {"src":1006, "dst":"2", "byteLength":2},
+    ],
+    "byteLength": 2,
+  };
+  check(input, expected, t);
+});
 
-  it('should parse single bfchar', () => {
-    var input = `/CIDInit /ProcSet findresource begin
+test('CMap parser should parse single bfchar', t => {
+  var input = `/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
 /CIDSystemInfo
@@ -93,24 +92,24 @@ endcodespacerange
 <0078> <2022>
 endbfchar
 endcmap CMapName currentdict /CMap defineresource pop end end`;
-    var expected = {
-      "codeSpaceRanges": [{"low":0, "high":65535}],
-      "mappings": [
-        {"src":120, "dst":"•", "byteLength":2},
-      ],
-      "byteLength": 2,
-    };
-    check(input, expected);
-  });
+  var expected = {
+    "codeSpaceRanges": [{"low":0, "high":65535}],
+    "mappings": [
+      {"src":120, "dst":"•", "byteLength":2},
+    ],
+    "byteLength": 2,
+  };
+  check(input, expected, t);
+});
 
-  it('should parse multiple bfchars and bfrange', () => {
-    var input = `/CIDInit /ProcSet findresource begin
+test('CMap parser should parse multiple bfchars and bfrange', t => {
+  var input = `/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
 /CIDSystemInfo <<
-  /Registry (Adobe)
-  /Ordering (UCS)
-  /Supplement 0
+/Registry (Adobe)
+/Ordering (UCS)
+/Supplement 0
 >> def
 /CMapName /Adobe-Identity-UCS def
 /CMapType 2 def
@@ -135,27 +134,27 @@ endcmap
 CMapName currentdict /CMap defineresource pop
 end
 end`;
-    var expected = {
-      "codeSpaceRanges": [
-        {"low": 0, "high": 255},
-      ],
-      "mappings": [
-        {"src": 44, "dst": "\t\r  ", "byteLength": 1},
-        {"src": 67, "dst": "-­‐", "byteLength": 1},
-        {"src": 33, "dst": "1", "byteLength": 1},
-        {"src": 34, "dst": ".", "byteLength": 1},
-        {"src": 35, "dst": "I", "byteLength": 1},
-        {"src": 36, "dst": "n", "byteLength": 1},
-        {"src": 37, "dst": "t", "byteLength": 1},
-        {"src": 38, "dst": "r", "byteLength": 1},
-      ],
-      "byteLength": 1,
-    };
-    check(input, expected);
-  });
+  var expected = {
+    "codeSpaceRanges": [
+      {"low": 0, "high": 255},
+    ],
+    "mappings": [
+      {"src": 44, "dst": "\t\r  ", "byteLength": 1},
+      {"src": 67, "dst": "-­‐", "byteLength": 1},
+      {"src": 33, "dst": "1", "byteLength": 1},
+      {"src": 34, "dst": ".", "byteLength": 1},
+      {"src": 35, "dst": "I", "byteLength": 1},
+      {"src": 36, "dst": "n", "byteLength": 1},
+      {"src": 37, "dst": "t", "byteLength": 1},
+      {"src": 38, "dst": "r", "byteLength": 1},
+    ],
+    "byteLength": 1,
+  };
+  check(input, expected, t);
+});
 
-  it('should parse multiple code space ranges', () => {
-    var input = `%!PS-Adobe-3.0 Resource-CMap
+test('CMap parser should parse multiple code space ranges', t => {
+  var input = `%!PS-Adobe-3.0 Resource-CMap
 %%DocumentNeededResources: ProcSet (CIDInit)
 %%IncludeResource: ProcSet (CIDInit)
 %%BeginResource: CMap (90ms-RKSJ-H)
@@ -197,19 +196,17 @@ CMapName currentdict /CMap defineresource pop end
 end
 %%EndResource
 %%EOF`;
-    var expected = {
-      "codeSpaceRanges": [
-        {"low": 0, "high": 128},
-        {"low": 33088, "high": 40956},
-        {"low": 160, "high": 223},
-        {"low": 57408, "high": 64764},
-      ],
-      "mappings": [],
-      "byteLength": 1,
-    };
-    check(input, expected);
-  });
-
+  var expected = {
+    "codeSpaceRanges": [
+      {"low": 0, "high": 128},
+      {"low": 33088, "high": 40956},
+      {"low": 160, "high": 223},
+      {"low": 57408, "high": 64764},
+    ],
+    "mappings": [],
+    "byteLength": 1,
+  };
+  check(input, expected, t);
 });
 
 // /CIDInit /ProcSet findresource begin

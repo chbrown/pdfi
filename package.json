@@ -25,20 +25,18 @@
     "unorm": "^1.4.1"
   },
   "devDependencies": {
-    "@types/mocha": "^2.2.43",
     "@types/node": "^9.6.12",
-    "coveralls": "2.11.8",
-    "istanbul": "0.4.2",
-    "mocha": "2.4.5",
-    "mocha-lcov-reporter": "1.2.0",
+    "ava": "1.0.0-beta.4",
+    "coveralls": "^3.0.1",
+    "nyc": "^11.7.1",
     "pdfi-dev": "0.0.3",
     "typescript": "2.8.3"
   },
   "scripts": {
     "prepare": "tsc -d",
     "pretest": "tsc",
-    "test": "istanbul cover _mocha -- test/ -R spec",
-    "posttest": "coveralls < coverage/lcov.info || true",
+    "test": "nyc ava",
+    "posttest": "nyc report --reporter=text-lcov | coveralls || true",
     "clean": "tsc -d --listEmittedFiles | sed 's/^TSFILE: //' | xargs rm -v; rm -rfv coverage"
   }
 }
