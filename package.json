@@ -29,7 +29,6 @@
     "ava": "1.0.0-beta.4",
     "coveralls": "^3.0.1",
     "nyc": "^11.7.1",
-    "pdfi-dev": "0.0.3",
     "typescript": "2.8.3"
   },
   "scripts": {
@@ -37,6 +36,6 @@
     "pretest": "tsc",
     "test": "nyc ava",
     "posttest": "nyc report --reporter=text-lcov | coveralls || true",
-    "clean": "tsc -d --listEmittedFiles | sed 's/^TSFILE: //' | xargs rm -v; rm -rfv coverage"
+    "clean": "tsc -d --listEmittedFiles | sed 's/^TSFILE: //' | xargs rm -v"
   }
 }
