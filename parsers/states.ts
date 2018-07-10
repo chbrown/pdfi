@@ -6,7 +6,7 @@ import {makeString} from '../util';
 import {applyFilters} from '../filters/decoders';
 
 import {consumeString, consumeHexString} from './consumers';
-import {MachineRule as Rule, MachineState} from './machine';
+import {MachineRule as Rule, MachineState, MachineCallback} from './machine';
 
 /**
 Unescape all #-escaped sequences in a name.
