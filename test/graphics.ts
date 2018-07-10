@@ -1,7 +1,6 @@
 import test from 'ava';
 
-import {Rectangle, makeRectangle, distanceToRectangle, formatRectangle, containsRectangle} from '../graphics/geometry';
-import {Container, mergeContainer} from '../graphics/geometry';
+import {makeRectangle, distanceToRectangle, formatRectangle, containsRectangle} from '../graphics/geometry';
 
 test('graphics should measure distances between rectangles', t => {
   const unitRect = makeRectangle(0, 0, 1, 1);
@@ -12,7 +11,7 @@ test('graphics should measure distances between rectangles', t => {
 
 test('graphics should format rectangle string', t => {
   const unitRect = makeRectangle(0, 0, 1, 1);
-  t.deepEqual("[0, 0, 1, 1]", formatRectangle(unitRect));
+  t.deepEqual('[0, 0, 1, 1]', formatRectangle(unitRect));
 });
 
 test('graphics should detect rectangle containment', t => {

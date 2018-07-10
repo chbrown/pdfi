@@ -8,10 +8,10 @@ import {makeRectangle} from '../graphics/geometry';
 
 function createMockResources(): Resources {
   const font_object = {
-    Type: "Font",
-    Subtype: "Type1",
+    Type: 'Font',
+    Subtype: 'Type1',
     Encoding: {
-      Type: "Encoding",
+      Type: 'Encoding',
       Differences: [],
     },
     Widths: [],
