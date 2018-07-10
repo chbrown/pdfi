@@ -1,15 +1,14 @@
 import {Paper} from 'academia/types';
-import {assign, flatMap, mean, median, quantile} from 'tarry';
+import {flatMap, quantile} from 'tarry';
 
-import {logger} from '../logger';
 import {Page, ContentStream, Resources} from '../models';
 import {normalize} from '../encoding/index';
 import {Multiset, unwrapLines} from '../util';
 
 import {
   transformPoint,
-  Rectangle, makeRectangle, distanceToRectangle, formatRectangle, boundingRectangle,
-  Container, makeContainer, addElements, mergeContainer,
+  Rectangle, makeRectangle,
+  Container,
 } from './geometry';
 import {groupLines, groupColumns, partitionWords, splitParagraphs} from './layout';
 import {TextAtom, TextAtomDrawingContext} from './stream';
@@ -58,7 +57,7 @@ export function renderLayout(outerBounds: Rectangle,
     ({minX, minY, maxX, maxY, elements: partitionWords(elements)}));
   const columns = groupColumns(lineContainers);
   // columns -> paragraphs is a reconfiguration of containers, not a nesting as the others are
-  const paragraphs = flatMap(columns, column => splitParagraphs(column));
+  const paragraphs = flatMap(columns, splitParagraphs);
   return paragraphs;
 }
 

@@ -1,5 +1,3 @@
-import {logger} from '../logger';
-import {Encoding} from '../encoding/index';
 import * as glyphmaps from '../encoding/glyphmaps';
 import {Model, ContentStream} from '../models';
 import {mergeArray} from '../util';
@@ -69,7 +67,7 @@ export class FontDescriptor extends Model {
   private getType1FontProgramClearText(): string {
     const Type1FontProgram = new ContentStream(this._pdf, this.object['FontFile']);
     if (Type1FontProgram.object) {
-      const Length1 = <number>Type1FontProgram.dictionary['Length1'];
+      const Length1 = Type1FontProgram.dictionary.Length1 as number;
       return Type1FontProgram.buffer.toString('ascii', 0, Length1);
     }
   }

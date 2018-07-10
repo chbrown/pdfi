@@ -210,7 +210,7 @@ export function ASCIIHexDecode(ascii: List<number>): Buffer {
 }
 
 export function FlateDecode(buffer: Buffer, decodeParms: DecodeParms): Buffer {
-  const inflated = Buffer.from(inflate(<any>buffer));
+  const inflated = Buffer.from(inflate(buffer as Uint8Array));
   if (decodeParms && decodeParms.Predictor && decodeParms.Columns) {
     if (decodeParms.Predictor !== 12) {
       throw new Error(`Unsupported DecodeParms.Predictor value: "${decodeParms.Predictor}"`);

@@ -1,12 +1,11 @@
-import chalk from 'chalk';
 
 import {logger} from '../logger';
 import {Font} from '../font/index';
 import {Resources} from '../models';
-import {clone, checkArguments} from '../util';
-import {parseContentStream, ContentStreamOperation} from '../parsers/index';
+import {clone} from '../util';
+import {parseContentStream} from '../parsers/index';
 
-import {Point, transformPoint, Size, Rectangle, formatRectangle, Mat3, mat3mul, mat3ident} from './geometry';
+import {Point, Size, Mat3, mat3mul, mat3ident} from './geometry';
 
 export class Color {
   clone(): Color { return new Color(); }
@@ -160,7 +159,7 @@ export abstract class DrawingContext {
     // width_units is positive, but we want to move forward, so tx should be positive too
     const tx = (((width_units / 1000) * fontSize) + (charSpacing * chars) + (wordSpacing * spaces)) *
                (horizontalScaling / 100.0);
-    const [a, b,, c, d,, e, f] = this.textMatrix;
+    const [a, b, , c, d, , e, f] = this.textMatrix;
     this.textMatrix = [a, b, 0, c, d, 0, tx * a + e, tx * b + f, 1];
     return tx;
   }
@@ -376,7 +375,7 @@ export abstract class DrawingContext {
   `h`
   */
   closePath() {
-    logger.debug(`Ignoring closePath() operation`);
+    logger.debug('Ignoring closePath() operation');
   }
   /**
   > `x y width height re`: Append a rectangle to the current path as a complete
@@ -396,7 +395,7 @@ export abstract class DrawingContext {
   > `S`: Stroke the path.
   */
   stroke() {
-    logger.debug(`Ignoring stroke() operation`);
+    logger.debug('Ignoring stroke() operation');
   }
   /** ALIAS
   > `s`: Close and stroke the path. This operator shall have the same effect as the sequence h S.
@@ -410,7 +409,7 @@ export abstract class DrawingContext {
   */
   fill() {
     // this.closePath(); ?
-    logger.debug(`Ignoring fill() operation`);
+    logger.debug('Ignoring fill() operation');
   }
   /** ALIAS
   > `F`: Equivalent to f; included only for compatibility. Although PDF reader applications shall be able to accept this operator, PDF writer applications should use f instead.
@@ -422,20 +421,20 @@ export abstract class DrawingContext {
   > `f*`: Fill the path, using the even-odd rule to determine the region to fill.
   */
   fillEvenOdd() {
-    logger.debug(`Ignoring fillEvenOdd() operation`);
+    logger.debug('Ignoring fillEvenOdd() operation');
   }
   /**
   > `B`: Fill and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall produce the same result as constructing two identical path objects, painting the first with f and the second with S.
   > NOTE The filling and stroking portions of the operation consult different values of several graphics state parameters, such as the current colour.
   */
   fillThenStroke() {
-    logger.debug(`Ignoring fillAndStroke() operation`);
+    logger.debug('Ignoring fillAndStroke() operation');
   }
   /**
   > `B*`: Fill and then stroke the path, using the even-odd rule to determine the region to fill. This operator shall produce the same result as B, except that the path is filled as if with f* instead of f.
   */
   fillThenStrokeEvenOdd() {
-    logger.debug(`Ignoring fillAndStrokeEvenOdd() operation`);
+    logger.debug('Ignoring fillAndStrokeEvenOdd() operation');
   }
   /** ALIAS
   > `b`: Close, fill, and then stroke the path, using the nonzero winding number rule to determine the region to fill. This operator shall have the same effect as the sequence h B.
@@ -455,7 +454,7 @@ export abstract class DrawingContext {
   > `n`: End the path object without filling or stroking it. This operator shall be a path- painting no-op, used primarily for the side effect of changing the current clipping path.
   */
   closePathNoop() {
-    logger.debug(`Ignoring closePathNoop() operation`);
+    logger.debug('Ignoring closePathNoop() operation');
   }
   // ---------------------------------------------------------------------------
   //                           Color operators
@@ -546,10 +545,10 @@ export abstract class DrawingContext {
   // ---------------------------------------------------------------------------
   // Inline Image Operators (BI, ID, EI)
   beginInlineImage() {
-    logger.debug(`Ignoring beginInlineImage() operation`);
+    logger.debug('Ignoring beginInlineImage() operation');
   }
   endInlineImage(...args: any[]) {
-    logger.debug(`Ignoring endInlineImage() operation`);
+    logger.debug('Ignoring endInlineImage() operation');
   }
   // ---------------------------------------------------------------------------
   // Clipping Path Operators (W, W*)
@@ -557,13 +556,13 @@ export abstract class DrawingContext {
   > `W`: Modify the current clipping path by intersecting it with the current path, using the nonzero winding number rule to determine which regions lie inside the clipping path.
   */
   clip() {
-    logger.debug(`Ignoring clip() operation`);
+    logger.debug('Ignoring clip() operation');
   }
   /**
   > `W*`: Modify the current clipping path by intersecting it with the current path, using the even-odd rule to determine which regions lie inside the clipping path.
   */
   clipEvenOdd() {
-    logger.debug(`Ignoring clipEvenOdd() operation`);
+    logger.debug('Ignoring clipEvenOdd() operation');
   }
   // ---------------------------------------------------------------------------
   // Text objects (BT, ET)
@@ -644,7 +643,7 @@ export abstract class DrawingContext {
   */
   adjustCurrentPosition(x: number, y: number) {
     // y is usually 0, and never positive in normal text.
-    const [a, b,, c, d,, e, f] = this.textLineMatrix;
+    const [a, b, , c, d, , e, f] = this.textLineMatrix;
     this.textMatrix = this.textLineMatrix = [a, b, 0,
                                              c, d, 0,
                                              (x * a) + (y * c) + e, (x * b) + (y * d) + f, 1];
@@ -771,7 +770,7 @@ export abstract class DrawingContext {
   > `EMC`: End a marked-content sequence begun by a BMC or BDC operator.
   */
   endMarkedContent() {
-    logger.debug(`Ignoring endMarkedContent() operation`);
+    logger.debug('Ignoring endMarkedContent() operation');
   }
 }
 

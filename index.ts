@@ -5,7 +5,7 @@ import {tuplesToObject} from 'tarry';
 
 import {logger, Level} from './logger';
 import {PDF} from './PDF';
-import {IndirectReference, Model, ContentStream} from './models';
+import {Model} from './models';
 import {decodeBuffer} from './encoding/index';
 
 export function setLoggerLevel(level: Level) {
@@ -63,7 +63,7 @@ export function simplify(value: any, seen: any[] = []): any {
     return value;
   }
   else if (value instanceof Model) {
-    const object = (<Model>value).object;
+    const object = value.object;
     return simplify(object, seen);
   }
   else if (Buffer.isBuffer(value)) {
@@ -85,7 +85,7 @@ export function simplify(value: any, seen: any[] = []): any {
     }
     seen.push(value);
     // maybe something less function, more loopy, with a hasOwnProperty check?
-    return tuplesToObject(<any>Object.keys(value).map(key => ([key, simplify(value[key], seen)])));
+    return tuplesToObject(Object.keys(value).map(key => ([key, simplify(value[key], seen)] as [string, any])));
   }
   // catch-all
   return value;

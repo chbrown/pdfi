@@ -5,7 +5,7 @@ import {Encoding, expandDifferences, decodeGlyphname} from '../encoding/index';
 import glyphlist from '../encoding/glyphlist';
 import * as glyphmaps from '../encoding/glyphmaps';
 import {logger} from '../logger';
-import {PDF, Model, ContentStream, Resources} from '../models';
+import {PDF, Model, ContentStream} from '../models';
 import {parseCMap} from '../parsers/index';
 import {PDFObject} from '../pdfdom';
 import {memoize, mergeArray, readCharCodes} from '../util';
@@ -55,7 +55,7 @@ export abstract class Font extends Model {
       return Encoding['BaseEncoding'];
     }
     if (typeof Encoding == 'string') {
-      return <string>Encoding;
+      return Encoding;
     }
   }
 
@@ -73,7 +73,7 @@ export abstract class Font extends Model {
   Maybe not always?
   */
   get BaseFont(): string {
-    return <string>this.get('BaseFont');
+    return this.get('BaseFont') as string;
   }
 
   /**
@@ -374,13 +374,13 @@ export class Type1Font extends Font {
     // Try using the local Widths, etc., configuration first.
     // TODO: avoid this BaseFont_name hack and resolve TrueType fonts properly
     const BaseFont_name = this.BaseFont ? this.BaseFont.split(',')[0] : null;
-    const Widths = <number[]>new Model(this._pdf, this.get('Widths')).object;
+    const Widths = new Model(this._pdf, this.get('Widths')).object as number[];
     // FontMatrix and multiple should only technically be used for Type3 fonts
-    const FontMatrix = <number[]>this.get('FontMatrix');
+    const FontMatrix = this.get('FontMatrix') as number[];
     const multiplier = FontMatrix ? (FontMatrix[0] / 0.001) : 1;
     // logger.debug(`Font[${this.Name}] Using width multiplier ${multiplier}`);
     if (Widths) {
-      const FirstChar = <number>this.get('FirstChar');
+      const FirstChar = this.get('FirstChar') as number;
       // TODO: verify LastChar?
       this._widthMapping = {};
       Widths.forEach((width, width_index) => {
@@ -488,7 +488,7 @@ export class CIDFont extends Model {
 
   get W(): Array<number | number[]> {
     const model = new Model(this._pdf, this.object['W']);
-    return <Array<number | number[]>>model.object;
+    return model.object as Array<number | number[]>;
   }
 
   getDefaultWidth(): number {
@@ -522,15 +522,15 @@ export class CIDFont extends Model {
     const length = cid_widths.length;
     while (index < length) {
       if (Array.isArray(cid_widths[index + 1])) {
-        const starting_cid_value = <number>cid_widths[index];
-        const widths = <number[]>cid_widths[index + 1];
+        const starting_cid_value = cid_widths[index] as number;
+        const widths = cid_widths[index + 1] as number[];
         addConsecutive(starting_cid_value, widths);
         index += 2;
       }
       else {
-        const c_first = <number>cid_widths[index];
-        const c_last = <number>cid_widths[index + 1];
-        const width = <number>cid_widths[index + 2];
+        const c_first = cid_widths[index] as number;
+        const c_last = cid_widths[index + 1] as number;
+        const width = cid_widths[index + 2] as number;
         addRange(c_first, c_last, width);
         index += 3;
       }

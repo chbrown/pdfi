@@ -6,16 +6,12 @@ import {
 
 import {logger} from '../logger';
 import {
-  OBJECT,
-  STARTXREF,
-  XREF_WITH_TRAILER,
   CONTENT_STREAM,
   CMAP,
   ContentStreamOperation,
   CMap,
 } from './states';
 import {PDF} from '../models';
-import {PDFObject, IndirectObject} from '../pdfdom';
 
 import {MachineStateConstructor} from './machine';
 
@@ -70,7 +66,7 @@ export function parseStateAt<T, I>(source: Source,
     return new STATE(iterable, encoding, peekLength).read();
   }
   catch (exc) {
-    logger.error(`Error trying to parse ${STATE['name']}: ${chalk.red(exc.message)}`);
+    logger.error(`Error trying to parse ${STATE.name}: ${chalk.red(exc.message)}`);
     printContext(source, position, iterable.position);
 
     throw exc;

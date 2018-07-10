@@ -1,8 +1,8 @@
-import {flatMap, mean, median, quantile} from 'tarry';
+import {median} from 'tarry';
 
 import {
-  Rectangle, distanceToRectangle, formatRectangle, boundingRectangle,
-  Container, makeContainer, addElements, mergeContainer,
+  Rectangle, distanceToRectangle,
+  Container, makeContainer, addElements,
 } from './geometry';
 
 /**

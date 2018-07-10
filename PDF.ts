@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import {Paper} from 'academia/types';
 import {Source} from 'lexing';
 import {lastIndexOf} from 'lexing/source';
@@ -117,10 +116,10 @@ export class PDF {
   getModel<T extends models.Model>(object_number: number,
                                    generation_number: number,
                                    ctor: { new(pdf: PDF, object: pdfdom.PDFObject): T }): T {
-    const model_id = `${ctor['name']}(${object_number}:${generation_number})`;
+    const model_id = `${ctor.name}(${object_number}:${generation_number})`;
     // the type coersion below assumes that the caller read the doc comment
     // on this function.
-    let cached_model = <T>this._cached_models[model_id];
+    let cached_model = this._cached_models[model_id] as T;
     if (cached_model === undefined) {
       const object = this.getObject(object_number, generation_number);
       cached_model = this._cached_models[model_id] = new ctor(this, object);
@@ -191,10 +190,8 @@ export class PDF {
   This is useful in the PDFObjectParser stream hack, but shouldn't be used elsewhere.
   */
   _resolveObject(object: pdfdom.PDFObject): pdfdom.PDFObject {
-    // type-assertion hack, sry. Why do you make it so difficult, TypeScript?
     if (models.IndirectReference.isIndirectReference(object)) {
-      const reference = <pdfdom.IndirectReference>object;
-      return this.getObject(reference.object_number, reference.generation_number);
+      return this.getObject(object.object_number, object.generation_number);
     }
     return object;
   }

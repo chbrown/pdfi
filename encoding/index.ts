@@ -1,5 +1,5 @@
 import {nfkc} from 'unorm';
-import {readCharCodes, swapEndian} from '../util';
+import {swapEndian} from '../util';
 
 /**
 glyphlist is a mapping from PDF glyph names to unicode strings
@@ -184,7 +184,7 @@ export function decodeBuffer(buffer: Buffer): string {
     return swapEndian(buffer).toString('utf16le');
   }
   const chunks: string[] = [];
-  for (var i = 0, l = buffer.length; i < l; i++) {
+  for (let i = 0, l = buffer.length; i < l; i++) {
     chunks.push(PDFDocUnicode[buffer[i]]);
   }
   return chunks.join('');

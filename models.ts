@@ -1,7 +1,5 @@
-import {BufferIterator} from 'lexing';
 import {asArray, flatMap, groups, assign} from 'tarry';
 
-import {logger} from './logger';
 import {PDFBufferIterator} from './parsers/index';
 import {OBJECT} from './parsers/states';
 import {IndirectObject, PDFObject, Rectangle, DictionaryObject} from './pdfdom';
@@ -26,9 +24,9 @@ where the object's Type indicates useful ways it may be processed.
 export class IndirectReference {
   constructor(public object_number: number, public generation_number: number) { }
 
-  static isIndirectReference(object): boolean {
+  static isIndirectReference(object: any): object is IndirectReference {
     if (object === undefined || object === null) return false;
-    return (object['object_number'] !== undefined) && (object['generation_number'] !== undefined);
+    return (object.object_number !== undefined) && (object.generation_number !== undefined);
   }
   /**
   Create an IndirectReference from an "object[:reference=0]" string.

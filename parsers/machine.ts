@@ -1,6 +1,4 @@
-import {BufferIterable} from 'lexing';
 
-import {PDF} from '../PDF';
 import {PDFBufferIterable} from './index';
 
 // mostly copied and modified from lexing
@@ -23,10 +21,10 @@ export class MachineState<T, I> {
               protected peekLength: number = 1024) { }
 
   private get name(): string {
-    return this.constructor['name'];
+    return this.constructor.name;
   }
   pop(): T {
-    return <any>this.value;
+    return this.value as any;
   }
   ignore(): T {
     return undefined;
@@ -36,9 +34,9 @@ export class MachineState<T, I> {
   }
   read(): T {
     while (1) {
-      var input = this.iterable.peek(this.peekLength).toString(this.encoding);
-      var match: RegExpMatchArray;
-      for (var i = 0, rule: MachineRule<T>; (rule = this.rules[i]); i++) {
+      const input = this.iterable.peek(this.peekLength).toString(this.encoding);
+      let match: RegExpMatchArray;
+      for (let i = 0, rule: MachineRule<T>; (rule = this.rules[i]); i++) {
         // rule[0] is the RegExp; rule[1] is the instance method to call on success
         match = input.match(rule[0]);
         if (match !== null) {
@@ -46,12 +44,12 @@ export class MachineState<T, I> {
           const matchByteLength = Buffer.byteLength(match[0], this.encoding);
           this.iterable.skip(matchByteLength);
           // apply the matched transition
-          var result = rule[1].call(this, match);
+          const result = rule[1].call(this, match);
           if (result !== undefined) {
             return result;
           }
           if (input.length === 0) {
-            throw new Error(`EOF reached without termination; cannot continue`);
+            throw new Error('EOF reached without termination; cannot continue');
           }
           // break out of the for loop while match is still defined
           break;
@@ -61,7 +59,7 @@ export class MachineState<T, I> {
       // If at some point in the input iterable we run through all the patterns
       // and none of them match, we cannot proceed further.
       if (match === null) {
-        var clean_input = input.slice(0, 128).replace(/\r\n|\r/g, '\n').replace(/\t|\v|\f/g, ' ').replace(/\0|\b/g, '');
+        const clean_input = input.slice(0, 128).replace(/\r\n|\r/g, '\n').replace(/\t|\v|\f/g, ' ').replace(/\0|\b/g, '');
         throw new Error(`Invalid language; could not find a match in input "${clean_input}" for state "${this.name}"`);
       }
     }

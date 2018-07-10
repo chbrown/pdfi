@@ -1,5 +1,5 @@
 export function clone(source: any, target: any = {}): any {
-  for (let key in source) {
+  for (const key in source) {
     if (source.hasOwnProperty(key)) {
       if (source[key] === null || source[key] === undefined) {
         target[key] = source[key];
@@ -27,7 +27,7 @@ export function memoize<T>(target: Object,
   const get = descriptor.get;
   const memoizedPropertyKey = `_memoized_${propertyKey}`;
   descriptor.get = function() {
-    let got = memoizedPropertyKey in this;
+    const got = memoizedPropertyKey in this;
     // `got` will be true if this memoize has been called before, even if
     // the result at the time was `undefined`.
     // I.e., after calling `obj['myProp'] = undefined`, `'myProp' in obj`
@@ -59,7 +59,7 @@ export function checkArguments(argument_options: any[]) {
     // descriptor.value has type T; this decorator should only be called on
     // normal functions, so T is a function
     const originalFn = descriptor.value;
-    const checkedFunction: T = <any>function() {
+    const checkedFunction: T = function() {
       const errors: string[] = [];
       for (let i = 0; i < argument_options.length; i++) {
         const value_type = typeOf(arguments[i]);
@@ -71,7 +71,7 @@ export function checkArguments(argument_options: any[]) {
         throw new TypeError(`Type mismatch: ${errors.join(', ')}`);
       }
       return originalFn.apply(this, arguments);
-    }
+    } as any
     const wrapper = {};
     wrapper[propertyKey + '_checked'] = checkedFunction
     descriptor.value = wrapper[propertyKey + '_checked'];
@@ -148,10 +148,10 @@ Simpler special purpose version of something like https://github.com/substack/en
 */
 export function swapEndian(buffer: Buffer): Buffer {
   let byte: number;
-  for (var i = 0, l = buffer.length - 1; i < l; i += 2) {
+  for (let i = 0, l = buffer.length - 1; i < l; i += 2) {
     byte = buffer[i];
-    buffer[i] = buffer[i+1];
-    buffer[i+1] = byte;
+    buffer[i] = buffer[i + 1];
+    buffer[i + 1] = byte;
   }
   return buffer;
 }

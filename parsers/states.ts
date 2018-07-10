@@ -1,12 +1,12 @@
 import {asArray, groups, flatMap, range, assign} from 'tarry';
 
 import {logger} from '../logger';
-import {CrossReference, IndirectObject, IndirectReference, PDFObject, DictionaryObject} from '../pdfdom';
+import {CrossReference, PDFObject, DictionaryObject} from '../pdfdom';
 import {makeString} from '../util';
 import {applyFilters} from '../filters/decoders';
 
 import {consumeString, consumeHexString} from './consumers';
-import {MachineRule as Rule, MachineState, MachineCallback} from './machine';
+import {MachineRule as Rule, MachineState} from './machine';
 
 /**
 Unescape all #-escaped sequences in a name.
@@ -174,7 +174,7 @@ export class CONTENT_STREAM extends MachineState<ContentStreamOperation[], Conte
     this.value.push({
       operands: this.stack,
       operator: 'EI',
-      alias: content_stream_operator_aliases['EI'],
+      alias: content_stream_operator_aliases.EI,
     });
     this.stack = [];
     return;
@@ -257,9 +257,9 @@ export class DICTIONARY extends MachineState<DictionaryObject, DictionaryObject>
   the PDF, so that we can call pdf._resolveObject on the object reference.
   */
   popStream(matchValue: RegExpMatchArray): DictionaryObject {
-    let stream_length = this.value['Length'];
+    let stream_length = this.value.Length;
     if (typeof stream_length !== 'number') {
-      const pdf = this.iterable['pdf'];
+      const pdf = this.iterable.pdf;
       if (pdf === undefined) {
         throw new Error('Cannot read stream unless a PDF instance is attached to the underlying iterable');
       }
@@ -688,7 +688,7 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
   }
   captureArray(matchValue: RegExpMatchArray): CharMapping[] {
     // the ARRAY substate should find an array of hexstrings
-    const array = <Buffer[]>this.attachState(ARRAY).read();
+    const array = this.attachState(ARRAY).read() as Buffer[];
     this.stack.push(array);
     return;
   }
@@ -697,7 +697,7 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
     if (this.stack.length !== 3) {
       throw new Error(`Parsing BFRANGE failed; argument stack must be 3-long: ${this.stack}`);
     }
-    const [src_code_lo_buffer, src_code_hi_buffer, dst] = <[Buffer, Buffer, Buffer | Buffer[]]>this.stack;
+    const [src_code_lo_buffer, src_code_hi_buffer, dst] = this.stack as [Buffer, Buffer, Buffer | Buffer[]];
     const byteLength = src_code_lo_buffer.length;
     if (src_code_hi_buffer.length !== byteLength) {
       throw new Error(`Parsing BFRANGE failed; high offset has byteLength=${src_code_hi_buffer.length} but low offset has byteLength=${byteLength}`);
@@ -709,7 +709,7 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
 
     if (Array.isArray(dst)) {
       // dst is an array of Buffers
-      const dst_array = <Buffer[]>dst;
+      const dst_array = dst;
       if ((src_code_offset + 1) !== dst_array.length) {
         throw new Error(`Parsing BFRANGE failed; destination offset array has length=${dst.length} but high (${src_code_hi}) - low (${src_code_lo}) = ${src_code_offset} (${dst_array.map(buffer => buffer.toString('hex'))})`);
       }
@@ -718,23 +718,23 @@ export class BFRANGE extends MachineState<CharMapping[], CharMapping[]> {
         this.value.push({
           src: src_code_lo + i,
           dst: decodeUTF16BE(dst_buffer),
-          byteLength: byteLength,
+          byteLength,
         });
       }
     }
     else {
       // dst is a single Buffer. each of the characters from lo to hi get transformed by the offset
-      const dst_buffer = <Buffer>dst;
+      const dst_buffer = dst;
       if (dst_buffer.length > 4) {
         throw new Error(`bfchar dst is a buffer larger than 32 bytes: ${dst_buffer.toString('hex')}; only numbers smaller than 32 bytes can be converted to characters.`);
       }
       const dst_code_lo = decodeNumber(dst_buffer);
       for (let i = 0; i <= src_code_offset; i++) {
-        let dst_code = dst_code_lo + i;
+        const dst_code = dst_code_lo + i;
         this.value.push({
           src: src_code_lo + i,
           dst: ucsChar(dst_code),
-          byteLength: byteLength,
+          byteLength,
         });
       }
     }
