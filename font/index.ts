@@ -44,6 +44,10 @@ material purposes (and is not necessary for any).
 export abstract class Font extends Model {
   public Name: string;
 
+  get Subtype(): string {
+    return this.get('Subtype');
+  }
+
   /**
   This returns the object's `Encoding.BaseEncoding`, if it exists, or
   the plain `Encoding` value, if it's a string.
@@ -260,14 +264,14 @@ export abstract class Font extends Model {
   toJSON() {
     return {
       Type: 'Font',
-      Subtype: this.get('Subtype'),
+      Subtype: this.Subtype,
       BaseFont: this.BaseFont,
     };
   }
 
-  static isFont(object): boolean {
+  static isFont(object: any): object is Font {
     if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font';
+    return object.Type === 'Font';
   }
 
   /**
@@ -408,9 +412,9 @@ export class Type1Font extends Font {
     }
   }
 
-  static isType1Font(object): boolean {
+  static isType1Font(object: any): object is Type1Font {
     if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font' && object['Subtype'] === 'Type1';
+    return object.Type === 'Font' && object.Subtype === 'Type1';
   }
 }
 
@@ -457,9 +461,9 @@ export class Type0Font extends Font {
     }, 0);
   }
 
-  static isType0Font(object): boolean {
+  static isType0Font(object: any): object is Type0Font {
     if (object === undefined || object === null) return false;
-    return object['Type'] === 'Font' && object['Subtype'] === 'Type0';
+    return object.Type === 'Font' && object.Subtype === 'Type0';
   }
 }
 

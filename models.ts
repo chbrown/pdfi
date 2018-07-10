@@ -22,7 +22,8 @@ where the object's Type indicates useful ways it may be processed.
 */
 
 export class IndirectReference {
-  constructor(public object_number: number, public generation_number: number) { }
+  constructor(public object_number: number,
+              public generation_number: number) { }
 
   static isIndirectReference(object: any): object is IndirectReference {
     if (object === undefined || object === null) return false;
@@ -78,9 +79,9 @@ export class Model {
   a whole new Model.
   */
   get(key: string): any {
-    let value = this.object[key];
-    if (value !== undefined && value['object_number'] !== undefined && value['generation_number'] !== undefined) {
-      value = this._pdf.getObject(value['object_number'], value['generation_number']);
+    const value = this.object[key];
+    if (IndirectReference.isIndirectReference(value)) {
+      return this._pdf.getObject(value.object_number, value.generation_number);
     }
     return value;
   }
@@ -282,9 +283,9 @@ export class ContentStream extends Model {
     };
   }
 
-  static isContentStream(object): boolean {
+  static isContentStream(object: any): object is ContentStream {
     if (object === undefined || object === null) return false;
-    return (object['dictionary'] !== undefined) && (object['buffer'] !== undefined);
+    return (object.dictionary !== undefined) && (object.buffer !== undefined);
   }
 }
 
